@@ -1,0 +1,20 @@
+{
+  "name": "language",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently -k \"npm run dev -w client\" \"npm run dev -w server\"",
+    "build": "npm run build -w client && npm run build -w server",
+    "client:dev": "npm run dev -w client",
+    "server:dev": "npm run dev -w server",
+    "prisma:generate": "npm run prisma:generate -w server",
+    "prisma:migrate": "npm run prisma:migrate -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

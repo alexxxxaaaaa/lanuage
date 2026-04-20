@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Folder {
+  id       String @id @default(uuid())
+  name     String
+  language String
+  words    Word[]
+}
+
+model Word {
+  id        String   @id @default(uuid())
+  word      String
+  reading   String
+  meaning   String
+  example   String
+  note      String
+  language  String
+  folderId  String
+  folder    Folder   @relation(fields: [folderId], references: [id])
+  review    Review?
+  createdAt DateTime @default(now())
+}
+
+model Review {
+  id             String   @id @default(uuid())
+  wordId         String   @unique
+  word           Word     @relation(fields: [wordId], references: [id])
+  interval       Int      @default(1)
+  repetition     Int      @default(0)
+  easeFactor     Float    @default(2.5)
+  nextReviewDate DateTime
+  lastReviewedAt DateTime?
+}
