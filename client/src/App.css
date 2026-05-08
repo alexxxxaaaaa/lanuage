@@ -978,7 +978,7 @@ button:disabled,
   display: grid;
   width: 560px;
   max-width: 100%;
-  height: 360px;
+  min-height: 360px;
   margin: 0 auto;
   padding: 0;
   border: none;
@@ -995,11 +995,13 @@ button:disabled,
   gap: 12px;
   width: 560px;
   max-width: 100%;
-  height: 360px;
+  min-height: 360px;
+  max-height: 70vh;
   padding: 32px;
   border-radius: 24px;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   backface-visibility: hidden;
   box-shadow: var(--shadow);
   transition:
@@ -1105,7 +1107,8 @@ button:disabled,
 
   .flip-card,
   .flip-card-face {
-    height: 300px;
+    min-height: 280px;
+    max-height: 75vh;
   }
 
   .flip-card strong {
@@ -1138,11 +1141,25 @@ button:disabled,
 
 @media (max-width: 768px) {
   .app-shell {
-    padding: 24px 16px 40px;
+    padding: 16px 12px 32px;
   }
 
   .app-header {
     flex-direction: column;
+    margin-bottom: 20px;
+    gap: 12px;
+  }
+
+  .brand {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .nav {
+    width: 100%;
+    gap: 8px;
   }
 
   .nav-search {
@@ -1153,6 +1170,88 @@ button:disabled,
   .nav-search input {
     width: 100%;
     max-width: none;
+  }
+
+  .nav a {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .nav-language {
+    padding: 4px 8px;
+  }
+
+  /* Page padding */
+  .page {
+    padding: 0;
+  }
+
+  .card {
+    padding: 16px 14px;
+    border-radius: 14px;
+  }
+
+  /* Forms / inputs more touch-friendly */
+  input,
+  select,
+  textarea {
+    font-size: 16px; /* prevent iOS zoom-on-focus */
+  }
+
+  /* Review session controls */
+  .review-meta-right {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .session-inline select {
+    min-height: 36px;
+  }
+
+  /* Recall input row */
+  .recall-input-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .recall-input-row .primary-button {
+    width: 100%;
+  }
+
+  /* Quick add float button: shrink and avoid edges */
+  .quick-add-float {
+    inset-inline-end: 16px !important;
+    bottom: 84px !important;
+  }
+}
+
+/* Smaller phones */
+@media (max-width: 480px) {
+  .flip-card strong {
+    font-size: 24px;
+  }
+
+  .nav a {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .auth-card {
+    padding: 24px 20px;
+  }
+
+  .hero-count {
+    font-size: 44px !important;
+  }
+}
+
+/* PWA standalone display: respect safe areas */
+@supports (padding: max(0px)) {
+  .app-shell {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    padding-bottom: max(32px, env(safe-area-inset-bottom));
   }
 }
 

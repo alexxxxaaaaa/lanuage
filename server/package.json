@@ -16,8 +16,9 @@
     "export:sqlite-to-d1-sql": "node --import tsx scripts/exportSqliteToD1Sql.ts",
     "wrangler:dev": "wrangler dev",
     "wrangler:deploy": "wrangler deploy",
-    "d1:migrations:apply:remote": "wrangler d1 migrations apply word-sprint-db --remote",
-    "d1:migrations:apply:local": "wrangler d1 migrations apply word-sprint-db --local"
+    "d1:schema:apply:remote": "wrangler d1 execute word-sprint-db --remote --file=./prisma/migrations/20260508113011_init/migration.sql",
+    "d1:schema:apply:local": "wrangler d1 execute word-sprint-db --local --file=./prisma/migrations/20260508113011_init/migration.sql",
+    "d1:seed:remote": "wrangler d1 execute word-sprint-db --remote --file=./d1_seed.sql"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.2",

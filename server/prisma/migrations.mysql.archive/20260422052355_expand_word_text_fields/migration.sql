@@ -1,4 +1,0 @@
--- AlterTable
-ALTER TABLE `Word` MODIFY `meaning` TEXT NOT NULL,
-    MODIFY `example` LONGTEXT NOT NULL,
-    MODIFY `note` TEXT NOT NULL;

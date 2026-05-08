@@ -8,4 +8,10 @@ client/dist
 server/node_modules
 server/dist
 server/.env
+server/d1_seed.sql
+server/prisma/dev.db
+server/prisma/dev.db-journal
+server/prisma/migrations.mysql.archive/
+server/prisma/schema.mysql.prisma.backup
 .specstory
+.wrangler/

@@ -66,10 +66,39 @@ const SUPPORTED_LANGUAGES: SupportedLanguage[] = ["en", "jp"];
 function getDefaultModel() {
   return getEnv("OPENAI_MODEL")?.trim() || "gpt-4.1-mini";
 }
-const MAX_OUTPUT_TOKENS = 250;
-const MAX_OUTPUT_TOKENS_EXTENDED = 600;
-const MAX_QUIZ_OUTPUT_TOKENS = 180;
-const MAX_EXPRESSION_OUTPUT_TOKENS = 280;
+const MAX_OUTPUT_TOKENS = 180;
+const MAX_OUTPUT_TOKENS_EXTENDED = 400;
+const MAX_QUIZ_OUTPUT_TOKENS = 130;
+const MAX_EXPRESSION_OUTPUT_TOKENS = 200;
+
+const DAILY_TOKEN_BUDGET_DEFAULT = 50000;
+
+function getDailyTokenBudget(): number {
+  const raw = getEnv("DAILY_AI_TOKEN_BUDGET");
+  const parsed = raw ? Number(raw) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DAILY_TOKEN_BUDGET_DEFAULT;
+}
+
+async function assertWithinDailyBudget(userId: string) {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+
+  const result = await prisma.aiUsageLog.aggregate({
+    where: { userId, createdAt: { gte: start, lte: end } },
+    _sum: { totalTokens: true },
+  });
+
+  const used = result._sum.totalTokens ?? 0;
+  const budget = getDailyTokenBudget();
+  if (used >= budget) {
+    throw new AppError(
+      `今日 AI 用量已达上限 (${used.toLocaleString()} / ${budget.toLocaleString()} tokens)，请明天再试`,
+      429,
+    );
+  }
+}
 
 let openaiClient: OpenAI | null = null;
 
@@ -334,6 +363,8 @@ export async function fillWordByAi(input: FillWordInput) {
     throw new AppError("language must be en or jp", 400);
   }
 
+  await assertWithinDailyBudget(input.userId);
+
   const client = getOpenAIClient();
   const completion = await client.chat.completions.create({
     model: getDefaultModel(),
@@ -437,6 +468,8 @@ export async function generateWordQuizByAi(input: QuizWordInput) {
     throw new AppError("language must be en or jp", 400);
   }
 
+  await assertWithinDailyBudget(input.userId);
+
   const client = getOpenAIClient();
   const completion = await client.chat.completions.create({
     model: getDefaultModel(),
@@ -487,6 +520,8 @@ export async function generateExpressionCasualByAi(
     throw new AppError("language must be en or jp", 400);
   }
 
+  await assertWithinDailyBudget(input.userId);
+
   const client = getOpenAIClient();
   const completion = await client.chat.completions.create({
     model: getDefaultModel(),
@@ -535,6 +570,8 @@ export async function translateExpressionToZhByAi(
   if (!SUPPORTED_LANGUAGES.includes(input.language)) {
     throw new AppError("language must be en or jp", 400);
   }
+
+  await assertWithinDailyBudget(input.userId);
 
   const client = getOpenAIClient();
   const completion = await client.chat.completions.create({

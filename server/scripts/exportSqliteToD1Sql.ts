@@ -19,7 +19,7 @@ function sqlValue(v: unknown): string {
   if (v === null || v === undefined) return 'NULL'
   if (typeof v === 'number') return String(v)
   if (typeof v === 'boolean') return v ? '1' : '0'
-  if (v instanceof Date) return `'${v.toISOString().replace('T', ' ').replace('Z', '')}'`
+  if (v instanceof Date) return `'${v.toISOString()}'`
   return `'${String(v).replace(/'/g, "''")}'`
 }
 

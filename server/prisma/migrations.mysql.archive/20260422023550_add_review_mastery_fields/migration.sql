@@ -1,4 +1,0 @@
--- AlterTable
-ALTER TABLE `Review` ADD COLUMN `difficultyScore` INTEGER NOT NULL DEFAULT 0,
-    ADD COLUMN `lastRating` VARCHAR(191) NOT NULL DEFAULT '',
-    ADD COLUMN `recentRatings` VARCHAR(191) NOT NULL DEFAULT '';
