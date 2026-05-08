@@ -153,11 +153,11 @@ export function QuickAddWordFloat({
         language: selectedFolder.language,
         sourceNoteId: form.sourceNoteId || undefined,
         word,
-        reading: form.reading.trim() || undefined,
-        meaning: form.meaning.trim() || undefined,
-        example: form.example.trim() || undefined,
-        note: form.note.trim() || undefined,
-        partOfSpeech: form.partOfSpeech.trim() || undefined,
+        reading: form.reading.trim(),
+        meaning: form.meaning.trim(),
+        example: form.example.trim(),
+        note: form.note.trim(),
+        partOfSpeech: form.partOfSpeech.trim(),
       })
       Modal.success({ title: '添加成功' })
       setOpen(false)
