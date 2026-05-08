@@ -2,7 +2,7 @@
   "name": "server",
   "private": true,
   "version": "1.0.0",
-  "type": "commonjs",
+  "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
@@ -11,21 +11,34 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "node --import tsx prisma/seed.ts",
     "prisma:studio": "prisma studio",
-    "reviews:backfill": "node --import tsx scripts/backfillMissingReviews.ts"
+    "reviews:backfill": "node --import tsx scripts/backfillMissingReviews.ts",
+    "migrate:mysql-to-sqlite": "node --import tsx scripts/migrateMysqlToSqlite.ts",
+    "export:sqlite-to-d1-sql": "node --import tsx scripts/exportSqliteToD1Sql.ts",
+    "wrangler:dev": "wrangler dev",
+    "wrangler:deploy": "wrangler deploy",
+    "d1:migrations:apply:remote": "wrangler d1 migrations apply word-sprint-db --remote",
+    "d1:migrations:apply:local": "wrangler d1 migrations apply word-sprint-db --local"
   },
   "dependencies": {
+    "@hono/node-server": "^2.0.2",
+    "@prisma/adapter-d1": "^7.8.0",
     "@prisma/client": "^6.19.3",
-    "cors": "^2.8.6",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.9.0",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1",
+    "hono": "^4.12.18",
+    "jose": "^6.2.3",
+    "mysql2": "^3.22.3",
     "openai": "^6.34.0"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
+    "@cloudflare/workers-types": "^4.20260508.1",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.12.2",
     "prisma": "^6.19.3",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "wrangler": "^4.90.0"
   }
 }

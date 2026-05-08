@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { prisma } from "../lib/prisma";
+import { getEnv } from "../lib/env";
 import { AppError } from "../errors/AppError";
 
 type SupportedLanguage = "en" | "jp";
@@ -8,6 +9,7 @@ type FillWordInput = {
   word: string;
   language: SupportedLanguage;
   extended?: boolean;
+  userId: string;
 };
 
 type FillWordResult = {
@@ -26,6 +28,7 @@ type QuizWordInput = {
   meaning: string;
   example: string;
   language: SupportedLanguage;
+  userId: string;
 };
 
 type QuizWordResult = {
@@ -38,6 +41,7 @@ type QuizWordResult = {
 type ExpressionCasualInput = {
   zhText: string;
   language?: SupportedLanguage;
+  userId: string;
 };
 
 type ExpressionCasualResult = {
@@ -50,6 +54,7 @@ type ExpressionCasualResult = {
 type ExpressionTranslateInput = {
   text: string;
   language: SupportedLanguage;
+  userId: string;
 };
 
 type ExpressionTranslateResult = {
@@ -58,7 +63,9 @@ type ExpressionTranslateResult = {
 };
 
 const SUPPORTED_LANGUAGES: SupportedLanguage[] = ["en", "jp"];
-const DEFAULT_MODEL = process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini";
+function getDefaultModel() {
+  return getEnv("OPENAI_MODEL")?.trim() || "gpt-4.1-mini";
+}
 const MAX_OUTPUT_TOKENS = 250;
 const MAX_OUTPUT_TOKENS_EXTENDED = 600;
 const MAX_QUIZ_OUTPUT_TOKENS = 180;
@@ -67,7 +74,7 @@ const MAX_EXPRESSION_OUTPUT_TOKENS = 280;
 let openaiClient: OpenAI | null = null;
 
 function getOpenAIClient() {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  const apiKey = getEnv("OPENAI_API_KEY")?.trim();
   if (!apiKey) {
     throw new AppError("OPENAI_API_KEY is not configured", 500);
   }
@@ -170,7 +177,7 @@ function buildQuizPrompt(input: QuizWordInput) {
   ].join("\n");
 }
 
-function buildExpressionCasualPrompt(input: ExpressionCasualInput) {
+function buildExpressionCasualPrompt(input: { zhText: string; language?: SupportedLanguage }) {
   const target = input.language === "jp" ? "Japanese" : "English";
   const outputRule =
     input.language === "jp"
@@ -188,7 +195,7 @@ function buildExpressionCasualPrompt(input: ExpressionCasualInput) {
   ].join("\n");
 }
 
-function buildExpressionTranslatePrompt(input: ExpressionTranslateInput) {
+function buildExpressionTranslatePrompt(input: { text: string; language: SupportedLanguage }) {
   const sourceLabel = input.language === "jp" ? "Japanese" : "English";
   return [
     `Translate the following ${sourceLabel} spoken expression into natural Simplified Chinese.`,
@@ -329,7 +336,7 @@ export async function fillWordByAi(input: FillWordInput) {
 
   const client = getOpenAIClient();
   const completion = await client.chat.completions.create({
-    model: DEFAULT_MODEL,
+    model: getDefaultModel(),
     response_format: { type: "json_object" },
     messages: [
       {
@@ -356,11 +363,12 @@ export async function fillWordByAi(input: FillWordInput) {
     data: {
       word,
       language,
-      model: DEFAULT_MODEL,
+      model: getDefaultModel(),
       feature: "word_fill",
       promptTokens: usage?.prompt_tokens ?? 0,
       completionTokens: usage?.completion_tokens ?? 0,
       totalTokens: usage?.total_tokens ?? 0,
+      userId: input.userId,
     },
   });
 
@@ -371,7 +379,7 @@ export async function fillWordByAi(input: FillWordInput) {
   }
 
   const retryCompletion = await client.chat.completions.create({
-    model: DEFAULT_MODEL,
+    model: getDefaultModel(),
     response_format: { type: "json_object" },
     messages: [
       {
@@ -398,11 +406,12 @@ export async function fillWordByAi(input: FillWordInput) {
     data: {
       word,
       language,
-      model: DEFAULT_MODEL,
+      model: getDefaultModel(),
       feature: "word_fill",
       promptTokens: retryUsage?.prompt_tokens ?? 0,
       completionTokens: retryUsage?.completion_tokens ?? 0,
       totalTokens: retryUsage?.total_tokens ?? 0,
+      userId: input.userId,
     },
   });
 
@@ -430,7 +439,7 @@ export async function generateWordQuizByAi(input: QuizWordInput) {
 
   const client = getOpenAIClient();
   const completion = await client.chat.completions.create({
-    model: DEFAULT_MODEL,
+    model: getDefaultModel(),
     response_format: { type: "json_object" },
     messages: [
       {
@@ -456,11 +465,12 @@ export async function generateWordQuizByAi(input: QuizWordInput) {
     data: {
       word,
       language: input.language,
-      model: DEFAULT_MODEL,
+      model: getDefaultModel(),
       feature: "word_quiz",
       promptTokens: usage?.prompt_tokens ?? 0,
       completionTokens: usage?.completion_tokens ?? 0,
       totalTokens: usage?.total_tokens ?? 0,
+      userId: input.userId,
     },
   });
 
@@ -479,7 +489,7 @@ export async function generateExpressionCasualByAi(
 
   const client = getOpenAIClient();
   const completion = await client.chat.completions.create({
-    model: DEFAULT_MODEL,
+    model: getDefaultModel(),
     response_format: { type: "json_object" },
     messages: [
       {
@@ -505,11 +515,12 @@ export async function generateExpressionCasualByAi(
     data: {
       word: zhText,
       language: language ?? "multi",
-      model: DEFAULT_MODEL,
+      model: getDefaultModel(),
       feature: "expression_casual",
       promptTokens: usage?.prompt_tokens ?? 0,
       completionTokens: usage?.completion_tokens ?? 0,
       totalTokens: usage?.total_tokens ?? 0,
+      userId: input.userId,
     },
   });
 
@@ -527,7 +538,7 @@ export async function translateExpressionToZhByAi(
 
   const client = getOpenAIClient();
   const completion = await client.chat.completions.create({
-    model: DEFAULT_MODEL,
+    model: getDefaultModel(),
     response_format: { type: "json_object" },
     messages: [
       {
@@ -556,26 +567,31 @@ export async function translateExpressionToZhByAi(
     data: {
       word: text,
       language: input.language,
-      model: DEFAULT_MODEL,
+      model: getDefaultModel(),
       feature: "expression_translate",
       promptTokens: usage?.prompt_tokens ?? 0,
       completionTokens: usage?.completion_tokens ?? 0,
       totalTokens: usage?.total_tokens ?? 0,
+      userId: input.userId,
     },
   });
 
   return safeParseExpressionTranslateJson(content);
 }
 
-export async function fillWordByAiAuto(wordInput: string, extended?: boolean) {
+export async function fillWordByAiAuto(
+  userId: string,
+  wordInput: string,
+  extended?: boolean,
+) {
   const word = sanitize(wordInput);
   if (!word) throw new AppError("word is required", 400);
   const language = detectLanguageFromWord(word);
-  const result = await fillWordByAi({ word, language, extended });
+  const result = await fillWordByAi({ word, language, extended, userId });
   return { ...result, language };
 }
 
-export async function getAiUsageSummary(days = 7) {
+export async function getAiUsageSummary(userId: string, days = 7) {
   const safeDays = Number.isFinite(days)
     ? Math.max(1, Math.min(90, Math.floor(days)))
     : 7;
@@ -584,7 +600,7 @@ export async function getAiUsageSummary(days = 7) {
   since.setHours(0, 0, 0, 0);
 
   const logs = await prisma.aiUsageLog.findMany({
-    where: { createdAt: { gte: since } },
+    where: { userId, createdAt: { gte: since } },
     orderBy: { createdAt: "desc" },
     take: 200,
   });
@@ -641,7 +657,7 @@ export async function getAiUsageSummary(days = 7) {
     .map(([feature, value]) => ({ feature, ...value }));
 
   return {
-    model: DEFAULT_MODEL,
+    model: getDefaultModel(),
     days: safeDays,
     totals,
     byDay,

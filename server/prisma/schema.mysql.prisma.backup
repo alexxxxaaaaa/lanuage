@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -33,9 +33,9 @@ model Word {
   id           String   @id @default(uuid())
   word         String
   reading      String
-  meaning      String
-  example      String
-  note         String
+  meaning      String   @db.Text
+  example      String   @db.LongText
+  note         String   @db.Text
   partOfSpeech String   @default("")
   language     String
   folderId     String
@@ -51,7 +51,7 @@ model Word {
 model Note {
   id        String   @id @default(uuid())
   title     String
-  content   String
+  content   String   @db.LongText
   course    String   @default("")
   lesson    String   @default("")
   createdAt DateTime @default(now())
@@ -63,18 +63,18 @@ model Note {
 }
 
 model Review {
-  id              String    @id @default(uuid())
-  wordId          String    @unique
-  word            Word      @relation(fields: [wordId], references: [id])
-  interval        Int       @default(1)
-  repetition      Int       @default(0)
-  easeFactor      Float     @default(2.5)
-  difficultyScore Int       @default(0)
-  lastRating      String    @default("")
-  recentRatings   String    @default("")
-  firstLearnedAt  DateTime?
-  nextReviewDate  DateTime
-  lastReviewedAt  DateTime?
+  id             String   @id @default(uuid())
+  wordId         String   @unique
+  word           Word     @relation(fields: [wordId], references: [id])
+  interval       Int      @default(1)
+  repetition     Int      @default(0)
+  easeFactor     Float    @default(2.5)
+  difficultyScore Int     @default(0)
+  lastRating     String   @default("")
+  recentRatings  String   @default("")
+  firstLearnedAt DateTime?
+  nextReviewDate DateTime
+  lastReviewedAt DateTime?
 }
 
 model AiUsageLog {
@@ -95,11 +95,11 @@ model AiUsageLog {
 
 model Expression {
   id         String           @id @default(uuid())
-  zhText     String
-  enCasual   String
-  jpCasual   String
+  zhText     String           @db.Text
+  enCasual   String           @db.Text
+  jpCasual   String           @db.Text
   sceneTag   String           @default("")
-  note       String
+  note       String           @db.Text
   isMastered Boolean          @default(false)
   folderId   String
   folder     ExpressionFolder @relation(fields: [folderId], references: [id])

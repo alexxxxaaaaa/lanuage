@@ -14,8 +14,9 @@ function normalizeText(input?: string) {
   return (input ?? '').trim()
 }
 
-export async function getNotes() {
+export async function getNotes(userId: string) {
   return prisma.note.findMany({
+    where: { userId },
     orderBy: { createdAt: 'desc' },
     include: {
       _count: {
@@ -25,14 +26,14 @@ export async function getNotes() {
   })
 }
 
-export async function getNoteById(id: string) {
+export async function getNoteById(userId: string, id: string) {
   const normalizedId = normalizeText(id)
   if (!normalizedId) {
     throw new AppError('note id is required', 400)
   }
 
-  const note = await prisma.note.findUnique({
-    where: { id: normalizedId },
+  const note = await prisma.note.findFirst({
+    where: { id: normalizedId, userId },
     include: {
       words: {
         include: {
@@ -51,7 +52,7 @@ export async function getNoteById(id: string) {
   return note
 }
 
-export async function createNote(input: CreateNoteInput) {
+export async function createNote(userId: string, input: CreateNoteInput) {
   const title = normalizeText(input.title)
   const content = normalizeText(input.content)
   const course = normalizeText(input.course)
@@ -70,17 +71,24 @@ export async function createNote(input: CreateNoteInput) {
       content,
       course,
       lesson,
+      userId,
     },
   })
 }
 
-export async function updateNote(id: string, input: UpdateNoteInput) {
+export async function updateNote(
+  userId: string,
+  id: string,
+  input: UpdateNoteInput,
+) {
   const normalizedId = normalizeText(id)
   if (!normalizedId) {
     throw new AppError('note id is required', 400)
   }
 
-  const existing = await prisma.note.findUnique({ where: { id: normalizedId } })
+  const existing = await prisma.note.findFirst({
+    where: { id: normalizedId, userId },
+  })
   if (!existing) {
     throw new AppError('note not found', 404)
   }

@@ -1,16 +1,9 @@
-import type { NextFunction, Request, Response } from 'express'
+import type { Context } from 'hono'
 import { AppError } from '../errors/AppError'
 
-export function errorHandler(
-  error: unknown,
-  _request: Request,
-  response: Response,
-  _next: NextFunction,
-) {
+export function handleError(error: unknown, c: Context) {
   if (error instanceof AppError) {
-    return response.status(error.statusCode).json({
-      message: error.message,
-    })
+    return c.json({ message: error.message }, error.statusCode as 400 | 401 | 404 | 409 | 500)
   }
 
   if (typeof error === 'object' && error !== null && 'code' in error) {
@@ -22,25 +15,16 @@ export function errorHandler(
 
     if (code === 'P2000') {
       const field = typeof meta.column_name === 'string' ? meta.column_name : 'field'
-      return response.status(400).json({
-        message: `字段内容过长，请缩短后重试（${field}）`,
-      })
+      return c.json({ message: `字段内容过长，请缩短后重试（${field}）` }, 400)
     }
     if (code === 'P2002') {
-      return response.status(409).json({
-        message: '数据重复，请检查后重试',
-      })
+      return c.json({ message: '数据重复，请检查后重试' }, 409)
     }
     if (code === 'P2003') {
-      return response.status(400).json({
-        message: '关联数据无效，请检查分类或来源笔记',
-      })
+      return c.json({ message: '关联数据无效，请检查分类或来源笔记' }, 400)
     }
   }
 
   console.error(error)
-
-  return response.status(500).json({
-    message: 'Internal server error',
-  })
+  return c.json({ message: 'Internal server error' }, 500)
 }

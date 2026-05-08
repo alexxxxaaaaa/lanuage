@@ -1,14 +1,35 @@
-import { Router } from 'express'
+import { Hono } from 'hono'
 import {
-  getTomorrowReviewStatsController,
-  getTodayLearnedStatsController,
-  getTodayReviewsController,
-  updateReviewController,
-} from '../controllers/reviewController'
+  getTomorrowReviewStats,
+  getTodayLearnedStats,
+  getTodayReviews,
+  updateReview,
+} from '../services/reviewService'
+import { getUserId, type AppEnv } from '../middleware/requireAuth'
 
-export const reviewRouter = Router()
+export const reviewRouter = new Hono<AppEnv>()
 
-reviewRouter.get('/today', getTodayReviewsController)
-reviewRouter.get('/today-learned', getTodayLearnedStatsController)
-reviewRouter.get('/tomorrow', getTomorrowReviewStatsController)
-reviewRouter.post('/update', updateReviewController)
+reviewRouter.get('/today', async (c) => {
+  const folderId = c.req.query('folderId')
+  const items = await getTodayReviews(getUserId(c), folderId)
+  return c.json({ count: items.length, items })
+})
+
+reviewRouter.get('/today-learned', async (c) => {
+  const stats = await getTodayLearnedStats(getUserId(c))
+  return c.json(stats)
+})
+
+reviewRouter.get('/tomorrow', async (c) => {
+  const stats = await getTomorrowReviewStats(getUserId(c))
+  return c.json(stats)
+})
+
+reviewRouter.post('/update', async (c) => {
+  const { wordId, rating } = await c.req.json<{
+    wordId?: string
+    rating?: string
+  }>()
+  const review = await updateReview(getUserId(c), wordId ?? '', rating ?? '')
+  return c.json(review)
+})

@@ -2,6 +2,8 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
+const SEED_USER_ID = '00000000-0000-0000-0000-000000000001'
+
 async function main() {
   await prisma.review.deleteMany()
   await prisma.word.deleteMany()
@@ -11,6 +13,7 @@ async function main() {
     data: {
       name: 'CET-4',
       language: 'en',
+      userId: SEED_USER_ID,
       words: {
         create: [
           {
@@ -53,6 +56,7 @@ async function main() {
     data: {
       name: 'N5',
       language: 'jp',
+      userId: SEED_USER_ID,
       words: {
         create: [
           {

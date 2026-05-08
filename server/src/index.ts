@@ -1,10 +1,11 @@
-import dotenv from 'dotenv'
-import { app } from './app'
+import 'dotenv/config'
+import { serve } from '@hono/node-server'
+import { createApp } from './app'
 
-dotenv.config()
+const app = createApp()
 
 const port = Number(process.env.PORT) || 3000
 
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`)
+serve({ fetch: app.fetch, port }, (info) => {
+  console.log(`Server running at http://localhost:${info.port}`)
 })

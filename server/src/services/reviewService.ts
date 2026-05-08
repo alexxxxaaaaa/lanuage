@@ -71,7 +71,6 @@ function calculateNextReview(input: ReviewCalculationInput) {
     easeFactor += 0.1
   }
 
-  // Use day-level scheduling: a word becomes due at 00:00 of the due day.
   const nextReviewDate = addDays(startOfDay(input.reviewedAt), interval)
 
   return {
@@ -97,7 +96,7 @@ function parseRecentRatings(value?: string | null): ReviewRating[] {
     .filter((item): item is ReviewRating => VALID_RATINGS.includes(item as ReviewRating))
 }
 
-export async function getTodayReviews(folderId?: string) {
+export async function getTodayReviews(userId: string, folderId?: string) {
   const now = new Date()
   const todayEnd = endOfDay(now)
   const trimmedFolderId = folderId?.trim()
@@ -110,13 +109,10 @@ export async function getTodayReviews(folderId?: string) {
       nextReviewDate: {
         lte: todayEnd,
       },
-      ...(trimmedFolderId
-        ? {
-            word: {
-              folderId: trimmedFolderId,
-            },
-          }
-        : {}),
+      word: {
+        folder: { userId },
+        ...(trimmedFolderId ? { folderId: trimmedFolderId } : {}),
+      },
     },
     orderBy: {
       nextReviewDate: 'asc',
@@ -131,17 +127,15 @@ export async function getTodayReviews(folderId?: string) {
   })
 }
 
-export async function updateReview(wordId: string, rating: string) {
+export async function updateReview(userId: string, wordId: string, rating: string) {
   if (!wordId.trim()) {
     throw new AppError('wordId is required', 400)
   }
 
   assertRating(rating)
 
-  const word = await prisma.word.findUnique({
-    where: {
-      id: wordId,
-    },
+  const word = await prisma.word.findFirst({
+    where: { id: wordId, folder: { userId } },
     include: {
       review: true,
       folder: true,
@@ -203,7 +197,7 @@ export async function updateReview(wordId: string, rating: string) {
   })
 }
 
-export async function getTodayLearnedStats() {
+export async function getTodayLearnedStats(userId: string) {
   const now = new Date()
   const start = new Date(now)
   start.setHours(0, 0, 0, 0)
@@ -214,13 +208,13 @@ export async function getTodayLearnedStats() {
     prisma.review.count({
       where: {
         firstLearnedAt: { gte: start, lte: end },
-        word: { language: 'en' },
+        word: { language: 'en', folder: { userId } },
       },
     }),
     prisma.review.count({
       where: {
         firstLearnedAt: { gte: start, lte: end },
-        word: { language: 'jp' },
+        word: { language: 'jp', folder: { userId } },
       },
     }),
   ])
@@ -228,7 +222,7 @@ export async function getTodayLearnedStats() {
   return { en: enCount, jp: jpCount, total: enCount + jpCount }
 }
 
-export async function getTomorrowReviewStats() {
+export async function getTomorrowReviewStats(userId: string) {
   const now = new Date()
   const tomorrow = addDays(now, 1)
   const start = startOfDay(tomorrow)
@@ -239,14 +233,14 @@ export async function getTomorrowReviewStats() {
       where: {
         lastReviewedAt: { not: null },
         nextReviewDate: { gte: start, lte: end },
-        word: { language: 'en' },
+        word: { language: 'en', folder: { userId } },
       },
     }),
     prisma.review.count({
       where: {
         lastReviewedAt: { not: null },
         nextReviewDate: { gte: start, lte: end },
-        word: { language: 'jp' },
+        word: { language: 'jp', folder: { userId } },
       },
     }),
   ])

@@ -22,8 +22,9 @@ function normalizeText(input?: string) {
   return (input ?? '').trim()
 }
 
-export async function getExpressionFolders() {
+export async function getExpressionFolders(userId: string) {
   return prisma.expressionFolder.findMany({
+    where: { userId },
     orderBy: { createdAt: 'desc' },
     include: {
       _count: {
@@ -33,7 +34,10 @@ export async function getExpressionFolders() {
   })
 }
 
-export async function createExpressionFolder(input: CreateExpressionFolderInput) {
+export async function createExpressionFolder(
+  userId: string,
+  input: CreateExpressionFolderInput,
+) {
   const name = normalizeText(input.name)
   const language = normalizeText(input.language)
   if (!name) throw new AppError('name is required', 400)
@@ -45,6 +49,7 @@ export async function createExpressionFolder(input: CreateExpressionFolderInput)
     data: {
       name,
       language,
+      userId,
     },
     include: {
       _count: {
@@ -54,11 +59,11 @@ export async function createExpressionFolder(input: CreateExpressionFolderInput)
   })
 }
 
-export async function getExpressionFolderById(id: string) {
+export async function getExpressionFolderById(userId: string, id: string) {
   const normalizedId = normalizeText(id)
   if (!normalizedId) throw new AppError('folder id is required', 400)
-  const folder = await prisma.expressionFolder.findUnique({
-    where: { id: normalizedId },
+  const folder = await prisma.expressionFolder.findFirst({
+    where: { id: normalizedId, userId },
     include: {
       expressions: {
         orderBy: { createdAt: 'desc' },
@@ -72,18 +77,22 @@ export async function getExpressionFolderById(id: string) {
   return folder
 }
 
-export async function getExpressions(filters?: {
-  q?: string
-  sceneTag?: string
-  isMastered?: boolean
-  folderId?: string
-}) {
+export async function getExpressions(
+  userId: string,
+  filters?: {
+    q?: string
+    sceneTag?: string
+    isMastered?: boolean
+    folderId?: string
+  },
+) {
   const q = normalizeText(filters?.q)
   const sceneTag = normalizeText(filters?.sceneTag)
   const folderId = normalizeText(filters?.folderId)
 
   return prisma.expression.findMany({
     where: {
+      folder: { userId },
       ...(folderId ? { folderId } : {}),
       ...(sceneTag ? { sceneTag: { contains: sceneTag } } : {}),
       ...(filters?.isMastered !== undefined ? { isMastered: filters.isMastered } : {}),
@@ -103,14 +112,14 @@ export async function getExpressions(filters?: {
   })
 }
 
-export async function getExpressionById(id: string) {
+export async function getExpressionById(userId: string, id: string) {
   const normalizedId = normalizeText(id)
   if (!normalizedId) {
     throw new AppError('expression id is required', 400)
   }
 
-  const expression = await prisma.expression.findUnique({
-    where: { id: normalizedId },
+  const expression = await prisma.expression.findFirst({
+    where: { id: normalizedId, folder: { userId } },
   })
   if (!expression) {
     throw new AppError('expression not found', 404)
@@ -118,7 +127,7 @@ export async function getExpressionById(id: string) {
   return expression
 }
 
-export async function createExpression(input: CreateExpressionInput) {
+export async function createExpression(userId: string, input: CreateExpressionInput) {
   const zhText = normalizeText(input.zhText)
   const folderId = normalizeText(input.folderId)
   const enCasual = normalizeText(input.enCasual)
@@ -132,7 +141,9 @@ export async function createExpression(input: CreateExpressionInput) {
   if (!folderId) {
     throw new AppError('folderId is required', 400)
   }
-  const folder = await prisma.expressionFolder.findUnique({ where: { id: folderId } })
+  const folder = await prisma.expressionFolder.findFirst({
+    where: { id: folderId, userId },
+  })
   if (!folder) throw new AppError('expression folder not found', 404)
 
   return prisma.expression.create({
@@ -151,13 +162,19 @@ export async function createExpression(input: CreateExpressionInput) {
   })
 }
 
-export async function updateExpression(id: string, input: UpdateExpressionInput) {
+export async function updateExpression(
+  userId: string,
+  id: string,
+  input: UpdateExpressionInput,
+) {
   const normalizedId = normalizeText(id)
   if (!normalizedId) {
     throw new AppError('expression id is required', 400)
   }
 
-  const existing = await prisma.expression.findUnique({ where: { id: normalizedId } })
+  const existing = await prisma.expression.findFirst({
+    where: { id: normalizedId, folder: { userId } },
+  })
   if (!existing) {
     throw new AppError('expression not found', 404)
   }
@@ -180,7 +197,9 @@ export async function updateExpression(id: string, input: UpdateExpressionInput)
   if (input.folderId !== undefined) {
     const value = normalizeText(input.folderId)
     if (!value) throw new AppError('folderId cannot be empty', 400)
-    const folder = await prisma.expressionFolder.findUnique({ where: { id: value } })
+    const folder = await prisma.expressionFolder.findFirst({
+      where: { id: value, userId },
+    })
     if (!folder) throw new AppError('expression folder not found', 404)
     data.folderId = value
   }
@@ -203,12 +222,14 @@ export async function updateExpression(id: string, input: UpdateExpressionInput)
   })
 }
 
-export async function deleteExpression(id: string) {
+export async function deleteExpression(userId: string, id: string) {
   const normalizedId = normalizeText(id)
   if (!normalizedId) {
     throw new AppError('expression id is required', 400)
   }
-  const existing = await prisma.expression.findUnique({ where: { id: normalizedId } })
+  const existing = await prisma.expression.findFirst({
+    where: { id: normalizedId, folder: { userId } },
+  })
   if (!existing) {
     throw new AppError('expression not found', 404)
   }

@@ -11,7 +11,7 @@ function assertLanguage(language: string): asserts language is FolderLanguage {
   }
 }
 
-export async function createFolder(name: string, language: string) {
+export async function createFolder(userId: string, name: string, language: string) {
   if (!name.trim()) {
     throw new AppError('name is required', 400)
   }
@@ -22,12 +22,14 @@ export async function createFolder(name: string, language: string) {
     data: {
       name: name.trim(),
       language,
+      userId,
     },
   })
 }
 
-export async function getFolders() {
+export async function getFolders(userId: string) {
   const folders = await prisma.folder.findMany({
+    where: { userId },
     orderBy: {
       name: 'asc',
     },
@@ -104,9 +106,9 @@ export async function getFolders() {
   }))
 }
 
-export async function getFolderById(id: string) {
-  const folder = await prisma.folder.findUnique({
-    where: { id },
+export async function getFolderById(userId: string, id: string) {
+  const folder = await prisma.folder.findFirst({
+    where: { id, userId },
     include: {
       words: {
         orderBy: { createdAt: 'desc' },
@@ -126,10 +128,11 @@ export async function getFolderById(id: string) {
 }
 
 export async function updateFolder(
+  userId: string,
   id: string,
   updates: { name?: string; language?: string },
 ) {
-  const existing = await prisma.folder.findUnique({ where: { id } })
+  const existing = await prisma.folder.findFirst({ where: { id, userId } })
   if (!existing) {
     throw new AppError('folder not found', 404)
   }
@@ -158,8 +161,8 @@ export async function updateFolder(
   })
 }
 
-export async function deleteFolder(id: string) {
-  const existing = await prisma.folder.findUnique({ where: { id } })
+export async function deleteFolder(userId: string, id: string) {
+  const existing = await prisma.folder.findFirst({ where: { id, userId } })
   if (!existing) {
     throw new AppError('folder not found', 404)
   }

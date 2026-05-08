@@ -35,7 +35,6 @@ function assertRequiredField(value: string, fieldName: string) {
 }
 
 function sanitizeUnicode(input: string) {
-  // Remove isolated surrogate code units that can break Prisma/MySQL JSON handling.
   return input.replace(
     /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
     '',
@@ -75,7 +74,7 @@ function mapUniqueError(error: unknown): never {
   throw error
 }
 
-export async function createWord(input: CreateWordInput) {
+export async function createWord(userId: string, input: CreateWordInput) {
   const normalizedWord = normalizeText(input.word)
   const normalizedReading = normalizeText(input.reading)
   const normalizedMeaning = normalizeText(input.meaning)
@@ -91,10 +90,8 @@ export async function createWord(input: CreateWordInput) {
   assertRequiredField(input.language, 'language')
   assertRequiredField(input.folderId, 'folderId')
 
-  const folder = await prisma.folder.findUnique({
-    where: {
-      id: normalizedFolderId,
-    },
+  const folder = await prisma.folder.findFirst({
+    where: { id: normalizedFolderId, userId },
   })
 
   if (!folder) {
@@ -106,8 +103,8 @@ export async function createWord(input: CreateWordInput) {
   }
 
   if (normalizedSourceNoteId) {
-    const sourceNote = await prisma.note.findUnique({
-      where: { id: normalizedSourceNoteId },
+    const sourceNote = await prisma.note.findFirst({
+      where: { id: normalizedSourceNoteId, userId },
     })
     if (!sourceNote) {
       throw new AppError('source note not found', 404)
@@ -151,11 +148,12 @@ export async function createWord(input: CreateWordInput) {
   }
 }
 
-export async function getWords(folderId?: string, query?: string) {
+export async function getWords(userId: string, folderId?: string, query?: string) {
   const normalized = query?.trim()
 
   return prisma.word.findMany({
     where: {
+      folder: { userId },
       ...(folderId ? { folderId } : {}),
       ...(normalized
         ? {
@@ -177,23 +175,14 @@ export async function getWords(folderId?: string, query?: string) {
   })
 }
 
-export async function getTodayNewWords(folderId?: string) {
+export async function getTodayNewWords(userId: string, folderId?: string) {
   return prisma.word.findMany({
     where: {
+      folder: { userId },
       ...(folderId ? { folderId } : {}),
       OR: [
-        {
-          review: {
-            is: null,
-          },
-        },
-        {
-          review: {
-            is: {
-              lastReviewedAt: null,
-            },
-          },
-        },
+        { review: { is: null } },
+        { review: { is: { lastReviewedAt: null } } },
       ],
     },
     orderBy: {
@@ -206,8 +195,14 @@ export async function getTodayNewWords(folderId?: string) {
   })
 }
 
-export async function updateWord(id: string, updates: UpdateWordInput) {
-  const existing = await prisma.word.findUnique({ where: { id } })
+export async function updateWord(
+  userId: string,
+  id: string,
+  updates: UpdateWordInput,
+) {
+  const existing = await prisma.word.findFirst({
+    where: { id, folder: { userId } },
+  })
   if (!existing) {
     throw new AppError('word not found', 404)
   }
@@ -244,8 +239,8 @@ export async function updateWord(id: string, updates: UpdateWordInput) {
   if (updates.sourceNoteId !== undefined) {
     const normalizedSourceNoteId = normalizeText(updates.sourceNoteId ?? '')
     if (normalizedSourceNoteId) {
-      const sourceNote = await prisma.note.findUnique({
-        where: { id: normalizedSourceNoteId },
+      const sourceNote = await prisma.note.findFirst({
+        where: { id: normalizedSourceNoteId, userId },
       })
       if (!sourceNote) {
         throw new AppError('source note not found', 404)
@@ -261,8 +256,8 @@ export async function updateWord(id: string, updates: UpdateWordInput) {
     if (!normalizedFolderId) {
       throw new AppError('folderId cannot be empty', 400)
     }
-    const targetFolder = await prisma.folder.findUnique({
-      where: { id: normalizedFolderId },
+    const targetFolder = await prisma.folder.findFirst({
+      where: { id: normalizedFolderId, userId },
     })
     if (!targetFolder) {
       throw new AppError('folder not found', 404)
@@ -300,8 +295,10 @@ export async function updateWord(id: string, updates: UpdateWordInput) {
   }
 }
 
-export async function deleteWord(id: string) {
-  const existing = await prisma.word.findUnique({ where: { id } })
+export async function deleteWord(userId: string, id: string) {
+  const existing = await prisma.word.findFirst({
+    where: { id, folder: { userId } },
+  })
   if (!existing) {
     throw new AppError('word not found', 404)
   }

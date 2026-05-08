@@ -1,10 +1,10 @@
-import { Router } from 'express'
+import { Hono } from 'hono'
 
-export const healthRouter = Router()
+export const healthRouter = new Hono()
 
-healthRouter.get('/', (_request, response) => {
-  response.json({
+healthRouter.get('/', (c) =>
+  c.json({
     message: 'Server is running',
     timestamp: new Date().toISOString(),
-  })
-})
+  }),
+)
