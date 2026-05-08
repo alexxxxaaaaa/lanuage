@@ -7,18 +7,43 @@ type CreateWordInput = {
   meaning: string
   example: string
   note: string
+  partOfSpeech: string
+  sourceNoteId?: string
   language: string
   folderId: string
 }
 
 type UpdateWordInput = Partial<
-  Pick<CreateWordInput, 'word' | 'reading' | 'meaning' | 'example' | 'note'>
->
+  Pick<
+    CreateWordInput,
+    | 'word'
+    | 'reading'
+    | 'meaning'
+    | 'example'
+    | 'note'
+    | 'partOfSpeech'
+    | 'folderId'
+  >
+> & {
+  sourceNoteId?: string | null
+}
 
 function assertRequiredField(value: string, fieldName: string) {
   if (!value.trim()) {
     throw new AppError(`${fieldName} is required`, 400)
   }
+}
+
+function sanitizeUnicode(input: string) {
+  // Remove isolated surrogate code units that can break Prisma/MySQL JSON handling.
+  return input.replace(
+    /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+    '',
+  )
+}
+
+function normalizeText(input?: string) {
+  return sanitizeUnicode((input ?? '').trim())
 }
 
 async function assertNoDuplicateWordInFolder(input: {
@@ -39,14 +64,27 @@ async function assertNoDuplicateWordInFolder(input: {
   }
 }
 
+function mapUniqueError(error: unknown): never {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code?: unknown }).code)
+      : ''
+  if (code === 'P2002') {
+    throw new AppError('word already exists in this folder', 409)
+  }
+  throw error
+}
+
 export async function createWord(input: CreateWordInput) {
-  const normalizedWord = input.word.trim()
-  const normalizedReading = input.reading.trim()
-  const normalizedMeaning = (input.meaning ?? '').trim()
-  const normalizedExample = (input.example ?? '').trim()
-  const normalizedNote = (input.note ?? '').trim()
-  const normalizedLanguage = input.language.trim()
-  const normalizedFolderId = input.folderId.trim()
+  const normalizedWord = normalizeText(input.word)
+  const normalizedReading = normalizeText(input.reading)
+  const normalizedMeaning = normalizeText(input.meaning)
+  const normalizedExample = normalizeText(input.example)
+  const normalizedNote = normalizeText(input.note)
+  const normalizedPartOfSpeech = normalizeText(input.partOfSpeech)
+  const normalizedSourceNoteId = normalizeText(input.sourceNoteId)
+  const normalizedLanguage = normalizeText(input.language)
+  const normalizedFolderId = normalizeText(input.folderId)
 
   assertRequiredField(normalizedWord, 'word')
   assertRequiredField(input.reading, 'reading')
@@ -67,34 +105,50 @@ export async function createWord(input: CreateWordInput) {
     throw new AppError('word language must match folder language', 400)
   }
 
+  if (normalizedSourceNoteId) {
+    const sourceNote = await prisma.note.findUnique({
+      where: { id: normalizedSourceNoteId },
+    })
+    if (!sourceNote) {
+      throw new AppError('source note not found', 404)
+    }
+  }
+
   await assertNoDuplicateWordInFolder({
     folderId: normalizedFolderId,
     word: normalizedWord,
   })
 
-  return prisma.word.create({
-    data: {
-      word: normalizedWord,
-      reading: normalizedReading,
-      meaning: normalizedMeaning,
-      example: normalizedExample,
-      note: normalizedNote,
-      language: normalizedLanguage,
-      folderId: normalizedFolderId,
-      review: {
-        create: {
-          interval: 1,
-          repetition: 0,
-          easeFactor: 2.5,
-          nextReviewDate: new Date(),
+  try {
+    return await prisma.word.create({
+      data: {
+        word: normalizedWord,
+        reading: normalizedReading,
+        meaning: normalizedMeaning,
+        example: normalizedExample,
+        note: normalizedNote,
+        partOfSpeech: normalizedPartOfSpeech,
+        sourceNoteId: normalizedSourceNoteId || null,
+        language: normalizedLanguage,
+        folderId: normalizedFolderId,
+        review: {
+          create: {
+            interval: 1,
+            repetition: 0,
+            easeFactor: 2.5,
+            nextReviewDate: new Date(),
+          },
         },
       },
-    },
-    include: {
-      folder: true,
-      review: true,
-    },
-  })
+      include: {
+        folder: true,
+        sourceNote: true,
+        review: true,
+      },
+    })
+  } catch (error) {
+    mapUniqueError(error)
+  }
 }
 
 export async function getWords(folderId?: string, query?: string) {
@@ -108,12 +162,39 @@ export async function getWords(folderId?: string, query?: string) {
             OR: [
               { word: { contains: normalized } },
               { reading: { contains: normalized } },
-              { meaning: { contains: normalized } },
-              { example: { contains: normalized } },
-              { note: { contains: normalized } },
             ],
           }
         : {}),
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+    include: {
+      folder: true,
+      sourceNote: true,
+      review: true,
+    },
+  })
+}
+
+export async function getTodayNewWords(folderId?: string) {
+  return prisma.word.findMany({
+    where: {
+      ...(folderId ? { folderId } : {}),
+      OR: [
+        {
+          review: {
+            is: null,
+          },
+        },
+        {
+          review: {
+            is: {
+              lastReviewedAt: null,
+            },
+          },
+        },
+      ],
     },
     orderBy: {
       createdAt: 'desc',
@@ -131,47 +212,92 @@ export async function updateWord(id: string, updates: UpdateWordInput) {
     throw new AppError('word not found', 404)
   }
 
-  const data: UpdateWordInput = {}
-  const requiredFields: (keyof UpdateWordInput)[] = ['word', 'reading']
-  const optionalFields: (keyof UpdateWordInput)[] = ['meaning', 'example', 'note']
+  const data: Omit<Partial<CreateWordInput>, 'sourceNoteId'> & {
+    sourceNoteId?: string | null
+  } = {}
+  const requiredFields: Array<'word' | 'reading'> = ['word', 'reading']
+  const optionalFields: Array<'meaning' | 'example' | 'note' | 'partOfSpeech'> = [
+    'meaning',
+    'example',
+    'note',
+    'partOfSpeech',
+  ]
 
   for (const field of requiredFields) {
     const value = updates[field]
     if (value !== undefined) {
-      if (!value.trim()) {
+      const normalized = normalizeText(value)
+      if (!normalized) {
         throw new AppError(`${field} cannot be empty`, 400)
       }
-      data[field] = value.trim()
+      data[field] = normalized
     }
   }
 
   for (const field of optionalFields) {
     const value = updates[field]
     if (value !== undefined) {
-      data[field] = value.trim()
+      data[field] = normalizeText(value)
     }
+  }
+
+  if (updates.sourceNoteId !== undefined) {
+    const normalizedSourceNoteId = normalizeText(updates.sourceNoteId ?? '')
+    if (normalizedSourceNoteId) {
+      const sourceNote = await prisma.note.findUnique({
+        where: { id: normalizedSourceNoteId },
+      })
+      if (!sourceNote) {
+        throw new AppError('source note not found', 404)
+      }
+      data.sourceNoteId = normalizedSourceNoteId
+    } else {
+      data.sourceNoteId = null
+    }
+  }
+
+  if (updates.folderId !== undefined) {
+    const normalizedFolderId = normalizeText(updates.folderId)
+    if (!normalizedFolderId) {
+      throw new AppError('folderId cannot be empty', 400)
+    }
+    const targetFolder = await prisma.folder.findUnique({
+      where: { id: normalizedFolderId },
+    })
+    if (!targetFolder) {
+      throw new AppError('folder not found', 404)
+    }
+    data.folderId = normalizedFolderId
+    data.language = targetFolder.language
   }
 
   if (Object.keys(data).length === 0) {
     return prisma.word.findUnique({
       where: { id },
-      include: { folder: true, review: true },
+      include: { folder: true, sourceNote: true, review: true },
     })
   }
 
-  if (data.word !== undefined) {
+  const effectiveWord = data.word ?? existing.word
+  const effectiveFolderId =
+    (data.folderId as string | undefined) ?? existing.folderId
+  if (data.word !== undefined || data.folderId !== undefined) {
     await assertNoDuplicateWordInFolder({
-      folderId: existing.folderId,
-      word: data.word,
+      folderId: effectiveFolderId,
+      word: effectiveWord,
       excludeWordId: id,
     })
   }
 
-  return prisma.word.update({
-    where: { id },
-    data,
-    include: { folder: true, review: true },
-  })
+  try {
+    return await prisma.word.update({
+      where: { id },
+      data,
+      include: { folder: true, sourceNote: true, review: true },
+    })
+  } catch (error) {
+    mapUniqueError(error)
+  }
 }
 
 export async function deleteWord(id: string) {

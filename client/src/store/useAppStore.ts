@@ -36,6 +36,8 @@ type AppState = {
   todayReviews: ReviewItem[]
   totalReviewCount: number
   sessionLimit: number | null
+  /** 复习时筛选的分类；null 表示全部 */
+  reviewFolderId: string | null
   searchedWords: Word[]
   searchKeyword: string
   currentIndex: number
@@ -53,6 +55,7 @@ type AppState = {
   fetchTodayReviews: () => Promise<void>
   searchWords: (keyword: string) => Promise<void>
   clearWordSearch: () => void
+  setReviewFolderId: (folderId: string | null) => void
   setSessionLimit: (limit: number | null) => void
   startReviewSession: (limit?: number | null) => void
   createWord: (payload: CreateWordPayload) => Promise<void>
@@ -61,11 +64,14 @@ type AppState = {
   submitReview: (rating: ReviewRating) => Promise<void>
   toggleCard: () => void
   resetReviewSession: () => void
+  goToNextReview: () => void
+  setReviewIndex: (index: number) => void
   clearError: () => void
   clearCurrentFolder: () => void
 }
 
 const SESSION_LIMIT_KEY = 'word-sprint-session-limit'
+const REVIEW_FOLDER_KEY = 'word-sprint-review-folder-id'
 
 function loadSessionLimit(): number | null {
   if (typeof window === 'undefined') return 20
@@ -77,6 +83,30 @@ function loadSessionLimit(): number | null {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 20
   } catch {
     return 20
+  }
+}
+
+function loadReviewFolderId(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(REVIEW_FOLDER_KEY)
+    if (raw === null || raw === '' || raw === 'null') return null
+    return raw
+  } catch {
+    return null
+  }
+}
+
+function persistReviewFolderId(folderId: string | null) {
+  if (typeof window === 'undefined') return
+  try {
+    if (folderId === null) {
+      window.localStorage.removeItem(REVIEW_FOLDER_KEY)
+    } else {
+      window.localStorage.setItem(REVIEW_FOLDER_KEY, folderId)
+    }
+  } catch {
+    // ignore
   }
 }
 
@@ -97,6 +127,11 @@ function slicePool(pool: ReviewItem[], limit: number | null) {
   return pool.slice(0, limit)
 }
 
+function filterReviewsByFolder(items: ReviewItem[], folderId: string | null) {
+  if (!folderId) return items
+  return items.filter((item) => item.word.folderId === folderId)
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
   folders: [],
   currentFolder: null,
@@ -104,6 +139,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   todayReviews: [],
   totalReviewCount: 0,
   sessionLimit: loadSessionLimit(),
+  reviewFolderId: loadReviewFolderId(),
   searchedWords: [],
   searchKeyword: '',
   currentIndex: 0,
@@ -124,6 +160,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       currentIndex: 0,
       isCardFlipped: false,
+    }),
+  goToNextReview: () =>
+    set((state) => {
+      const max = state.todayReviews.length - 1
+      if (max <= 0) return state
+      return {
+        currentIndex: Math.min(state.currentIndex + 1, max),
+        isCardFlipped: false,
+      }
+    }),
+  setReviewIndex: (index) =>
+    set((state) => {
+      const max = state.todayReviews.length - 1
+      const safeIndex = Math.max(0, Math.min(index, Math.max(0, max)))
+      return { currentIndex: safeIndex, isCardFlipped: false }
     }),
   fetchFolders: async () => {
     set({ isLoadingFolders: true, error: null })
@@ -195,6 +246,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (get().currentFolder?.id === id) {
         set({ currentFolder: null })
       }
+      if (get().reviewFolderId === id) {
+        persistReviewFolderId(null)
+        set({ reviewFolderId: null })
+      }
       await get().fetchFolders()
     } catch (error) {
       set({
@@ -207,15 +262,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ isLoadingReviews: true, error: null })
 
     try {
+      const folderId = get().reviewFolderId
       const result = await getTodayReviewsApi()
-      const items = Array.isArray(result.items) ? result.items : []
-      const limit = get().sessionLimit
-      const session = slicePool(items, limit)
+      const allDueItems = Array.isArray(result.items) ? result.items : []
+      const sessionItems = filterReviewsByFolder(allDueItems, folderId)
 
       set({
-        dueReviews: items,
-        todayReviews: session,
-        totalReviewCount: session.length,
+        dueReviews: allDueItems,
+        todayReviews: sessionItems,
+        totalReviewCount: sessionItems.length,
         currentIndex: 0,
         isCardFlipped: false,
         isLoadingReviews: false,
@@ -245,6 +300,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
   clearWordSearch: () => set({ searchedWords: [], searchKeyword: '' }),
+  setReviewFolderId: (folderId) => {
+    persistReviewFolderId(folderId)
+    set({ reviewFolderId: folderId })
+  },
   setSessionLimit: (limit) => {
     persistSessionLimit(limit)
     set({ sessionLimit: limit })

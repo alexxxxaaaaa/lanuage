@@ -6,8 +6,22 @@ type ReviewTodayResponse = {
   items: ReviewItem[]
 }
 
-export async function getTodayReviews() {
-  const response = await apiClient.get<ReviewTodayResponse>('/api/review/today')
+type TodayLearnedStatsResponse = {
+  en: number
+  jp: number
+  total: number
+}
+
+type TomorrowReviewStatsResponse = {
+  en: number
+  jp: number
+  total: number
+}
+
+export async function getTodayReviews(params?: { folderId?: string }) {
+  const response = await apiClient.get<ReviewTodayResponse>('/api/review/today', {
+    params,
+  })
   return response.data
 }
 
@@ -16,5 +30,15 @@ export async function submitReviewResult(payload: {
   rating: ReviewRating
 }) {
   const response = await apiClient.post<ReviewItem>('/api/review/update', payload)
+  return response.data
+}
+
+export async function getTodayLearnedStats() {
+  const response = await apiClient.get<TodayLearnedStatsResponse>('/api/review/today-learned')
+  return response.data
+}
+
+export async function getTomorrowReviewStats() {
+  const response = await apiClient.get<TomorrowReviewStatsResponse>('/api/review/tomorrow')
   return response.data
 }

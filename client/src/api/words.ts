@@ -22,3 +22,10 @@ export async function getWords(params?: { folderId?: string; q?: string }) {
   })
   return response.data
 }
+
+export async function getTodayNewWords(params?: { folderId?: string }) {
+  const response = await apiClient.get<Word[]>('/api/words/today-new', {
+    params,
+  })
+  return response.data
+}

@@ -26,10 +26,24 @@ function addDays(date: Date, days: number) {
   return next
 }
 
+function startOfDay(date: Date) {
+  const next = new Date(date)
+  next.setHours(0, 0, 0, 0)
+  return next
+}
+
+function endOfDay(date: Date) {
+  const next = new Date(date)
+  next.setHours(23, 59, 59, 999)
+  return next
+}
+
 function calculateNextReview(input: ReviewCalculationInput) {
   let interval = input.interval
   let repetition = input.repetition
   let easeFactor = input.easeFactor
+  const shortLearningIntervals = [1, 1, 2, 4, 7]
+  const shortLearningRepCap = shortLearningIntervals.length
 
   if (input.rating === 'again') {
     repetition = 0
@@ -39,16 +53,26 @@ function calculateNextReview(input: ReviewCalculationInput) {
 
   if (input.rating === 'hard') {
     repetition += 1
-    interval = Math.max(1, Math.round(interval * 1.2))
+    easeFactor = Math.max(MIN_EASE_FACTOR, easeFactor - 0.05)
+    if (repetition <= shortLearningRepCap) {
+      interval = shortLearningIntervals[repetition - 1] ?? 1
+    } else {
+      interval = Math.max(1, Math.round(interval * 1.2))
+    }
   }
 
   if (input.rating === 'easy') {
     repetition += 1
-    interval = Math.max(1, Math.round(interval * easeFactor))
+    if (repetition <= shortLearningRepCap) {
+      interval = shortLearningIntervals[repetition - 1] ?? 1
+    } else {
+      interval = Math.max(1, Math.round(interval * easeFactor))
+    }
     easeFactor += 0.1
   }
 
-  const nextReviewDate = addDays(input.reviewedAt, interval)
+  // Use day-level scheduling: a word becomes due at 00:00 of the due day.
+  const nextReviewDate = addDays(startOfDay(input.reviewedAt), interval)
 
   return {
     interval,
@@ -59,14 +83,40 @@ function calculateNextReview(input: ReviewCalculationInput) {
   }
 }
 
-export async function getTodayReviews() {
+function getDifficultyDelta(rating: ReviewRating) {
+  if (rating === 'again') return 2
+  if (rating === 'hard') return 1
+  return -1
+}
+
+function parseRecentRatings(value?: string | null): ReviewRating[] {
+  if (!value) return []
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item): item is ReviewRating => VALID_RATINGS.includes(item as ReviewRating))
+}
+
+export async function getTodayReviews(folderId?: string) {
   const now = new Date()
+  const todayEnd = endOfDay(now)
+  const trimmedFolderId = folderId?.trim()
 
   return prisma.review.findMany({
     where: {
-      nextReviewDate: {
-        lte: now,
+      lastReviewedAt: {
+        not: null,
       },
+      nextReviewDate: {
+        lte: todayEnd,
+      },
+      ...(trimmedFolderId
+        ? {
+            word: {
+              folderId: trimmedFolderId,
+            },
+          }
+        : {}),
     },
     orderBy: {
       nextReviewDate: 'asc',
@@ -124,12 +174,25 @@ export async function updateReview(wordId: string, rating: string) {
     rating,
     reviewedAt,
   })
+  const previousRecentRatings = parseRecentRatings(currentReview?.recentRatings)
+  const nextRecentRatings = [...previousRecentRatings, rating].slice(-3)
+  const nextDifficultyScore = Math.max(
+    0,
+    (currentReview?.difficultyScore ?? 0) + getDifficultyDelta(rating),
+  )
+  const firstLearnedAt = currentReview?.lastReviewedAt ? currentReview.firstLearnedAt : reviewedAt
 
   return prisma.review.update({
     where: {
       wordId: word.id,
     },
-    data: nextState,
+    data: {
+      ...nextState,
+      difficultyScore: nextDifficultyScore,
+      lastRating: rating,
+      recentRatings: nextRecentRatings.join(','),
+      firstLearnedAt,
+    },
     include: {
       word: {
         include: {
@@ -138,4 +201,55 @@ export async function updateReview(wordId: string, rating: string) {
       },
     },
   })
+}
+
+export async function getTodayLearnedStats() {
+  const now = new Date()
+  const start = new Date(now)
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(now)
+  end.setHours(23, 59, 59, 999)
+
+  const [enCount, jpCount] = await Promise.all([
+    prisma.review.count({
+      where: {
+        firstLearnedAt: { gte: start, lte: end },
+        word: { language: 'en' },
+      },
+    }),
+    prisma.review.count({
+      where: {
+        firstLearnedAt: { gte: start, lte: end },
+        word: { language: 'jp' },
+      },
+    }),
+  ])
+
+  return { en: enCount, jp: jpCount, total: enCount + jpCount }
+}
+
+export async function getTomorrowReviewStats() {
+  const now = new Date()
+  const tomorrow = addDays(now, 1)
+  const start = startOfDay(tomorrow)
+  const end = endOfDay(tomorrow)
+
+  const [enCount, jpCount] = await Promise.all([
+    prisma.review.count({
+      where: {
+        lastReviewedAt: { not: null },
+        nextReviewDate: { gte: start, lte: end },
+        word: { language: 'en' },
+      },
+    }),
+    prisma.review.count({
+      where: {
+        lastReviewedAt: { not: null },
+        nextReviewDate: { gte: start, lte: end },
+        word: { language: 'jp' },
+      },
+    }),
+  ])
+
+  return { en: enCount, jp: jpCount, total: enCount + jpCount }
 }

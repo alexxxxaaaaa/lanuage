@@ -15,17 +15,32 @@ model Folder {
 }
 
 model Word {
+  id           String   @id @default(uuid())
+  word         String
+  reading      String
+  meaning      String   @db.Text
+  example      String   @db.LongText
+  note         String   @db.Text
+  partOfSpeech String   @default("")
+  language     String
+  folderId     String
+  sourceNoteId String?
+  folder       Folder   @relation(fields: [folderId], references: [id])
+  sourceNote   Note?    @relation(fields: [sourceNoteId], references: [id])
+  review       Review?
+  createdAt    DateTime @default(now())
+
+  @@unique([folderId, word])
+}
+
+model Note {
   id        String   @id @default(uuid())
-  word      String
-  reading   String
-  meaning   String
-  example   String
-  note      String
-  language  String
-  folderId  String
-  folder    Folder   @relation(fields: [folderId], references: [id])
-  review    Review?
+  title     String
+  content   String   @db.LongText
+  course    String   @default("")
+  lesson    String   @default("")
   createdAt DateTime @default(now())
+  words     Word[]
 }
 
 model Review {
@@ -35,6 +50,46 @@ model Review {
   interval       Int      @default(1)
   repetition     Int      @default(0)
   easeFactor     Float    @default(2.5)
+  difficultyScore Int     @default(0)
+  lastRating     String   @default("")
+  recentRatings  String   @default("")
+  firstLearnedAt DateTime?
   nextReviewDate DateTime
   lastReviewedAt DateTime?
+}
+
+model AiUsageLog {
+  id               String   @id @default(uuid())
+  word             String
+  language         String
+  model            String
+  feature          String   @default("other")
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  totalTokens      Int      @default(0)
+  createdAt        DateTime @default(now())
+}
+
+model Expression {
+  id         String           @id @default(uuid())
+  zhText     String           @db.Text
+  enCasual   String           @db.Text
+  jpCasual   String           @db.Text
+  sceneTag   String           @default("")
+  note       String           @db.Text
+  isMastered Boolean          @default(false)
+  folderId   String
+  folder     ExpressionFolder @relation(fields: [folderId], references: [id])
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+}
+
+model ExpressionFolder {
+  id          String       @id @default(uuid())
+  name        String
+  language    String
+  expressions Expression[]
+  createdAt   DateTime     @default(now())
+
+  @@unique([name, language])
 }

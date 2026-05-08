@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
 import type { Folder } from '../types'
 
@@ -14,6 +15,7 @@ const INITIAL_FORM: FormState = {
 }
 
 export function FoldersPage() {
+  const { t } = useI18n()
   const folders = useAppStore((state) => state.folders)
   const isLoadingFolders = useAppStore((state) => state.isLoadingFolders)
   const isSubmitting = useAppStore((state) => state.isSubmitting)
@@ -69,10 +71,10 @@ export function FoldersPage() {
 
   const handleDelete = async (folder: Folder) => {
     const wordCount = folder._count?.words ?? 0
+    const suffix =
+      wordCount > 0 ? ` ${t('folders.deleteConfirmWithWords', { count: wordCount })}` : ''
     const confirmed = window.confirm(
-      `确定要删除分类「${folder.name}」吗？${
-        wordCount > 0 ? `这会同时删除该分类下的 ${wordCount} 个单词。` : ''
-      }`,
+      `${t('folders.deleteConfirmTitle', { name: folder.name })}${suffix}`,
     )
     if (!confirmed) return
 
@@ -84,7 +86,7 @@ export function FoldersPage() {
       <div className="section-header">
         <div>
           <p className="eyebrow">Folders</p>
-          <h2>分类列表</h2>
+          <h2>{t('folders.title')}</h2>
         </div>
         <div className="hero-actions compact-actions">
           <button
@@ -93,7 +95,7 @@ export function FoldersPage() {
             disabled={isLoadingFolders}
             onClick={() => void useAppStore.getState().fetchFolders()}
           >
-            刷新
+            {t('folders.refresh')}
           </button>
           <button
             type="button"
@@ -103,7 +105,7 @@ export function FoldersPage() {
               setForm(INITIAL_FORM)
             }}
           >
-            {isCreating ? '收起' : '新建分类'}
+            {isCreating ? t('folders.collapse') : t('folders.createFolder')}
           </button>
         </div>
       </div>
@@ -111,19 +113,19 @@ export function FoldersPage() {
       {isCreating ? (
         <form className="card folder-form" onSubmit={handleCreate}>
           <label className="form-field">
-            <span>分类名称</span>
+            <span>{t('folders.folderName')}</span>
             <input
               type="text"
               value={form.name}
               onChange={(event) =>
                 setForm((prev) => ({ ...prev, name: event.target.value }))
               }
-              placeholder="例如：CET-6 / N3"
+              placeholder={t('folders.folderNamePlaceholder')}
               required
             />
           </label>
           <label className="form-field">
-            <span>语言</span>
+            <span>{t('folders.language')}</span>
             <select
               value={form.language}
               onChange={(event) =>
@@ -133,13 +135,13 @@ export function FoldersPage() {
                 }))
               }
             >
-              <option value="en">英语 (en)</option>
-              <option value="jp">日语 (jp)</option>
+              <option value="en">{t('folders.englishOption')}</option>
+              <option value="jp">{t('folders.japaneseOption')}</option>
             </select>
           </label>
           <div className="form-actions">
             <button type="submit" className="primary-button" disabled={isSubmitting}>
-              {isSubmitting ? '创建中...' : '创建'}
+              {isSubmitting ? t('folders.creating') : t('folders.create')}
             </button>
             <button
               type="button"
@@ -149,18 +151,18 @@ export function FoldersPage() {
                 setForm(INITIAL_FORM)
               }}
             >
-              取消
+              {t('folders.cancel')}
             </button>
           </div>
         </form>
       ) : null}
 
-      {isLoadingFolders ? <div className="card">正在加载分类...</div> : null}
+      {isLoadingFolders ? <div className="card">{t('folders.loading')}</div> : null}
       {error ? <p className="error-text">{error}</p> : null}
 
       {!isLoadingFolders && folderList.length === 0 ? (
         <div className="card empty-state">
-          <p>还没有分类，点击右上角「新建分类」开始吧。</p>
+          <p>{t('folders.empty')}</p>
         </div>
       ) : null}
 
@@ -173,7 +175,7 @@ export function FoldersPage() {
               onSubmit={(event) => handleUpdate(event, folder.id)}
             >
               <label className="form-field">
-                <span>分类名称</span>
+                <span>{t('folders.folderName')}</span>
                 <input
                   type="text"
                   value={editForm.name}
@@ -184,7 +186,7 @@ export function FoldersPage() {
                 />
               </label>
               <label className="form-field">
-                <span>语言</span>
+                <span>{t('folders.language')}</span>
                 <select
                   value={editForm.language}
                   onChange={(event) =>
@@ -194,8 +196,8 @@ export function FoldersPage() {
                     }))
                   }
                 >
-                  <option value="en">英语 (en)</option>
-                  <option value="jp">日语 (jp)</option>
+                  <option value="en">{t('folders.englishOption')}</option>
+                  <option value="jp">{t('folders.japaneseOption')}</option>
                 </select>
               </label>
               <div className="form-actions">
@@ -204,14 +206,14 @@ export function FoldersPage() {
                   className="primary-button"
                   disabled={isSubmitting}
                 >
-                  保存
+                  {t('folders.save')}
                 </button>
                 <button
                   type="button"
                   className="secondary-button"
                   onClick={cancelEdit}
                 >
-                  取消
+                  {t('folders.cancel')}
                 </button>
               </div>
             </form>
@@ -220,11 +222,44 @@ export function FoldersPage() {
               <Link className="folder-card-link" to={`/folders/${folder.id}`}>
                 <div className="folder-top">
                   <strong>{folder.name}</strong>
-                  <span className="folder-language">
-                    {folder.language.toUpperCase()}
-                  </span>
+                  <div className="folder-top-tags">
+                    {(folder.dueCount ?? 0) > 0 ? (
+                      <span className="folder-due-pill">
+                        {t('folders.dueToday', { count: folder.dueCount ?? 0 })}
+                      </span>
+                    ) : (folder.reviewedTodayCount ?? 0) > 0 ? (
+                      <span className="folder-done-pill">
+                        {t('folders.reviewedToday', {
+                          count: folder.reviewedTodayCount ?? 0,
+                        })}
+                      </span>
+                    ) : null}
+                    <span className="folder-language">
+                      {folder.language.toUpperCase()}
+                    </span>
+                  </div>
                 </div>
-                <p className="muted">单词数量：{folder._count?.words ?? 0}</p>
+                <p className="muted">{t('folders.wordCount', { count: folder._count?.words ?? 0 })}</p>
+                {(folder._count?.words ?? 0) > 0 ? (
+                  <div className="folder-mastery">
+                    <div className="folder-mastery-bar">
+                      <span
+                        className="folder-mastery-fill"
+                        style={{
+                          width: `${Math.round(
+                            ((folder.masteredCount ?? 0) / (folder._count?.words ?? 1)) * 100,
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="folder-mastery-label">
+                      {t('folders.masteredOf', {
+                        mastered: folder.masteredCount ?? 0,
+                        total: folder._count?.words ?? 0,
+                      })}
+                    </span>
+                  </div>
+                ) : null}
               </Link>
               <div className="folder-card-actions">
                 <button
@@ -232,7 +267,7 @@ export function FoldersPage() {
                   className="ghost-button"
                   onClick={() => beginEdit(folder)}
                 >
-                  重命名
+                  {t('folders.rename')}
                 </button>
                 <button
                   type="button"
@@ -240,7 +275,7 @@ export function FoldersPage() {
                   onClick={() => void handleDelete(folder)}
                   disabled={isSubmitting}
                 >
-                  删除
+                  {t('folders.delete')}
                 </button>
               </div>
             </article>

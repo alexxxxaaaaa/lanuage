@@ -27,7 +27,7 @@ export async function createFolder(name: string, language: string) {
 }
 
 export async function getFolders() {
-  return prisma.folder.findMany({
+  const folders = await prisma.folder.findMany({
     orderBy: {
       name: 'asc',
     },
@@ -39,6 +39,69 @@ export async function getFolders() {
       },
     },
   })
+
+  if (folders.length === 0) return folders
+
+  const folderIds = folders.map((folder) => folder.id)
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  const todayEnd = new Date()
+  todayEnd.setHours(23, 59, 59, 999)
+
+  const [dueGroups, masteredGroups, reviewedTodayGroups] = await Promise.all([
+    prisma.word.groupBy({
+      by: ['folderId'],
+      where: {
+        folderId: { in: folderIds },
+        review: {
+          is: {
+            lastReviewedAt: { not: null },
+            nextReviewDate: { lte: todayEnd },
+          },
+        },
+      },
+      _count: { _all: true },
+    }),
+    prisma.word.groupBy({
+      by: ['folderId'],
+      where: {
+        folderId: { in: folderIds },
+        review: {
+          is: {
+            OR: [{ repetition: { gte: 5 } }, { interval: { gte: 21 } }],
+          },
+        },
+      },
+      _count: { _all: true },
+    }),
+    prisma.word.groupBy({
+      by: ['folderId'],
+      where: {
+        folderId: { in: folderIds },
+        review: {
+          is: {
+            lastReviewedAt: { gte: todayStart, lte: todayEnd },
+          },
+        },
+      },
+      _count: { _all: true },
+    }),
+  ])
+
+  const dueMap = new Map(dueGroups.map((row) => [row.folderId, row._count._all]))
+  const masteredMap = new Map(
+    masteredGroups.map((row) => [row.folderId, row._count._all]),
+  )
+  const reviewedTodayMap = new Map(
+    reviewedTodayGroups.map((row) => [row.folderId, row._count._all]),
+  )
+
+  return folders.map((folder) => ({
+    ...folder,
+    dueCount: dueMap.get(folder.id) ?? 0,
+    masteredCount: masteredMap.get(folder.id) ?? 0,
+    reviewedTodayCount: reviewedTodayMap.get(folder.id) ?? 0,
+  }))
 }
 
 export async function getFolderById(id: string) {
@@ -47,7 +110,7 @@ export async function getFolderById(id: string) {
     include: {
       words: {
         orderBy: { createdAt: 'desc' },
-        include: { review: true },
+        include: { review: true, sourceNote: true },
       },
       _count: {
         select: { words: true },

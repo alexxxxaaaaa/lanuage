@@ -2,9 +2,49 @@ export type Folder = {
   id: string
   name: string
   language: 'en' | 'jp'
+  dueCount?: number
+  masteredCount?: number
+  reviewedTodayCount?: number
   _count?: {
     words: number
   }
+}
+
+export type Note = {
+  id: string
+  title: string
+  content: string
+  course: string
+  lesson: string
+  createdAt: string
+  _count?: {
+    words: number
+  }
+}
+
+export type Expression = {
+  id: string
+  zhText: string
+  enCasual: string
+  jpCasual: string
+  sceneTag: string
+  note: string
+  isMastered: boolean
+  folderId: string
+  folder?: ExpressionFolder
+  createdAt: string
+  updatedAt: string
+}
+
+export type ExpressionFolder = {
+  id: string
+  name: string
+  language: 'en' | 'jp'
+  createdAt: string
+  _count?: {
+    expressions: number
+  }
+  expressions?: Expression[]
 }
 
 export type FolderDetail = Folder & {
@@ -27,6 +67,23 @@ export type UpdateWordPayload = {
   meaning?: string
   example?: string
   note?: string
+  partOfSpeech?: string
+  sourceNoteId?: string | null
+  folderId?: string
+}
+
+export type Review = {
+  id: string
+  wordId: string
+  interval: number
+  repetition: number
+  easeFactor: number
+  difficultyScore?: number
+  lastRating?: string
+  recentRatings?: string
+  firstLearnedAt?: string | null
+  nextReviewDate: string
+  lastReviewedAt: string | null
 }
 
 export type Word = {
@@ -36,10 +93,14 @@ export type Word = {
   meaning: string
   example: string
   note: string
+  partOfSpeech: string
   language: string
   folderId: string
+  sourceNoteId?: string | null
   createdAt?: string
   folder?: Folder
+  sourceNote?: Note | null
+  review?: Review | null
 }
 
 export type ReviewItem = {
@@ -63,6 +124,8 @@ export type CreateWordPayload = {
   meaning: string
   example: string
   note: string
+  partOfSpeech: string
+  sourceNoteId?: string
   language: string
   folderId: string
 }

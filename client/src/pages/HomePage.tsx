@@ -1,11 +1,16 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Modal } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
+import { useI18n } from '../i18n'
+import { getTodayLearnedStats, getTomorrowReviewStats } from '../api/review'
 import { useAppStore } from '../store/useAppStore'
 
-const LIMIT_OPTIONS: { value: number | null; label: string }[] = [
+const LEARN_LIMIT_OPTIONS: { value: number | null; label: string }[] = [
   { value: 5, label: '5 个' },
   { value: 10, label: '10 个' },
+  { value: 15, label: '15 个' },
   { value: 20, label: '20 个' },
+  { value: 30, label: '30 个' },
   { value: 50, label: '50 个' },
   { value: 100, label: '100 个' },
   { value: null, label: '全部' },
@@ -13,25 +18,58 @@ const LIMIT_OPTIONS: { value: number | null; label: string }[] = [
 
 export function HomePage() {
   const navigate = useNavigate()
+  const { t } = useI18n()
+  const folders = useAppStore((state) => state.folders)
+  const isLoadingFolders = useAppStore((state) => state.isLoadingFolders)
   const dueReviews = useAppStore((state) => state.dueReviews)
   const sessionLimit = useAppStore((state) => state.sessionLimit)
   const isLoadingReviews = useAppStore((state) => state.isLoadingReviews)
   const error = useAppStore((state) => state.error)
+  const folderList = Array.isArray(folders) ? folders : []
   const dueCount = Array.isArray(dueReviews) ? dueReviews.length : 0
-  const plannedCount =
-    sessionLimit === null ? dueCount : Math.min(dueCount, sessionLimit)
-
+  const dueCountByFolder = useMemo(() => {
+    const map = new Map<string, number>()
+    if (!Array.isArray(dueReviews)) return map
+    for (const item of dueReviews) {
+      const id = item.word.folder.id
+      map.set(id, (map.get(id) ?? 0) + 1)
+    }
+    return map
+  }, [dueReviews])
+  const [todayLearned, setTodayLearned] = useState({ en: 0, jp: 0, total: 0 })
+  const [tomorrowReview, setTomorrowReview] = useState({ en: 0, jp: 0, total: 0 })
   useEffect(() => {
     useAppStore.getState().clearError()
+    void useAppStore.getState().fetchFolders()
     void useAppStore.getState().fetchTodayReviews()
+    void Promise.all([getTodayLearnedStats(), getTomorrowReviewStats()]).then(
+      ([todayStats, tomorrowStats]) => {
+        setTodayLearned({
+          en: todayStats?.en ?? 0,
+          jp: todayStats?.jp ?? 0,
+          total: todayStats?.total ?? 0,
+        })
+        setTomorrowReview({
+          en: tomorrowStats?.en ?? 0,
+          jp: tomorrowStats?.jp ?? 0,
+          total: tomorrowStats?.total ?? 0,
+        })
+      },
+    )
   }, [])
 
-  const handleStart = () => {
-    useAppStore.getState().startReviewSession(sessionLimit)
+  const handleStartLearnByFolder = (folderId: string) => {
+    useAppStore.getState().setReviewFolderId(folderId)
+    navigate('/learn')
+  }
+
+  const handleStartReviewByFolder = (folderId: string) => {
+    useAppStore.getState().setReviewFolderId(folderId)
+    void useAppStore.getState().fetchTodayReviews()
     navigate('/review')
   }
 
-  const handleLimitChange = (value: string) => {
+  const handleLearnLimitChange = (value: string) => {
     const next = value === 'all' ? null : Number(value)
     useAppStore.getState().setSessionLimit(next)
   }
@@ -40,43 +78,59 @@ export function HomePage() {
     <section className="page">
       <div className="card hero-card">
         <p className="eyebrow">Today Review</p>
-        <h2>今天需要复习的单词</h2>
-        <p className="hero-count">{isLoadingReviews ? '...' : dueCount}</p>
-        <p className="muted">
-          打开今日复习列表，按照 Again / Hard / Easy 三种评分推进记忆节奏。
-        </p>
-
-        <div className="session-picker">
-          <label className="session-picker-label" htmlFor="session-limit">
-            本次背多少个
-          </label>
-          <select
-            id="session-limit"
-            value={sessionLimit === null ? 'all' : String(sessionLimit)}
-            onChange={(event) => handleLimitChange(event.target.value)}
+        <div className="home-hero-title-row">
+          <h2>{t('home.title')}</h2>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() =>
+              Modal.info({
+                title: t('home.algoTitle'),
+                width: 640,
+                okText: t('expression.save'),
+                content: (
+                  <div>
+                    <p>{t('home.algoBrief')}</p>
+                  </div>
+                ),
+              })
+            }
           >
-            {LIMIT_OPTIONS.map((option) => (
-              <option
-                key={option.value === null ? 'all' : option.value}
-                value={option.value === null ? 'all' : String(option.value)}
-              >
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <span className="muted session-picker-hint">
-            本次会推 {isLoadingReviews ? '…' : plannedCount} 张
-          </span>
+            {t('home.algoInfo')}
+          </button>
         </div>
-
-        <div className="hero-actions">
+        <p className="hero-count">{isLoadingReviews ? '...' : dueCount}</p>
+        <p className="muted">{t('home.intro')}</p>
+        <p className="muted">
+          {t('home.todayLearned', {
+            en: todayLearned.en,
+            jp: todayLearned.jp,
+            total: todayLearned.total,
+          })}
+        </p>
+        <p className="muted">
+          {t('home.tomorrowReview', {
+            en: tomorrowReview.en,
+            jp: tomorrowReview.jp,
+            total: tomorrowReview.total,
+          })}
+        </p>
+        {/* <div className="hero-actions">
           <button
             type="button"
             className="primary-button"
-            onClick={handleStart}
+            onClick={handleStartLearnAll}
+            disabled={isLoadingReviews}
+          >
+            全部分类开始学习
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={handleStartReviewAll}
             disabled={isLoadingReviews || dueCount === 0}
           >
-            开始背词
+            全部分类开始复习
           </button>
           <Link className="secondary-link" to="/folders">
             查看分类
@@ -84,14 +138,74 @@ export function HomePage() {
           <button
             type="button"
             className="secondary-button"
-            disabled={isLoadingReviews}
-            onClick={() => void useAppStore.getState().fetchTodayReviews()}
+            disabled={isLoadingReviews || isLoadingFolders}
+            onClick={() => {
+              void useAppStore.getState().fetchFolders()
+              void useAppStore.getState().fetchTodayReviews()
+            }}
           >
             刷新数据
           </button>
-        </div>
+        </div> */}
 
         {error ? <p className="error-text">{error}</p> : null}
+      </div>
+
+      <div className="folder-grid home-action-grid">
+        {folderList.map((folder) => (
+          <article key={folder.id} className="card folder-card">
+            <Link className="folder-card-link" to={`/folders/${folder.id}`}>
+              <div className="folder-top">
+                <strong>{folder.name}</strong>
+                <span className="folder-language">{folder.language.toUpperCase()}</span>
+              </div>
+              <p className="muted">
+                {t('home.wordsAndDue', {
+                  words: folder._count?.words ?? 0,
+                  due: dueCountByFolder.get(folder.id) ?? 0,
+                })}
+              </p>
+            </Link>
+            <div className="folder-card-actions home-folder-actions">
+              <label className="session-inline home-folder-limit">
+                <span className="muted">{t('home.learnLimit')}</span>
+                <select
+                  value={sessionLimit === null ? 'all' : String(sessionLimit)}
+                  onChange={(event) => handleLearnLimitChange(event.target.value)}
+                >
+                  {LEARN_LIMIT_OPTIONS.map((option) => (
+                    <option
+                      key={option.value === null ? 'all' : option.value}
+                      value={option.value === null ? 'all' : String(option.value)}
+                    >
+                      {option.value === null
+                        ? t('home.all')
+                        : `${option.value}${t('home.unit')}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div>
+                <button
+                type="button"
+                className="ghost-button"
+                disabled={isLoadingFolders || isLoadingReviews}
+                onClick={() => handleStartLearnByFolder(folder.id)}
+              >
+                {t('home.learnNew')}
+              </button>
+              <button
+                type="button"
+                className="ghost-button"
+                disabled={isLoadingFolders || isLoadingReviews}
+                onClick={() => handleStartReviewByFolder(folder.id)}
+              >
+                {t('home.review')}
+              </button>
+              </div>
+            </div>
+          </article>
+        ))}
       </div>
     </section>
   )
