@@ -215,7 +215,7 @@ export function LearnPage() {
           </div>
           <div className="word-card-title learn-word-row">
             <strong className="word-title">{currentWord.word}</strong>
-            <SpeakButton text={currentWord.word} lang={currentWord.language} size="md" />
+            <SpeakButton text={currentWord.word} reading={currentWord.reading} lang={currentWord.language} size="md" />
             <span className="muted word-reading">{currentWord.reading}</span>
           </div>
           {currentWord.partOfSpeech ? (
@@ -316,7 +316,7 @@ export function LearnPage() {
                   <span className="muted">{currentWord.reading}</span>
                 ) : null}
                 <SpeakButton
-                  text={currentWord.word}
+                  text={currentWord.word} reading={currentWord.reading}
                   lang={currentWord.language}
                   size="md"
                   label="朗读单词"
@@ -341,7 +341,7 @@ export function LearnPage() {
                   <span className="muted">{currentWord.reading}</span>
                 ) : null}
                 <SpeakButton
-                  text={currentWord.word}
+                  text={currentWord.word} reading={currentWord.reading}
                   lang={currentWord.language}
                   size="md"
                   label="朗读单词"

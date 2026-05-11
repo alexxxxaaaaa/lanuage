@@ -91,6 +91,26 @@ function pickVoice(lang: SpeechLang): SpeechSynthesisVoice | undefined {
   return [...candidates].sort((a, b) => scoreVoice(b) - scoreVoice(a))[0]
 }
 
+function isAllKana(input: string) {
+  // Hiragana, katakana, prolonged sound mark, common punctuation/whitespace
+  return /^[぀-ヿㇰ-ㇿー\s・,，、。.!?！？]+$/.test(input.trim())
+}
+
+/**
+ * For Japanese: if a kana-only `reading` is supplied, speak that instead of
+ * the kanji `text` (kanji can have multiple readings — TTS picks one which may
+ * differ from the displayed reading). For other languages: always use `text`,
+ * since `reading` is typically IPA which can't be spoken.
+ */
+export function pickSpeakableText(
+  text: string,
+  reading: string | undefined | null,
+  lang: SpeechLang,
+): string {
+  if (lang === 'jp' && reading && isAllKana(reading)) return reading
+  return text
+}
+
 export function speak(text: string, lang: SpeechLang = 'en', rate = 0.95) {
   if (!text || !isSpeechSupported()) return
 

@@ -151,6 +151,33 @@ export function HomePage() {
         {error ? <p className="error-text">{error}</p> : null}
       </div>
 
+      <div className="home-modules">
+        <Link className="home-module-card" to="/folders">
+          <div className="home-module-icon">📚</div>
+          <div className="home-module-body">
+            <strong>{t('nav.folders')}</strong>
+            <span className="muted">按语言/教材分类管理单词</span>
+          </div>
+          <span className="home-module-arrow">→</span>
+        </Link>
+        <Link className="home-module-card" to="/notes">
+          <div className="home-module-icon">📝</div>
+          <div className="home-module-body">
+            <strong>{t('nav.notes')}</strong>
+            <span className="muted">摘录文章 / 课文，挑词加入词库</span>
+          </div>
+          <span className="home-module-arrow">→</span>
+        </Link>
+        <Link className="home-module-card" to="/expressions">
+          <div className="home-module-icon">💬</div>
+          <div className="home-module-body">
+            <strong>{t('nav.expressions')}</strong>
+            <span className="muted">收集口语化短句和场景表达</span>
+          </div>
+          <span className="home-module-arrow">→</span>
+        </Link>
+      </div>
+
       <div className="folder-grid home-action-grid">
         {folderList.map((folder) => (
           <article key={folder.id} className="card folder-card">

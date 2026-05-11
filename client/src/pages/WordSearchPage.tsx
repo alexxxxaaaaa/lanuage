@@ -248,7 +248,7 @@ export function WordSearchPage() {
           <div className="dict-result">
             <div className="dict-word-row">
               <strong className="dict-word">{wordResult.word}</strong>
-              <SpeakButton text={wordResult.word} lang={targetLanguage} size="md" />
+              <SpeakButton text={wordResult.word} reading={wordResult.reading} lang={targetLanguage} size="md" />
               {wordResult.reading ? (
                 <span className="muted dict-reading">{wordResult.reading}</span>
               ) : null}

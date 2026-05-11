@@ -1,8 +1,9 @@
 import type { MouseEvent } from 'react'
-import { isSpeechSupported, speak } from '../utils/speech'
+import { isSpeechSupported, pickSpeakableText, speak } from '../utils/speech'
 
 type SpeakButtonProps = {
   text: string
+  reading?: string | null
   lang: string
   label?: string
   size?: 'sm' | 'md'
@@ -11,6 +12,7 @@ type SpeakButtonProps = {
 
 export function SpeakButton({
   text,
+  reading,
   lang,
   label = '朗读',
   size = 'sm',
@@ -19,10 +21,12 @@ export function SpeakButton({
   if (!text) return null
   if (!isSpeechSupported()) return null
 
+  const speakText = pickSpeakableText(text, reading, lang)
+
   const handleClick = (event: MouseEvent) => {
     event.preventDefault()
     event.stopPropagation()
-    speak(text, lang, rate)
+    speak(speakText, lang, rate)
   }
 
   return (
@@ -30,7 +34,7 @@ export function SpeakButton({
       type="button"
       className={`speak-button speak-button-${size}`}
       onClick={handleClick}
-      aria-label={`朗读 ${text}`}
+      aria-label={`朗读 ${speakText}`}
       title={label}
     >
       <span aria-hidden="true">🔊</span>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { CodeOutlined } from '@ant-design/icons'
-import { FloatButton, Modal, Select } from 'antd'
+import { CodeOutlined, MenuOutlined } from '@ant-design/icons'
+import { Drawer, FloatButton, Modal, Select } from 'antd'
 import {
   NavLink,
   Route,
@@ -10,7 +10,7 @@ import {
 } from 'react-router-dom'
 import './App.css'
 import { useI18n } from './i18n'
-import { QuickAddWordFloat } from './components/QuickAddWordFloat'
+import { QuickSearchFloat } from './components/QuickSearchFloat'
 import { RequireAuth } from './components/RequireAuth'
 import { useAuthStore } from './store/authStore'
 import { AiUsagePage } from './pages/AiUsagePage'
@@ -36,6 +36,7 @@ function AppShell() {
   const clearSession = useAuthStore((state) => state.clearSession)
   const [keyword, setKeyword] = useState('')
   const [isCodeOpen, setIsCodeOpen] = useState(false)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
   useEffect(() => {
     if (!location.pathname.startsWith('/words/search')) return
@@ -75,6 +76,31 @@ function AppShell() {
     clearSession()
     navigate('/login', { replace: true })
   }
+
+  // Close drawer when route changes
+  useEffect(() => {
+    setIsDrawerOpen(false)
+  }, [location.pathname])
+
+  const navLinks = (
+    <>
+      <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/" end>
+        {t('nav.home')}
+      </NavLink>
+      <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/folders">
+        {t('nav.folders')}
+      </NavLink>
+      <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/notes">
+        {t('nav.notes')}
+      </NavLink>
+      <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/expressions">
+        {t('nav.expressions')}
+      </NavLink>
+      <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/ai-usage">
+        {t('nav.aiUsage')}
+      </NavLink>
+    </>
+  )
 
   return (
     <div className="app-shell">
@@ -119,29 +145,28 @@ function AppShell() {
               ]}
             />
           </label>
-          <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/" end>
-            {t('nav.home')}
-          </NavLink>
-          <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/folders">
-            {t('nav.folders')}
-          </NavLink>
-          <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/learn">
-            {t('nav.learn')}
-          </NavLink>
-          <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/review">
-            {t('nav.review')}
-          </NavLink>
-          <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/notes">
-            {t('nav.notes')}
-          </NavLink>
-          <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/expressions">
-            {t('nav.expressions')}
-          </NavLink>
-          <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/ai-usage">
-            {t('nav.aiUsage')}
-          </NavLink>
+          <div className="nav-links-desktop">{navLinks}</div>
+          <button
+            type="button"
+            className="nav-menu-toggle"
+            aria-label="打开导航菜单"
+            onClick={() => setIsDrawerOpen(true)}
+          >
+            <MenuOutlined />
+          </button>
         </nav>
       </header>
+
+      <Drawer
+        title="导航"
+        placement="right"
+        open={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        width={260}
+        className="nav-drawer"
+      >
+        <div className="nav-drawer-links">{navLinks}</div>
+      </Drawer>
 
       <main className="page-content">
         <Routes>
@@ -179,7 +204,7 @@ function AppShell() {
       >
         <p className="muted">快捷键：Z（可来回切换）</p>
       </Modal>
-      {location.pathname !== '/words/new' ? <QuickAddWordFloat /> : null}
+      {location.pathname !== '/words/new' ? <QuickSearchFloat /> : null}
     </div>
   )
 }

@@ -480,7 +480,7 @@ export function FolderDetailPage() {
                   <div className="word-card-title">
                     <strong className="word-title">{word.word}</strong>
                     <SpeakButton
-                      text={word.word}
+                      text={word.word} reading={word.reading}
                       lang={word.language}
                       size="md"
                       label={t('folderDetail.formWord')}

@@ -397,7 +397,7 @@ export function ReviewPage() {
                     <span className="muted">{currentWord.reading}</span>
                   ) : null}
                   <SpeakButton
-                    text={currentWord.word}
+                    text={currentWord.word} reading={currentWord.reading}
                     lang={currentWord.language}
                     size="md"
                     label="朗读单词"
@@ -422,7 +422,7 @@ export function ReviewPage() {
                     <span className="muted">{currentWord.reading}</span>
                   ) : null}
                   <SpeakButton
-                    text={currentWord.word}
+                    text={currentWord.word} reading={currentWord.reading}
                     lang={currentWord.language}
                     size="md"
                     label="朗读单词"
@@ -450,7 +450,7 @@ export function ReviewPage() {
               <span className="flip-word-row">
                 <strong>{currentWord.word}</strong>
                 <SpeakButton
-                  text={currentWord.word}
+                  text={currentWord.word} reading={currentWord.reading}
                   lang={currentWord.language}
                   size="md"
                   label="朗读单词"
@@ -464,7 +464,7 @@ export function ReviewPage() {
               <>
                 <small>请先听发音，再猜单词</small>
                 <SpeakButton
-                  text={currentWord.word}
+                  text={currentWord.word} reading={currentWord.reading}
                   lang={currentWord.language}
                   size="md"
                   label="朗读单词"
