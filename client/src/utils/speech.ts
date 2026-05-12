@@ -1,7 +1,7 @@
 export type SpeechLang = 'en' | 'jp' | string
 
 const LANG_MAP: Record<string, string> = {
-  en: 'en-US',
+  en: 'en-GB',
   jp: 'ja-JP',
 }
 
@@ -14,6 +14,16 @@ const PREMIUM_HINTS = [
   'siri',
   'natural',
 ]
+
+type VoicePreference = {
+  nameIncludes?: string[]
+  exactLang?: string
+}
+
+const LANG_VOICE_PREFERENCES: Record<string, VoicePreference> = {
+  en: { nameIncludes: ['google'], exactLang: 'en-GB' },
+  jp: { nameIncludes: ['google'], exactLang: 'ja-JP' },
+}
 
 export function isSpeechSupported() {
   return typeof window !== 'undefined' && 'speechSynthesis' in window
@@ -80,6 +90,20 @@ function scoreVoice(voice: SpeechSynthesisVoice): number {
   return score
 }
 
+function matchesPreference(
+  voice: SpeechSynthesisVoice,
+  preference: VoicePreference | undefined,
+): boolean {
+  if (!preference) return false
+  const name = voice.name.toLowerCase()
+  const nameMatch =
+    !preference.nameIncludes ||
+    preference.nameIncludes.length === 0 ||
+    preference.nameIncludes.some((token) => name.includes(token.toLowerCase()))
+  const langMatch = !preference.exactLang || voice.lang === preference.exactLang
+  return nameMatch && langMatch
+}
+
 function pickVoice(lang: SpeechLang): SpeechSynthesisVoice | undefined {
   const preferredName = getPreferredVoiceName(lang)
   const candidates = getVoicesForLang(lang)
@@ -88,6 +112,22 @@ function pickVoice(lang: SpeechLang): SpeechSynthesisVoice | undefined {
     if (match) return match
   }
   if (candidates.length === 0) return undefined
+  const preference = LANG_VOICE_PREFERENCES[lang as string]
+  const preferred = candidates.filter((voice) => matchesPreference(voice, preference))
+  if (preferred.length > 0) {
+    return [...preferred].sort((a, b) => scoreVoice(b) - scoreVoice(a))[0]
+  }
+  // Fall back to brand-only match (any Google voice for the language family).
+  if (preference?.nameIncludes && preference.nameIncludes.length > 0) {
+    const brandOnly = candidates.filter((voice) =>
+      preference.nameIncludes!.some((token) =>
+        voice.name.toLowerCase().includes(token.toLowerCase()),
+      ),
+    )
+    if (brandOnly.length > 0) {
+      return [...brandOnly].sort((a, b) => scoreVoice(b) - scoreVoice(a))[0]
+    }
+  }
   return [...candidates].sort((a, b) => scoreVoice(b) - scoreVoice(a))[0]
 }
 

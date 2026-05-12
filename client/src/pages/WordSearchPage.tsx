@@ -65,13 +65,13 @@ export function WordSearchPage() {
   }, [q])
 
   const wordFolders = useMemo(
-    () =>
-      (Array.isArray(folders) ? folders : []).filter(
-        (folder) => folder.language === targetLanguage,
-      ),
-    [folders, targetLanguage],
+    () => (Array.isArray(folders) ? folders : []),
+    [folders],
   )
-  const defaultWordFolderId = wordFolders[0]?.id ?? ''
+  const defaultWordFolderId =
+    wordFolders.find((folder) => folder.language === targetLanguage)?.id ??
+    wordFolders[0]?.id ??
+    ''
   const [selectedWordFolderId, setSelectedWordFolderId] = useState('')
 
   useEffect(() => {
@@ -303,7 +303,7 @@ export function WordSearchPage() {
                   ) : null}
                   {wordFolders.map((folder) => (
                     <option key={folder.id} value={folder.id}>
-                      {folder.name}
+                      {folder.name}（{folder.language.toUpperCase()}）
                     </option>
                   ))}
                 </select>
