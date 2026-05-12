@@ -29,6 +29,7 @@ export function WordSearchPage() {
   const [wordResult, setWordResult] = useState<DictResult | null>(null)
   const [localMatches, setLocalMatches] = useState<Word[]>([])
   const [isSearchingLocal, setIsSearchingLocal] = useState(false)
+  const [autoAiFiredFor, setAutoAiFiredFor] = useState('')
 
   useEffect(() => {
     void useAppStore.getState().fetchFolders()
@@ -36,6 +37,7 @@ export function WordSearchPage() {
 
   useEffect(() => {
     setKeyword(q)
+    setWordResult(null)
   }, [q])
 
   useEffect(() => {
@@ -105,6 +107,19 @@ export function WordSearchPage() {
       setIsSearchingAi(false)
     }
   }
+
+  // Auto-fire AI lookup once when a new query returns zero local matches.
+  useEffect(() => {
+    const trimmed = q.trim()
+    if (!trimmed) return
+    if (isSearchingLocal) return
+    if (localMatches.length > 0) return
+    if (autoAiFiredFor === trimmed) return
+    setAutoAiFiredFor(trimmed)
+    void runAiLookup()
+    // runAiLookup is intentionally not in deps — we only fire once per new q
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, isSearchingLocal, localMatches.length, autoAiFiredFor])
 
   const handleAddWord = async () => {
     if (!wordResult) return

@@ -100,21 +100,24 @@ export function HomePage() {
           </button>
         </div>
         <p className="hero-count">{isLoadingReviews ? '...' : dueCount}</p>
-        <p className="muted">{t('home.intro')}</p>
-        <p className="muted">
-          {t('home.todayLearned', {
-            en: todayLearned.en,
-            jp: todayLearned.jp,
-            total: todayLearned.total,
-          })}
-        </p>
-        <p className="muted">
-          {t('home.tomorrowReview', {
-            en: tomorrowReview.en,
-            jp: tomorrowReview.jp,
-            total: tomorrowReview.total,
-          })}
-        </p>
+        {todayLearned.total > 0 ? (
+          <p className="muted">
+            {t('home.todayLearned', {
+              en: todayLearned.en,
+              jp: todayLearned.jp,
+              total: todayLearned.total,
+            })}
+          </p>
+        ) : null}
+        {tomorrowReview.total > 0 ? (
+          <p className="muted">
+            {t('home.tomorrowReview', {
+              en: tomorrowReview.en,
+              jp: tomorrowReview.jp,
+              total: tomorrowReview.total,
+            })}
+          </p>
+        ) : null}
         {/* <div className="hero-actions">
           <button
             type="button"

@@ -448,6 +448,58 @@ button:disabled,
   color: var(--text-h);
 }
 
+.learn-study-block {
+  display: grid;
+  gap: 10px;
+}
+
+.learn-summary-list {
+  list-style: none;
+  padding: 0;
+  margin: 16px auto 0;
+  display: grid;
+  gap: 6px;
+  max-width: 420px;
+}
+
+.learn-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.03);
+  font-size: 14px;
+}
+
+.learn-summary-item strong {
+  flex: 1;
+  text-align: left;
+  color: var(--text-h);
+}
+
+.learn-summary-rating {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.learn-summary-easy {
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+}
+
+.learn-summary-hard {
+  background: rgba(234, 88, 12, 0.12);
+  color: #c2410c;
+}
+
+.learn-summary-again {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+}
+
 .rte-shell {
   display: grid;
   gap: 0;

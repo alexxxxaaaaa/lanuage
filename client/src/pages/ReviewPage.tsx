@@ -186,6 +186,21 @@ export function ReviewPage() {
         event.preventDefault()
         speak(currentWord.word, currentWord.language)
       }
+
+      if (event.key === 'Enter' && currentWord && !isSubmitting) {
+        if (currentStep.key === 'recall') {
+          if (recallStatus === 'correct') {
+            event.preventDefault()
+            void handleStepRating('easy')
+          } else if (recallStatus === 'wrong') {
+            event.preventDefault()
+            void handleStepRating('again')
+          }
+        } else if (isCardFlipped) {
+          event.preventDefault()
+          void handleStepRating('easy')
+        }
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -194,7 +209,7 @@ export function ReviewPage() {
       window.removeEventListener('keydown', handleKeyDown)
       stopSpeaking()
     }
-  }, [currentWord, isCardFlipped, currentStep.key])
+  }, [currentWord, isCardFlipped, currentStep.key, recallStatus, isSubmitting])
 
   useEffect(() => {
     if (currentStep.key !== 'pronunciation' || !currentWord) return
