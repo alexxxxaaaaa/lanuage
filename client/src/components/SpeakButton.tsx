@@ -1,4 +1,5 @@
 import type { MouseEvent } from 'react'
+import { SoundOutlined } from '@ant-design/icons'
 import { isSpeechSupported, pickSpeakableText, speak } from '../utils/speech'
 
 type SpeakButtonProps = {
@@ -37,7 +38,7 @@ export function SpeakButton({
       aria-label={`朗读 ${speakText}`}
       title={label}
     >
-      <span aria-hidden="true">🔊</span>
+      <SoundOutlined aria-hidden="true" />
     </button>
   )
 }

@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { adminRouter } from './routes/admin'
 import { aiRouter } from './routes/ai'
 import { authRouter } from './routes/auth'
 import { dictionaryRouter } from './routes/dictionary'
@@ -10,6 +11,7 @@ import { notesRouter } from './routes/notes'
 import { reviewRouter } from './routes/review'
 import { wordsRouter } from './routes/words'
 import { handleError } from './middleware/errorHandler'
+import { requireAdmin } from './middleware/requireAdmin'
 import { requireAuth, type AppEnv } from './middleware/requireAuth'
 
 export function createApp() {
@@ -49,6 +51,10 @@ export function createApp() {
 
   app.use('/api/ai/*', requireAuth)
   app.route('/api/ai', aiRouter)
+
+  // Admin：用户名需在 ADMIN_USERNAMES（逗号分隔，小写）中
+  app.use('/api/admin/*', requireAdmin)
+  app.route('/api/admin', adminRouter)
 
   app.onError((err, c) => handleError(err, c))
 

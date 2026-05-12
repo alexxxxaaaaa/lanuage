@@ -156,6 +156,8 @@ a {
   background: var(--card-bg);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .muted {
@@ -393,6 +395,13 @@ button:disabled,
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.recall-input-row .hint-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .recall-input {
@@ -860,8 +869,8 @@ button:disabled,
 
 .learn-card {
   text-align: left;
-  width: 660px;
-  max-width: 100%;
+  width: 100%;
+  max-width: 660px;
   margin: 0 auto;
   padding: 28px;
 }
@@ -898,6 +907,8 @@ button:disabled,
   border-radius: 12px;
   border: 1px solid var(--border);
   background: rgba(15, 23, 42, 0.02);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .learn-label {
@@ -1197,40 +1208,67 @@ button:disabled,
   }
 
   .app-header {
-    flex-direction: column;
-    margin-bottom: 20px;
-    gap: 12px;
-  }
-
-  .brand {
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
-    width: 100%;
+    margin-bottom: 20px;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+
+  .brand {
+    flex: 1;
+    min-width: 0;
+    gap: 4px;
+  }
+
+  .brand .eyebrow {
+    font-size: 13px;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .nav {
-    width: 100%;
+    width: auto;
     gap: 8px;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
   }
 
   .nav-search {
-    width: 100%;
-    margin-right: 0;
+    display: none;
   }
 
-  .nav-search input {
-    width: 100%;
-    max-width: none;
+  .nav-search-icon {
+    display: inline-flex;
+  }
+
+  .nav-language-label {
+    display: none;
+  }
+
+  .nav-language {
+    padding: 4px 6px;
+  }
+
+  .nav-language-select {
+    min-width: 64px;
+  }
+
+  .brand-user {
+    padding: 4px 4px 4px 10px;
+    font-size: 12px;
+  }
+
+  .brand-user-name {
+    max-width: 56px;
   }
 
   .nav a {
     padding: 8px 12px;
     font-size: 13px;
-  }
-
-  .nav-language {
-    padding: 4px 8px;
   }
 
   /* Page padding */
@@ -1267,7 +1305,9 @@ button:disabled,
     gap: 8px;
   }
 
-  .recall-input-row .primary-button {
+  .recall-input-row .primary-button,
+  .recall-input-row .secondary-button,
+  .recall-input-row .ghost-button {
     width: 100%;
   }
 
@@ -1275,6 +1315,12 @@ button:disabled,
   .quick-add-float {
     inset-inline-end: 16px !important;
     bottom: 84px !important;
+  }
+
+  /* Drawer: clamp to viewport so menu items aren't clipped on small phones */
+  .nav-drawer.ant-drawer .ant-drawer-content-wrapper {
+    max-width: 86vw !important;
+    width: 280px !important;
   }
 }
 
@@ -1287,6 +1333,32 @@ button:disabled,
   .nav a {
     padding: 6px 10px;
     font-size: 12px;
+  }
+
+  .brand-user {
+    padding: 3px 3px 3px 8px;
+    gap: 6px;
+  }
+
+  .brand-user-name {
+    max-width: 44px;
+  }
+
+  .brand-logout {
+    padding: 0 8px;
+    min-height: 24px;
+    font-size: 11px;
+  }
+
+  .nav-language-select {
+    min-width: 56px;
+  }
+
+  .nav-search-icon,
+  .nav-menu-toggle {
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
   }
 
   .auth-card {
@@ -2107,33 +2179,64 @@ button:disabled,
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
 
 .brand-user {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  color: #64748b;
+  padding: 6px 4px 6px 12px;
+  border-radius: 999px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text);
 }
 
 .brand-user-name {
-  font-weight: 500;
+  font-weight: 600;
+  color: var(--text-h);
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .brand-logout {
   border: none;
-  background: transparent;
-  color: #94a3b8;
-  padding: 0;
-  font-size: 13px;
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--accent);
+  padding: 2px 10px;
+  min-height: 26px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 
 .brand-logout:hover {
-  color: #475569;
+  background: rgba(37, 99, 235, 0.16);
+  transform: none;
+}
+
+.nav-search-icon {
+  display: none;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text-h);
+  font-size: 18px;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-search-icon:hover {
+  background: rgba(37, 99, 235, 0.06);
 }
 
 /* Quick search float */

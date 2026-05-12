@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CodeOutlined, MenuOutlined } from '@ant-design/icons'
+import { CodeOutlined, MenuOutlined, SearchOutlined } from '@ant-design/icons'
 import { Drawer, FloatButton, Modal, Select } from 'antd'
 import {
   NavLink,
@@ -107,14 +107,6 @@ function AppShell() {
       <header className="app-header">
         <div className="brand">
           <p className="eyebrow">Word Sprint</p>
-          {user ? (
-            <div className="brand-user">
-              <span className="brand-user-name">@{user.username}</span>
-              <button type="button" className="brand-logout" onClick={handleLogout}>
-                退出
-              </button>
-            </div>
-          ) : null}
         </div>
 
         <nav className="nav">
@@ -129,8 +121,16 @@ function AppShell() {
               {t('nav.search')}
             </button>
           </form>
+          <button
+            type="button"
+            className="nav-search-icon"
+            aria-label={t('nav.search')}
+            onClick={() => navigate('/words/search')}
+          >
+            <SearchOutlined />
+          </button>
           <label className="nav-language">
-            <span>{t('nav.language')}</span>
+            <span className="nav-language-label">{t('nav.language')}</span>
             <Select
               className="nav-language-select"
               size="small"
@@ -145,6 +145,14 @@ function AppShell() {
               ]}
             />
           </label>
+          {user ? (
+            <div className="brand-user">
+              <span className="brand-user-name">@{user.username}</span>
+              <button type="button" className="brand-logout" onClick={handleLogout}>
+                退出
+              </button>
+            </div>
+          ) : null}
           <div className="nav-links-desktop">{navLinks}</div>
           <button
             type="button"

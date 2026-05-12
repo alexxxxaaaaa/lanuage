@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { SoundOutlined } from '@ant-design/icons'
 import { Link } from 'react-router-dom'
 import { SpeakButton } from '../components/SpeakButton'
 import { VoicePicker } from '../components/VoicePicker'
@@ -30,6 +31,7 @@ export function ReviewPage() {
   const [repeatCountByWord, setRepeatCountByWord] = useState<Record<string, number>>({})
   const [typedRecall, setTypedRecall] = useState('')
   const [recallStatus, setRecallStatus] = useState<'idle' | 'correct' | 'wrong'>('idle')
+  const [recallUsedHint, setRecallUsedHint] = useState(false)
 
   const folderList = Array.isArray(folders) ? folders : []
 
@@ -191,7 +193,7 @@ export function ReviewPage() {
         if (currentStep.key === 'recall') {
           if (recallStatus === 'correct') {
             event.preventDefault()
-            void handleStepRating('easy')
+            void handleStepRating(recallUsedHint ? 'hard' : 'easy')
           } else if (recallStatus === 'wrong') {
             event.preventDefault()
             void handleStepRating('again')
@@ -209,7 +211,7 @@ export function ReviewPage() {
       window.removeEventListener('keydown', handleKeyDown)
       stopSpeaking()
     }
-  }, [currentWord, isCardFlipped, currentStep.key, recallStatus, isSubmitting])
+  }, [currentWord, isCardFlipped, currentStep.key, recallStatus, recallUsedHint, isSubmitting])
 
   useEffect(() => {
     if (currentStep.key !== 'pronunciation' || !currentWord) return
@@ -219,6 +221,7 @@ export function ReviewPage() {
   useEffect(() => {
     setTypedRecall('')
     setRecallStatus('idle')
+    setRecallUsedHint(false)
   }, [currentStep.key, currentReview?.wordId])
 
   const normalizeAnswer = (value: string) =>
@@ -242,6 +245,18 @@ export function ReviewPage() {
     } else {
       setRecallStatus('wrong')
     }
+  }
+
+  const handleRecallHint = () => {
+    if (!currentWord || recallStatus !== 'idle') return
+    stopSpeaking()
+    speak(currentWord.word, currentWord.language)
+    setRecallUsedHint(true)
+  }
+
+  const handleRecallForgot = () => {
+    if (recallStatus !== 'idle') return
+    setRecallStatus('wrong')
   }
 
   if (isLoadingReviews) {
@@ -390,14 +405,32 @@ export function ReviewPage() {
                 autoFocus
               />
               {recallStatus === 'idle' ? (
-                <button
-                  type="button"
-                  className="primary-button"
-                  disabled={!typedRecall.trim()}
-                  onClick={handleRecallSubmit}
-                >
-                  提交
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className="secondary-button hint-button"
+                    onClick={handleRecallHint}
+                    title="听一下（用过提示后最高 Hard）"
+                  >
+                    <SoundOutlined /> 听一下
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={handleRecallForgot}
+                    title="我忘了，直接看答案"
+                  >
+                    我忘了
+                  </button>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    disabled={!typedRecall.trim()}
+                    onClick={handleRecallSubmit}
+                  >
+                    提交
+                  </button>
+                </>
               ) : null}
             </div>
 
@@ -563,19 +596,23 @@ export function ReviewPage() {
               >
                 Hard
               </button>
-              <span className="rating-caption">写出来但不顺 +1</span>
+              <span className="rating-caption">
+                {recallUsedHint ? '用过发音提示 +1' : '写出来但不顺 +1'}
+              </span>
             </div>
-            <div className="rating-action">
-              <button
-                type="button"
-                className="success-button"
-                disabled={isSubmitting}
-                onClick={() => void handleStepRating('easy')}
-              >
-                Easy
-              </button>
-              <span className="rating-caption">一次写对 −1</span>
-            </div>
+            {!recallUsedHint ? (
+              <div className="rating-action">
+                <button
+                  type="button"
+                  className="success-button"
+                  disabled={isSubmitting}
+                  onClick={() => void handleStepRating('easy')}
+                >
+                  Easy
+                </button>
+                <span className="rating-caption">一次写对 −1</span>
+              </div>
+            ) : null}
           </div>
         ) : null}
 

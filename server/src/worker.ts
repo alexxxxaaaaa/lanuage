@@ -9,6 +9,7 @@ export type WorkerBindings = {
   JWT_SECRET: string
   OPENAI_API_KEY?: string
   OPENAI_MODEL?: string
+  ADMIN_USERNAMES?: string
 }
 
 const app = createApp()
@@ -26,6 +27,7 @@ export default {
       JWT_SECRET: env.JWT_SECRET,
       OPENAI_API_KEY: env.OPENAI_API_KEY,
       OPENAI_MODEL: env.OPENAI_MODEL,
+      ADMIN_USERNAMES: env.ADMIN_USERNAMES,
     }
 
     try {

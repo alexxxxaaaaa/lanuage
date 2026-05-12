@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { SoundOutlined } from '@ant-design/icons'
 import { Link, useNavigate } from 'react-router-dom'
 import { submitReviewResult } from '../api/review'
 import { getTodayNewWords } from '../api/words'
@@ -115,6 +116,7 @@ export function LearnPage() {
   const [recoveryAttempts, setRecoveryAttempts] = useState<Record<string, number>>({})
   const [typedAnswer, setTypedAnswer] = useState('')
   const [status, setStatus] = useState<Status>('idle')
+  const [usedHintByWord, setUsedHintByWord] = useState<Record<string, boolean>>({})
   const [sessionSummary, setSessionSummary] = useState<BatchSummary[]>([])
 
   const batches = useMemo(() => chunkInto(allWords, BATCH_SIZE), [allWords])
@@ -157,6 +159,7 @@ export function LearnPage() {
         setRecoveryAttempts({})
         setTypedAnswer('')
         setStatus('idle')
+        setUsedHintByWord({})
         setSessionSummary([])
       } catch {
         setError('加载今日新词失败')
@@ -257,7 +260,9 @@ export function LearnPage() {
     try {
       for (const w of currentBatch) {
         const errs = errorsByWord[w.id] ?? 0
-        const rating = computeRating(errs)
+        const hinted = usedHintByWord[w.id] ?? false
+        let rating = computeRating(errs)
+        if (rating === 'easy' && hinted) rating = 'hard'
         try {
           await submitReviewResult({ wordId: w.id, rating })
         } catch {
@@ -275,6 +280,7 @@ export function LearnPage() {
         setPhase('study')
         setRecoveryQueue([])
         setRecoveryAttempts({})
+        setUsedHintByWord({})
       }
     } finally {
       setIsSubmitting(false)
@@ -301,6 +307,22 @@ export function LearnPage() {
         [currentWord.id]: (prev[currentWord.id] ?? 0) + 1,
       }))
     }
+  }
+
+  const playHint = () => {
+    if (!currentWord || status !== 'idle') return
+    stopSpeaking()
+    speak(currentWord.word, currentWord.language)
+    setUsedHintByWord((prev) => ({ ...prev, [currentWord.id]: true }))
+  }
+
+  const markForgot = () => {
+    if (!currentWord || status !== 'idle') return
+    setStatus('wrong')
+    setErrorsByWord((prev) => ({
+      ...prev,
+      [currentWord.id]: (prev[currentWord.id] ?? 0) + 1,
+    }))
   }
 
   const advancePrimary = () => {
@@ -577,14 +599,32 @@ export function LearnPage() {
                 autoFocus
               />
               {status === 'idle' ? (
-                <button
-                  type="button"
-                  className="primary-button"
-                  disabled={!typedAnswer.trim()}
-                  onClick={submitTyped}
-                >
-                  提交
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className="secondary-button hint-button"
+                    onClick={playHint}
+                    title="听一下（用过提示后最高 Hard）"
+                  >
+                    <SoundOutlined /> 听一下
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={markForgot}
+                    title="我忘了，直接看答案"
+                  >
+                    我忘了
+                  </button>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    disabled={!typedAnswer.trim()}
+                    onClick={submitTyped}
+                  >
+                    提交
+                  </button>
+                </>
               ) : null}
             </div>
 
@@ -629,14 +669,32 @@ export function LearnPage() {
                 autoFocus
               />
               {status === 'idle' ? (
-                <button
-                  type="button"
-                  className="primary-button"
-                  disabled={!typedAnswer.trim()}
-                  onClick={submitTyped}
-                >
-                  提交
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className="secondary-button hint-button"
+                    onClick={playHint}
+                    title="听一下（用过提示后最高 Hard）"
+                  >
+                    <SoundOutlined /> 听一下
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={markForgot}
+                    title="我忘了，直接看答案"
+                  >
+                    我忘了
+                  </button>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    disabled={!typedAnswer.trim()}
+                    onClick={submitTyped}
+                  >
+                    提交
+                  </button>
+                </>
               ) : null}
             </div>
 
@@ -683,14 +741,32 @@ export function LearnPage() {
                 autoFocus
               />
               {status === 'idle' ? (
-                <button
-                  type="button"
-                  className="primary-button"
-                  disabled={!typedAnswer.trim()}
-                  onClick={submitTyped}
-                >
-                  提交
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className="secondary-button hint-button"
+                    onClick={playHint}
+                    title="听一下（用过提示后最高 Hard）"
+                  >
+                    <SoundOutlined /> 听一下
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={markForgot}
+                    title="我忘了，直接看答案"
+                  >
+                    我忘了
+                  </button>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    disabled={!typedAnswer.trim()}
+                    onClick={submitTyped}
+                  >
+                    提交
+                  </button>
+                </>
               ) : null}
             </div>
 
