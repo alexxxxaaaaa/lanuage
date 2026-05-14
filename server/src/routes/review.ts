@@ -3,6 +3,7 @@ import {
   getTomorrowReviewStats,
   getTodayLearnedStats,
   getTodayReviews,
+  markWordMastered,
   updateReview,
 } from '../services/reviewService'
 import { getUserId, type AppEnv } from '../middleware/requireAuth'
@@ -31,5 +32,11 @@ reviewRouter.post('/update', async (c) => {
     rating?: string
   }>()
   const review = await updateReview(getUserId(c), wordId ?? '', rating ?? '')
+  return c.json(review)
+})
+
+reviewRouter.post('/mark-mastered', async (c) => {
+  const { wordId } = await c.req.json<{ wordId?: string }>()
+  const review = await markWordMastered(getUserId(c), wordId ?? '')
   return c.json(review)
 })

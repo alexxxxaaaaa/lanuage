@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Modal } from 'antd'
+import { Modal, Progress } from 'antd'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { fillWordByAi } from '../api/ai'
 import { getErrorMessage, isDuplicateWordError } from '../api/error'
@@ -51,6 +51,7 @@ export function AddWordPage() {
   const [aiTerm, setAiTerm] = useState('')
   const [noteOptions, setNoteOptions] = useState<Array<{ id: string; title: string }>>([])
   const [isFillingByAi, setIsFillingByAi] = useState(false)
+  const [aiProgress, setAiProgress] = useState(0)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const selectedFolder = useMemo(
     () => folderList.find((folder) => folder.id === form.folderId),
@@ -152,6 +153,15 @@ export function AddWordPage() {
       return
     }
     setIsFillingByAi(true)
+    setAiProgress(8)
+    // Simulate progress while waiting for AI — caps below 90% until response arrives.
+    const progressTimer = window.setInterval(() => {
+      setAiProgress((current) => {
+        if (current >= 88) return current
+        const delta = current < 50 ? 6 : current < 75 ? 3 : 1
+        return Math.min(88, current + delta)
+      })
+    }, 400)
     try {
       const result = await fillWordByAi({ word: term, extended })
       const nextFolderId = pickFolderByLanguage(folderList, result.language, form.folderId)
@@ -184,6 +194,9 @@ export function AddWordPage() {
         onOk: () => handleAiFill(true),
       })
     } finally {
+      window.clearInterval(progressTimer)
+      setAiProgress(100)
+      window.setTimeout(() => setAiProgress(0), 400)
       setIsFillingByAi(false)
     }
   }
@@ -213,6 +226,14 @@ export function AddWordPage() {
                 {isFillingByAi ? t('addWord.aiFilling') : t('addWord.aiFillButton')}
               </button>
             </div>
+            {isFillingByAi || aiProgress > 0 ? (
+              <Progress
+                percent={aiProgress}
+                size="small"
+                showInfo={false}
+                status={isFillingByAi ? 'active' : 'success'}
+              />
+            ) : null}
           </label>
           {selectedFolder ? (
             <p className="muted">{t('addWord.matchedFolder', { name: selectedFolder.name })}</p>

@@ -149,7 +149,7 @@ function AppShell() {
             <div className="brand-user">
               <span className="brand-user-name">@{user.username}</span>
               <button type="button" className="brand-logout" onClick={handleLogout}>
-                退出
+                {t('nav.logout')}
               </button>
             </div>
           ) : null}
@@ -157,7 +157,7 @@ function AppShell() {
           <button
             type="button"
             className="nav-menu-toggle"
-            aria-label="打开导航菜单"
+            aria-label={t('nav.openMenu')}
             onClick={() => setIsDrawerOpen(true)}
           >
             <MenuOutlined />
@@ -166,7 +166,7 @@ function AppShell() {
       </header>
 
       <Drawer
-        title="导航"
+        title={t('nav.drawerTitle')}
         placement="right"
         open={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
@@ -194,8 +194,9 @@ function AppShell() {
       </main>
       <FloatButton
         icon={<CodeOutlined />}
-        tooltip="代码页 (Z 切换)"
+        tooltip={t('nav.codeTooltip')}
         onClick={() => setIsCodeOpen(true)}
+        className="hide-on-mobile-float"
         style={{ insetInlineStart: 24, bottom: 24 }}
       />
       <Modal
@@ -210,7 +211,7 @@ function AppShell() {
           body: { height: 'calc(100vh - 56px)', display: 'grid', gridTemplateRows: 'auto 1fr' },
         }}
       >
-        <p className="muted">快捷键：Z（可来回切换）</p>
+        <p className="muted">{t('nav.codeHotkey')}</p>
       </Modal>
       {location.pathname !== '/words/new' ? <QuickSearchFloat /> : null}
     </div>

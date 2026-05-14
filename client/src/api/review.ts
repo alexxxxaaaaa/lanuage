@@ -33,6 +33,13 @@ export async function submitReviewResult(payload: {
   return response.data
 }
 
+export async function markWordMastered(wordId: string) {
+  const response = await apiClient.post<ReviewItem>('/api/review/mark-mastered', {
+    wordId,
+  })
+  return response.data
+}
+
 export async function getTodayLearnedStats() {
   const response = await apiClient.get<TodayLearnedStatsResponse>('/api/review/today-learned')
   return response.data

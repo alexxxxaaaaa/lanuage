@@ -1242,7 +1242,12 @@ button:disabled,
   }
 
   .nav-search-icon {
-    display: inline-flex;
+    /* On mobile we rely on the QuickSearchFloat — hide the duplicate icon. */
+    display: none;
+  }
+
+  .hide-on-mobile-float.ant-float-btn {
+    display: none !important;
   }
 
   .nav-language-label {
@@ -2485,4 +2490,56 @@ button:disabled,
   color: var(--accent);
   font-size: 18px;
   font-weight: 600;
+}
+
+.home-due-list-block {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.home-due-toggle {
+  align-self: center;
+}
+
+.home-due-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 560px;
+  text-align: left;
+}
+
+.home-due-item {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.home-due-item-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.home-due-item-meaning {
+  margin: 0;
+  font-size: 13px;
+}
+
+.home-due-item-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }

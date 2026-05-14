@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Modal, Spin } from 'antd'
+import { Modal, Progress, Spin } from 'antd'
 import { Link, useSearchParams } from 'react-router-dom'
 import { fillWordByAi } from '../api/ai'
 import { getErrorMessage, isDuplicateWordError } from '../api/error'
 import { createWord, getWords } from '../api/words'
 import { SpeakButton } from '../components/SpeakButton'
+import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
 import type { Word } from '../types'
 
 type DictResult = {
   word: string
+  language: 'en' | 'jp'
   reading: string
   partOfSpeech: string
   meaning: string
@@ -18,12 +20,14 @@ type DictResult = {
 }
 
 export function WordSearchPage() {
+  const { t } = useI18n()
   const [searchParams, setSearchParams] = useSearchParams()
   const q = searchParams.get('q') ?? ''
   const folders = useAppStore((state) => state.folders)
   const [keyword, setKeyword] = useState(q)
   const [targetLanguage, setTargetLanguage] = useState<'en' | 'jp'>('en')
   const [isSearchingAi, setIsSearchingAi] = useState(false)
+  const [aiProgress, setAiProgress] = useState(0)
   const [isSavingWord, setIsSavingWord] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [wordResult, setWordResult] = useState<DictResult | null>(null)
@@ -68,8 +72,11 @@ export function WordSearchPage() {
     () => (Array.isArray(folders) ? folders : []),
     [folders],
   )
+  // Once an AI result arrives the result's detected language takes priority
+  // over the EN/JP toggle the user originally clicked.
+  const effectiveLanguage: 'en' | 'jp' = wordResult?.language ?? targetLanguage
   const defaultWordFolderId =
-    wordFolders.find((folder) => folder.language === targetLanguage)?.id ??
+    wordFolders.find((folder) => folder.language === effectiveLanguage)?.id ??
     wordFolders[0]?.id ??
     ''
   const [selectedWordFolderId, setSelectedWordFolderId] = useState('')
@@ -80,10 +87,21 @@ export function WordSearchPage() {
     )
   }, [wordFolders, defaultWordFolderId])
 
+  // When a new AI result arrives with a detected language that differs from
+  // the current selection, switch to a matching folder so JP results land in
+  // a JP folder even if the user kept the default EN toggle.
+  useEffect(() => {
+    if (!wordResult) return
+    const matching = wordFolders.find((f) => f.language === wordResult.language)
+    if (matching) {
+      setSelectedWordFolderId(matching.id)
+    }
+  }, [wordResult, wordFolders])
+
   const submitKeyword = () => {
     const text = keyword.trim()
     if (!text) {
-      setError('请输入要搜索的词')
+      setError(t('wordSearch.enterKeyword'))
       return
     }
     setError(null)
@@ -93,17 +111,32 @@ export function WordSearchPage() {
   const runAiLookup = async () => {
     const text = keyword.trim()
     if (!text) {
-      setError('请输入要搜索的词')
+      setError(t('wordSearch.enterKeyword'))
       return
     }
+    // If the input contains kana/kanji, treat as Japanese regardless of toggle —
+    // forcing JP→EN translation here defeats the user's actual intent.
+    const hasJapaneseChar = /[぀-ヿㇰ-ㇿ一-龯]/.test(text)
+    const lookupLanguage: 'en' | 'jp' = hasJapaneseChar ? 'jp' : targetLanguage
     setIsSearchingAi(true)
+    setAiProgress(8)
     setError(null)
+    const progressTimer = window.setInterval(() => {
+      setAiProgress((current) => {
+        if (current >= 88) return current
+        const delta = current < 50 ? 6 : current < 75 ? 3 : 1
+        return Math.min(88, current + delta)
+      })
+    }, 400)
     try {
-      const word = await fillWordByAi({ word: text, language: targetLanguage })
-      setWordResult(word)
+      const word = await fillWordByAi({ word: text, language: lookupLanguage })
+      setWordResult({ ...word, language: word.language ?? lookupLanguage })
     } catch (searchError) {
-      setError(getErrorMessage(searchError, '词典搜索失败，请稍后重试'))
+      setError(getErrorMessage(searchError, t('wordSearch.lookupFailed')))
     } finally {
+      window.clearInterval(progressTimer)
+      setAiProgress(100)
+      window.setTimeout(() => setAiProgress(0), 400)
       setIsSearchingAi(false)
     }
   }
@@ -124,14 +157,14 @@ export function WordSearchPage() {
   const handleAddWord = async () => {
     if (!wordResult) return
     if (!selectedWordFolderId) {
-      Modal.warning({ title: '请先创建并选择对应语言的单词分类' })
+      Modal.warning({ title: t('wordSearch.pickFolder') })
       return
     }
     setIsSavingWord(true)
     try {
       await createWord({
         folderId: selectedWordFolderId,
-        language: targetLanguage,
+        language: wordResult.language ?? targetLanguage,
         word: wordResult.word,
         reading: wordResult.reading,
         partOfSpeech: wordResult.partOfSpeech,
@@ -139,12 +172,15 @@ export function WordSearchPage() {
         example: wordResult.example,
         note: wordResult.note,
       })
-      Modal.success({ title: '已添加到单词' })
+      Modal.success({ title: t('wordSearch.addedSuccess') })
     } catch (saveError) {
       if (isDuplicateWordError(saveError)) {
-        Modal.warning({ title: '该分类中已存在同名单词' })
+        Modal.warning({ title: t('wordSearch.duplicate') })
       } else {
-        Modal.error({ title: '添加失败', content: getErrorMessage(saveError, '请稍后重试') })
+        Modal.error({
+          title: t('wordSearch.addFailed'),
+          content: getErrorMessage(saveError, t('wordSearch.tryLater')),
+        })
       }
     } finally {
       setIsSavingWord(false)
@@ -159,8 +195,8 @@ export function WordSearchPage() {
       <div className="section-header">
         <div>
           <p className="eyebrow">Search</p>
-          <h2>词典搜索</h2>
-          <p className="muted">先在你已添加的单词库里查找，再用 AI 词典补充新词。</p>
+          <h2>{t('wordSearch.title')}</h2>
+          <p className="muted">{t('wordSearch.subtitle')}</p>
         </div>
       </div>
 
@@ -174,7 +210,7 @@ export function WordSearchPage() {
             onKeyDown={(event) => {
               if (event.key === 'Enter') submitKeyword()
             }}
-            placeholder="输入中文 / 英语 / 日语，例如：礼貌地拒绝"
+            placeholder={t('wordSearch.placeholder')}
           />
           <div className="lang-toggle">
             <button
@@ -193,7 +229,7 @@ export function WordSearchPage() {
             </button>
           </div>
           <button type="button" className="primary-button" onClick={submitKeyword}>
-            搜索
+            {t('wordSearch.search')}
           </button>
         </div>
         {error ? <p className="error-text dict-search-error">{error}</p> : null}
@@ -202,15 +238,15 @@ export function WordSearchPage() {
       {hasQuery ? (
         <article className="card">
           <div className="dict-section-header">
-            <h3>我的单词库</h3>
-            <span className="muted">{localMatches.length} 个匹配</span>
+            <h3>{t('wordSearch.myLibrary')}</h3>
+            <span className="muted">{t('wordSearch.matched', { count: localMatches.length })}</span>
           </div>
           {isSearchingLocal ? (
             <div className="dict-loading">
               <Spin size="small" />
             </div>
           ) : localMatches.length === 0 ? (
-            <p className="muted">单词库里暂无相关结果。可以试试 AI 词典查询。</p>
+            <p className="muted">{t('wordSearch.emptyLocal')}</p>
           ) : (
             <div className="dict-match-list">
               {localMatches.map((match) => (
@@ -242,16 +278,29 @@ export function WordSearchPage() {
 
       <article className="card">
         <div className="dict-section-header">
-          <h3>AI 词典</h3>
+          <h3>{t('wordSearch.aiTitle')}</h3>
           <button
             type="button"
             className="secondary-button"
             onClick={() => void runAiLookup()}
             disabled={isSearchingAi || !keyword.trim()}
           >
-            {isSearchingAi ? '查询中...' : wordResult ? '重新查询' : '让 AI 查一下'}
+            {isSearchingAi
+              ? t('wordSearch.aiSearching')
+              : wordResult
+                ? t('wordSearch.aiReSearch')
+                : t('wordSearch.aiAsk')}
           </button>
         </div>
+
+        {isSearchingAi || aiProgress > 0 ? (
+          <Progress
+            percent={aiProgress}
+            size="small"
+            showInfo={false}
+            status={isSearchingAi ? 'active' : 'success'}
+          />
+        ) : null}
 
         {isSearchingAi && !wordResult ? (
           <div className="dict-loading">
@@ -278,39 +327,41 @@ export function WordSearchPage() {
 
             {wordResult.example ? (
               <div className="dict-example-block">
-                <span className="dict-block-label">例句</span>
+                <span className="dict-block-label">{t('wordSearch.example')}</span>
                 <p>{wordResult.example}</p>
               </div>
             ) : null}
 
             {wordResult.note ? (
               <div className="dict-example-block">
-                <span className="dict-block-label">笔记</span>
+                <span className="dict-block-label">{t('wordSearch.note')}</span>
                 <p>{wordResult.note}</p>
               </div>
             ) : null}
 
             <div className="dict-save-row">
               <label className="session-inline">
-                <span className="muted">保存到</span>
+                <span className="muted">{t('wordSearch.saveTo')}</span>
                 <select
                   value={selectedWordFolderId}
                   onChange={(event) => setSelectedWordFolderId(event.target.value)}
                   disabled={wordFolders.length === 0}
                 >
                   {wordFolders.length === 0 ? (
-                    <option value="">暂无可用分类</option>
+                    <option value="">{t('wordSearch.noFolderOption')}</option>
                   ) : null}
-                  {wordFolders.map((folder) => (
-                    <option key={folder.id} value={folder.id}>
-                      {folder.name}（{folder.language.toUpperCase()}）
-                    </option>
-                  ))}
+                  {wordFolders
+                    .filter((folder) => folder.language === effectiveLanguage)
+                    .map((folder) => (
+                      <option key={folder.id} value={folder.id}>
+                        {folder.name}（{folder.language.toUpperCase()}）
+                      </option>
+                    ))}
                 </select>
               </label>
               {wordFolders.length === 0 ? (
                 <Link className="secondary-link" to="/folders">
-                  去创建分类
+                  {t('wordSearch.createFolder')}
                 </Link>
               ) : null}
               <button
@@ -319,15 +370,13 @@ export function WordSearchPage() {
                 onClick={() => void handleAddWord()}
                 disabled={isSavingWord || wordFolders.length === 0}
               >
-                {isSavingWord ? '添加中...' : '添加到单词'}
+                {isSavingWord ? t('wordSearch.addingWord') : t('wordSearch.addWord')}
               </button>
             </div>
           </div>
         ) : !isSearchingAi && !hasAiSection ? (
           <p className="muted">
-            {hasQuery
-              ? '点击右上角让 AI 给出释义、读音、例句和笔记。'
-              : '先在上方输入要查的词，或直接让 AI 给出释义。'}
+            {hasQuery ? t('wordSearch.aiHintWithQuery') : t('wordSearch.aiHintNoQuery')}
           </p>
         ) : null}
       </article>

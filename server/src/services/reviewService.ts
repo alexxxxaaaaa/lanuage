@@ -197,6 +197,50 @@ export async function updateReview(userId: string, wordId: string, rating: strin
   })
 }
 
+export async function markWordMastered(userId: string, wordId: string) {
+  if (!wordId.trim()) {
+    throw new AppError('wordId is required', 400)
+  }
+  const word = await prisma.word.findFirst({
+    where: { id: wordId, folder: { userId } },
+    include: { review: true },
+  })
+  if (!word) {
+    throw new AppError('word not found', 404)
+  }
+
+  const now = new Date()
+  // Push next review ~10 years out so it never re-surfaces in due lists,
+  // and bump repetition/interval so getMasteryStatus reports 'mastered'.
+  const farFuture = addDays(startOfDay(now), 3650)
+  const masteredData = {
+    interval: 3650,
+    repetition: Math.max(word.review?.repetition ?? 0, 5),
+    easeFactor: Math.max(word.review?.easeFactor ?? 2.5, 2.5),
+    nextReviewDate: farFuture,
+    lastReviewedAt: now,
+    lastRating: 'easy',
+    difficultyScore: 0,
+    firstLearnedAt: word.review?.firstLearnedAt ?? now,
+  }
+
+  if (!word.review) {
+    await prisma.review.create({
+      data: { wordId: word.id, ...masteredData, recentRatings: 'easy' },
+    })
+  } else {
+    await prisma.review.update({
+      where: { wordId: word.id },
+      data: masteredData,
+    })
+  }
+
+  return prisma.review.findUnique({
+    where: { wordId: word.id },
+    include: { word: { include: { folder: true } } },
+  })
+}
+
 export async function getTodayLearnedStats(userId: string) {
   const now = new Date()
   const start = new Date(now)

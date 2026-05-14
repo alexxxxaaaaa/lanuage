@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Modal } from 'antd'
+import { Modal, message } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
 import { useI18n } from '../i18n'
-import { getTodayLearnedStats, getTomorrowReviewStats } from '../api/review'
+import {
+  getTodayLearnedStats,
+  getTomorrowReviewStats,
+  markWordMastered,
+} from '../api/review'
 import { useAppStore } from '../store/useAppStore'
 
 const LEARN_LIMIT_OPTIONS: { value: number | null; label: string }[] = [
@@ -38,6 +42,15 @@ export function HomePage() {
   }, [dueReviews])
   const [todayLearned, setTodayLearned] = useState({ en: 0, jp: 0, total: 0 })
   const [tomorrowReview, setTomorrowReview] = useState({ en: 0, jp: 0, total: 0 })
+  const [showDueList, setShowDueList] = useState(false)
+  const [masteringWordId, setMasteringWordId] = useState<string | null>(null)
+  const todayReviews = useAppStore((state) => state.todayReviews)
+  const dueListItems = useMemo(() => {
+    if (!Array.isArray(todayReviews) || todayReviews.length === 0) {
+      return Array.isArray(dueReviews) ? dueReviews : []
+    }
+    return todayReviews
+  }, [todayReviews, dueReviews])
   useEffect(() => {
     useAppStore.getState().clearError()
     void useAppStore.getState().fetchFolders()
@@ -57,6 +70,21 @@ export function HomePage() {
       },
     )
   }, [])
+
+  const handleMarkMastered = async (wordId: string, wordLabel: string) => {
+    if (masteringWordId) return
+    setMasteringWordId(wordId)
+    try {
+      await markWordMastered(wordId)
+      message.success(t('home.markedMastered', { word: wordLabel }))
+      await useAppStore.getState().fetchTodayReviews()
+      await useAppStore.getState().fetchFolders()
+    } catch {
+      message.error(t('home.markMasteredFailed'))
+    } finally {
+      setMasteringWordId(null)
+    }
+  }
 
   const handleStartLearnByFolder = (folderId: string) => {
     useAppStore.getState().setReviewFolderId(folderId)
@@ -117,6 +145,57 @@ export function HomePage() {
               total: tomorrowReview.total,
             })}
           </p>
+        ) : null}
+
+        {dueListItems.length > 0 ? (
+          <div className="home-due-list-block">
+            <button
+              type="button"
+              className="ghost-button home-due-toggle"
+              onClick={() => setShowDueList((prev) => !prev)}
+            >
+              {showDueList
+                ? t('home.hideDueList')
+                : t('home.showDueList', { count: dueListItems.length })}
+            </button>
+            {showDueList ? (
+              <ul className="home-due-list">
+                {dueListItems.map((item) => (
+                  <li key={item.wordId} className="home-due-item">
+                    <div className="home-due-item-info">
+                      <strong>{item.word.word}</strong>
+                      {item.word.reading ? (
+                        <span className="muted">{item.word.reading}</span>
+                      ) : null}
+                      <span className="folder-language">
+                        {item.word.folder?.name ??
+                          item.word.language.toUpperCase()}
+                      </span>
+                    </div>
+                    {item.word.meaning ? (
+                      <p className="muted home-due-item-meaning">
+                        {item.word.meaning}
+                      </p>
+                    ) : null}
+                    <div className="home-due-item-actions">
+                      <button
+                        type="button"
+                        className="ghost-button"
+                        disabled={masteringWordId === item.wordId}
+                        onClick={() =>
+                          void handleMarkMastered(item.wordId, item.word.word)
+                        }
+                      >
+                        {masteringWordId === item.wordId
+                          ? t('home.marking')
+                          : t('home.markMastered')}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         ) : null}
         {/* <div className="hero-actions">
           <button

@@ -1,9 +1,10 @@
 import { SearchOutlined } from '@ant-design/icons'
-import { FloatButton, Modal, message } from 'antd'
+import { FloatButton, Modal, Progress, message } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { fillWordByAi, type AiFillWordResult } from '../api/ai'
 import { getErrorMessage, isDuplicateWordError } from '../api/error'
 import { getWords } from '../api/words'
+import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
 import { SpeakButton } from './SpeakButton'
 import type { Word } from '../types'
@@ -11,6 +12,7 @@ import type { Word } from '../types'
 const SEARCH_DEBOUNCE = 300
 
 export function QuickSearchFloat() {
+  const { t } = useI18n()
   const folders = useAppStore((state) => state.folders)
   const fetchFolders = useAppStore((state) => state.fetchFolders)
   const createWord = useAppStore((state) => state.createWord)
@@ -22,6 +24,7 @@ export function QuickSearchFloat() {
   const [isSearching, setIsSearching] = useState(false)
   const [aiResult, setAiResult] = useState<AiFillWordResult | null>(null)
   const [isAiSearching, setIsAiSearching] = useState(false)
+  const [aiProgress, setAiProgress] = useState(0)
   const [targetFolderId, setTargetFolderId] = useState<string>('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -51,7 +54,7 @@ export function QuickSearchFloat() {
         const rows = await getWords({ q: term })
         setLocalResults(rows ?? [])
       } catch (error) {
-        message.error(getErrorMessage(error, '搜索失败'))
+        message.error(getErrorMessage(error, t('quickSearch.searchFailed')))
       } finally {
         setIsSearching(false)
       }
@@ -74,12 +77,23 @@ export function QuickSearchFloat() {
     const term = query.trim()
     if (!term) return
     setIsAiSearching(true)
+    setAiProgress(8)
+    const progressTimer = window.setInterval(() => {
+      setAiProgress((current) => {
+        if (current >= 88) return current
+        const delta = current < 50 ? 6 : current < 75 ? 3 : 1
+        return Math.min(88, current + delta)
+      })
+    }, 400)
     try {
       const result = await fillWordByAi({ word: term })
       setAiResult(result)
     } catch (error) {
-      message.error(getErrorMessage(error, 'AI 查词失败'))
+      message.error(getErrorMessage(error, t('quickSearch.aiFailed')))
     } finally {
+      window.clearInterval(progressTimer)
+      setAiProgress(100)
+      window.setTimeout(() => setAiProgress(0), 400)
       setIsAiSearching(false)
     }
   }
@@ -87,7 +101,7 @@ export function QuickSearchFloat() {
   const handleAdd = async () => {
     if (!aiResult) return
     if (!targetFolderId) {
-      message.warning('请选择保存到的分类')
+      message.warning(t('quickSearch.pickFolderFirst'))
       return
     }
     try {
@@ -101,16 +115,16 @@ export function QuickSearchFloat() {
         note: aiResult.note,
         partOfSpeech: aiResult.partOfSpeech,
       })
-      message.success('已添加到词库')
+      message.success(t('quickSearch.added'))
       setAiResult(null)
       setQuery('')
       setOpen(false)
     } catch (error) {
       if (isDuplicateWordError(error)) {
-        message.warning('该分类中已存在同名单词')
+        message.warning(t('quickSearch.duplicate'))
         return
       }
-      message.error(getErrorMessage(error, '添加失败'))
+      message.error(getErrorMessage(error, t('quickSearch.addFailed')))
     }
   }
 
@@ -131,12 +145,12 @@ export function QuickSearchFloat() {
         className="quick-search-float"
         type="primary"
         icon={<SearchOutlined />}
-        tooltip="快速查词"
+        tooltip={t('quickSearch.tooltip')}
         style={{ insetInlineEnd: 24, bottom: 24, zIndex: 1200 }}
         onClick={() => setOpen(true)}
       />
       <Modal
-        title="快速查词"
+        title={t('quickSearch.title')}
         open={open}
         onCancel={close}
         footer={null}
@@ -149,22 +163,24 @@ export function QuickSearchFloat() {
             className="quick-search-input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="输入要查的单词…"
+            placeholder={t('quickSearch.placeholder')}
             autoFocus
             autoComplete="off"
           />
 
           {!trimmed ? (
-            <p className="muted quick-search-hint">先搜本地词库，没有再用 AI 查</p>
+            <p className="muted quick-search-hint">{t('quickSearch.hint')}</p>
           ) : null}
 
           {trimmed && isSearching ? (
-            <p className="muted quick-search-hint">搜索中…</p>
+            <p className="muted quick-search-hint">{t('quickSearch.searching')}</p>
           ) : null}
 
           {hasLocalHits ? (
             <div className="quick-search-section">
-              <p className="quick-search-section-title">本地词库 · {localResults!.length}</p>
+              <p className="quick-search-section-title">
+                {t('quickSearch.localTitle', { count: localResults!.length })}
+              </p>
               <ul className="quick-search-list">
                 {localResults!.slice(0, 8).map((w) => (
                   <li key={w.id} className="quick-search-item">
@@ -190,21 +206,31 @@ export function QuickSearchFloat() {
 
           {trimmed && !isSearching && noLocalHits && !aiResult ? (
             <div className="quick-search-section">
-              <p className="muted quick-search-hint">本地没有「{trimmed}」</p>
+              <p className="muted quick-search-hint">
+                {t('quickSearch.noLocal', { term: trimmed })}
+              </p>
               <button
                 type="button"
                 className="primary-button quick-search-ai-btn"
                 onClick={() => void handleAiSearch()}
                 disabled={isAiSearching}
               >
-                {isAiSearching ? 'AI 查询中…' : '🤖 用 AI 查词'}
+                {isAiSearching ? t('quickSearch.aiSearching') : t('quickSearch.aiSearch')}
               </button>
+              {isAiSearching || aiProgress > 0 ? (
+                <Progress
+                  percent={aiProgress}
+                  size="small"
+                  showInfo={false}
+                  status={isAiSearching ? 'active' : 'success'}
+                />
+              ) : null}
             </div>
           ) : null}
 
           {aiResult ? (
             <div className="quick-search-section quick-search-ai-result">
-              <p className="quick-search-section-title">AI 结果</p>
+              <p className="quick-search-section-title">{t('quickSearch.aiResult')}</p>
               <div className="quick-search-item-head">
                 <strong>{aiResult.word}</strong>
                 {aiResult.reading ? (
@@ -239,7 +265,7 @@ export function QuickSearchFloat() {
                   value={targetFolderId}
                   onChange={(e) => setTargetFolderId(e.target.value)}
                 >
-                  <option value="">选择分类</option>
+                  <option value="">{t('quickSearch.pickFolder')}</option>
                   {folderList
                     .filter((f) => f.language === aiResult.language)
                     .map((f) => (
@@ -254,7 +280,7 @@ export function QuickSearchFloat() {
                   onClick={() => void handleAdd()}
                   disabled={isSubmitting || !targetFolderId}
                 >
-                  {isSubmitting ? '添加中…' : '+ 添加'}
+                  {isSubmitting ? t('quickSearch.adding') : t('quickSearch.add')}
                 </button>
               </div>
             </div>

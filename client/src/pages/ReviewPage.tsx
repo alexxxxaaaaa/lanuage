@@ -1,18 +1,37 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { SoundOutlined } from '@ant-design/icons'
 import { Link } from 'react-router-dom'
 import { SpeakButton } from '../components/SpeakButton'
 import { VoicePicker } from '../components/VoicePicker'
+import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
 import { speak, stopSpeaking } from '../utils/speech'
 
-const REVIEW_STEPS = [
-  { key: 'recognition', label: '识别', hint: '看单词，先回忆释义' },
-  { key: 'recall', label: '回忆', hint: '看释义，回忆单词拼写' },
-  { key: 'pronunciation', label: '发音', hint: '朗读单词并听例句' },
-] as const
+type ReviewStepKey = 'recognition' | 'recall' | 'pronunciation'
 
 export function ReviewPage() {
+  const { t } = useI18n()
+  const REVIEW_STEPS = useMemo(
+    () =>
+      [
+        {
+          key: 'recognition' as const,
+          label: t('review.stepRecognition'),
+          hint: t('review.stepRecognitionHint'),
+        },
+        {
+          key: 'recall' as const,
+          label: t('review.stepRecall'),
+          hint: t('review.stepRecallHint'),
+        },
+        {
+          key: 'pronunciation' as const,
+          label: t('review.stepPronunciation'),
+          hint: t('review.stepPronunciationHint'),
+        },
+      ],
+    [t],
+  )
   const folders = useAppStore((state) => state.folders)
   const isLoadingFolders = useAppStore((state) => state.isLoadingFolders)
   const todayReviews = useAppStore((state) => state.todayReviews)
@@ -25,7 +44,7 @@ export function ReviewPage() {
   const error = useAppStore((state) => state.error)
   const [stepIndex, setStepIndex] = useState(0)
   const [stepRatings, setStepRatings] = useState<
-    Record<string, Partial<Record<(typeof REVIEW_STEPS)[number]['key'], 'again' | 'hard' | 'easy'>>>
+    Record<string, Partial<Record<ReviewStepKey, 'again' | 'hard' | 'easy'>>>
   >({})
   const [debtByWord, setDebtByWord] = useState<Record<string, number>>({})
   const [repeatCountByWord, setRepeatCountByWord] = useState<Record<string, number>>({})
@@ -172,10 +191,13 @@ export function ReviewPage() {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target
 
-      if (
+      // Allow shortcuts when focus is on a disabled input (e.g. after recall reveal).
+      const isEnabledFormControl =
         target instanceof HTMLElement &&
-        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
-      ) {
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) &&
+        !(target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement).disabled
+
+      if (isEnabledFormControl) {
         return
       }
 
@@ -224,8 +246,12 @@ export function ReviewPage() {
     setRecallUsedHint(false)
   }, [currentStep.key, currentReview?.wordId])
 
+  const katakanaToHiragana = (value: string) =>
+    value.replace(/[ァ-ヶ]/g, (ch) =>
+      String.fromCharCode(ch.charCodeAt(0) - 0x60),
+    )
   const normalizeAnswer = (value: string) =>
-    value.trim().toLowerCase().replace(/\s+/g, ' ')
+    katakanaToHiragana(value.trim().toLowerCase()).replace(/\s+/g, ' ')
 
   const isRecallCorrect = (typed: string) => {
     if (!currentWord) return false
@@ -264,8 +290,8 @@ export function ReviewPage() {
       <section className="page">
         <div className="card review-card state-card">
           <div className="state-illustration">...</div>
-          <h2>正在加载今日复习...</h2>
-          <p className="muted">系统正在准备今天需要复习的单词。</p>
+          <h2>{t('review.loading')}</h2>
+          <p className="muted">{t('review.loadingHint')}</p>
           <div className="actions">
             <button
               type="button"
@@ -275,7 +301,7 @@ export function ReviewPage() {
                 void useAppStore.getState().fetchTodayReviews()
               }}
             >
-              重试
+              {t('review.retry')}
             </button>
           </div>
         </div>
@@ -285,28 +311,30 @@ export function ReviewPage() {
 
   if (!currentReview || !currentWord) {
     const folderFilterLabel = reviewFolderId
-      ? folderList.find((f) => f.id === reviewFolderId)?.name ?? '当前分类'
+      ? folderList.find((f) => f.id === reviewFolderId)?.name ?? ''
       : null
 
     return (
       <section className="page">
         <div className="card review-card state-card">
           <div className="state-illustration">100%</div>
-          <h2>{reviewFolderId ? '本分类复习已结束' : '今天已经复习完啦'}</h2>
+          <h2>
+            {reviewFolderId ? t('review.sessionDoneFolder') : t('review.sessionDoneTitle')}
+          </h2>
           <p className="muted">
             {reviewFolderId
-              ? `「${folderFilterLabel}」下当前没有更多到期的单词。可切换到“全部”继续复习。`
-              : '当前没有到期单词，可以先去添加单词或查看分类。'}
+              ? t('review.sessionDoneWithFolder', { name: folderFilterLabel ?? '' })
+              : t('review.sessionDoneNoFolder')}
           </p>
           <div className="actions">
             <Link className="primary-link" to="/learn">
-              去学习新词
+              {t('review.goLearn')}
             </Link>
             <Link className="secondary-link" to="/words/new">
-              添加单词
+              {t('review.addWord')}
             </Link>
             <Link className="secondary-link" to="/folders">
-              查看分类
+              {t('review.viewFolders')}
             </Link>
           </div>
         </div>
@@ -319,14 +347,14 @@ export function ReviewPage() {
       <div className="card review-card">
         <div className="review-meta">
           <div className="review-progress-copy">
-            <p className="eyebrow">Review Session</p>
+            <p className="eyebrow">{t('review.progressLabel')}</p>
             <strong className="progress-text">
               {currentWordPosition} / {totalReviewCount}
             </strong>
           </div>
           <div className="review-meta-right">
             <label className="session-inline">
-              <span className="muted">分类</span>
+              <span className="muted">{t('review.folderLabel')}</span>
               <select
                 value={reviewFolderId ?? ''}
                 disabled={isLoadingFolders || isLoadingReviews}
@@ -336,7 +364,7 @@ export function ReviewPage() {
                   void useAppStore.getState().fetchTodayReviews()
                 }}
               >
-                <option value="">全部</option>
+                <option value="">{t('review.allFolders')}</option>
                 {folderList.map((folder) => (
                   <option key={folder.id} value={folder.id}>
                     {folder.name}
@@ -362,7 +390,7 @@ export function ReviewPage() {
         </div>
         <p className="muted review-step-hint">{currentStep.hint}</p>
         <p className="muted review-step-hint">
-          本词难度积分：{debtByWord[currentReview.wordId] ?? 0}（≥3 计入 Again，≥1 计入 Hard，否则 Easy）
+          {t('review.difficultyTip', { score: debtByWord[currentReview.wordId] ?? 0 })}
         </p>
 
         <VoicePicker
@@ -379,12 +407,14 @@ export function ReviewPage() {
 
         {currentStep.key === 'recall' ? (
           <div className="recall-block">
-            <p className="recall-prompt-label">请输入这个意思对应的单词</p>
+            <p className="recall-prompt-label">{t('review.recallLabel')}</p>
             <p className="recall-prompt-text">
-              {currentWord.meaning || currentWord.note || '（无释义）'}
+              {currentWord.meaning || currentWord.note || t('review.meaningEmpty')}
             </p>
             {currentWord.partOfSpeech ? (
-              <p className="muted recall-pos">词性：{currentWord.partOfSpeech}</p>
+              <p className="muted recall-pos">
+                {t('review.partOfSpeechLabel', { value: currentWord.partOfSpeech })}
+              </p>
             ) : null}
 
             <div className="recall-input-row">
@@ -394,12 +424,16 @@ export function ReviewPage() {
                 value={typedRecall}
                 onChange={(event) => setTypedRecall(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter') handleRecallSubmit()
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    handleRecallSubmit()
+                  }
                 }}
                 placeholder={
                   currentWord.language === 'jp'
-                    ? '输入单词（汉字或假名都可）'
-                    : '输入单词'
+                    ? t('review.inputPlaceholderJp')
+                    : t('review.inputPlaceholderEn')
                 }
                 disabled={recallStatus !== 'idle'}
                 autoFocus
@@ -410,17 +444,17 @@ export function ReviewPage() {
                     type="button"
                     className="secondary-button hint-button"
                     onClick={handleRecallHint}
-                    title="听一下（用过提示后最高 Hard）"
+                    title={t('review.hint')}
                   >
-                    <SoundOutlined /> 听一下
+                    <SoundOutlined /> {t('review.hint')}
                   </button>
                   <button
                     type="button"
                     className="ghost-button"
                     onClick={handleRecallForgot}
-                    title="我忘了，直接看答案"
+                    title={t('review.forgot')}
                   >
-                    我忘了
+                    {t('review.forgot')}
                   </button>
                   <button
                     type="button"
@@ -428,7 +462,7 @@ export function ReviewPage() {
                     disabled={!typedRecall.trim()}
                     onClick={handleRecallSubmit}
                   >
-                    提交
+                    {t('review.submit')}
                   </button>
                 </>
               ) : null}
@@ -437,7 +471,7 @@ export function ReviewPage() {
             {recallStatus === 'correct' ? (
               <div className="recall-feedback recall-feedback-correct">
                 <p>
-                  <strong>✓ 正确</strong>
+                  <strong>{t('review.correct')}</strong>
                 </p>
                 <div className="recall-reveal">
                   <strong>{currentWord.word}</strong>
@@ -448,7 +482,7 @@ export function ReviewPage() {
                     text={currentWord.word} reading={currentWord.reading}
                     lang={currentWord.language}
                     size="md"
-                    label="朗读单词"
+                    label={t('review.readWord')}
                   />
                 </div>
                 {currentWord.example ? (
@@ -460,11 +494,11 @@ export function ReviewPage() {
             {recallStatus === 'wrong' ? (
               <div className="recall-feedback recall-feedback-wrong">
                 <p>
-                  <strong>✗ 答错了</strong>
-                  <span className="muted">  你输入：{typedRecall}</span>
+                  <strong>{t('review.wrong')}</strong>
+                  <span className="muted">  {t('review.yourInput', { value: typedRecall })}</span>
                 </p>
                 <div className="recall-reveal">
-                  <span className="muted">正确答案：</span>
+                  <span className="muted">{t('review.correctAnswer')}</span>
                   <strong>{currentWord.word}</strong>
                   {currentWord.reading ? (
                     <span className="muted">{currentWord.reading}</span>
@@ -473,7 +507,7 @@ export function ReviewPage() {
                     text={currentWord.word} reading={currentWord.reading}
                     lang={currentWord.language}
                     size="md"
-                    label="朗读单词"
+                    label={t('review.readWord')}
                   />
                 </div>
                 {currentWord.example ? (
@@ -493,7 +527,7 @@ export function ReviewPage() {
           aria-label="翻转单词卡片"
         >
           <span className="flip-card-face flip-card-front">
-            <span className="card-label">正面 · 空格翻卡 · P 朗读</span>
+            <span className="card-label">{t('review.cardFront')}</span>
             {currentStep.key === 'recognition' ? (
               <span className="flip-word-row">
                 <strong>{currentWord.word}</strong>
@@ -506,11 +540,11 @@ export function ReviewPage() {
               </span>
             ) : null}
             <small className="part-of-speech-slot">
-              {currentWord.partOfSpeech ? `词性：${currentWord.partOfSpeech}` : '\u00A0'}
+              {currentWord.partOfSpeech ? t('review.partOfSpeech', { value: currentWord.partOfSpeech }) : '\u00A0'}
             </small>
             {currentStep.key === 'pronunciation' ? (
               <>
-                <small>请先听发音，再猜单词</small>
+                <small>{t('review.cardListenFirst')}</small>
                 <SpeakButton
                   text={currentWord.word} reading={currentWord.reading}
                   lang={currentWord.language}
@@ -521,13 +555,15 @@ export function ReviewPage() {
             ) : null}
           </span>
           <span className="flip-card-face flip-card-back">
-            <span className="card-label">背面 · P 朗读单词</span>
+            <span className="card-label">{t('review.cardBack')}</span>
             {currentStep.key === 'recognition' ? (
               <>
-                <strong className="multiline-text">{currentWord.meaning || '（暂无释义）'}</strong>
-                {currentWord.reading ? <small>读音：{currentWord.reading}</small> : null}
+                <strong className="multiline-text">{currentWord.meaning || t('review.meaningEmpty')}</strong>
+                {currentWord.reading ? (
+                  <small>{t('review.readingLabel', { value: currentWord.reading })}</small>
+                ) : null}
                 <small className="part-of-speech-slot">
-                  {currentWord.partOfSpeech ? `词性：${currentWord.partOfSpeech}` : '\u00A0'}
+                  {currentWord.partOfSpeech ? t('review.partOfSpeech', { value: currentWord.partOfSpeech }) : '\u00A0'}
                 </small>
                 <small className="multiline-text">{currentWord.example}</small>
                 <small>{currentWord.note}</small>
@@ -536,9 +572,11 @@ export function ReviewPage() {
             {currentStep.key === 'pronunciation' ? (
               <>
                 <strong>{currentWord.word}</strong>
-                {currentWord.reading ? <small>读音：{currentWord.reading}</small> : null}
+                {currentWord.reading ? (
+                  <small>{t('review.readingLabel', { value: currentWord.reading })}</small>
+                ) : null}
                 <small className="part-of-speech-slot">
-                  {currentWord.partOfSpeech ? `词性：${currentWord.partOfSpeech}` : '\u00A0'}
+                  {currentWord.partOfSpeech ? t('review.partOfSpeech', { value: currentWord.partOfSpeech }) : '\u00A0'}
                 </small>
                 
                 <small className="multiline-text">{currentWord.example || currentWord.meaning}</small>
@@ -555,9 +593,9 @@ export function ReviewPage() {
               disabled={isSubmitting}
               onClick={() => void handleStepRating('again')}
             >
-              Again
+              {t('review.againButton')}
             </button>
-            <span className="rating-caption">记错 +2 · 重置进度</span>
+            <span className="rating-caption">{t('review.againCaption')}</span>
           </div>
           <div className="rating-action">
             <button
@@ -566,9 +604,9 @@ export function ReviewPage() {
               disabled={isSubmitting}
               onClick={() => void handleStepRating('hard')}
             >
-              Hard
+              {t('review.hardButton')}
             </button>
-            <span className="rating-caption">印象浅 +1 · 间隔×1.2</span>
+            <span className="rating-caption">{t('review.hardCaption')}</span>
           </div>
           <div className="rating-action">
             <button
@@ -577,9 +615,9 @@ export function ReviewPage() {
               disabled={isSubmitting}
               onClick={() => void handleStepRating('easy')}
             >
-              Easy
+              {t('review.easyButton')}
             </button>
-            <span className="rating-caption">记得牢 −1 · 间隔×难度系数</span>
+            <span className="rating-caption">{t('review.easyCaption')}</span>
           </div>
         </div>
         </>
@@ -594,10 +632,12 @@ export function ReviewPage() {
                 disabled={isSubmitting}
                 onClick={() => void handleStepRating('hard')}
               >
-                Hard
+                {t('review.hardButton')}
               </button>
               <span className="rating-caption">
-                {recallUsedHint ? '用过发音提示 +1' : '写出来但不顺 +1'}
+                {recallUsedHint
+                  ? t('review.hardCaptionWithHint')
+                  : t('review.hardCaptionWithoutHint')}
               </span>
             </div>
             {!recallUsedHint ? (
@@ -608,9 +648,9 @@ export function ReviewPage() {
                   disabled={isSubmitting}
                   onClick={() => void handleStepRating('easy')}
                 >
-                  Easy
+                  {t('review.easyButton')}
                 </button>
-                <span className="rating-caption">一次写对 −1</span>
+                <span className="rating-caption">{t('review.easyCaptionOnce')}</span>
               </div>
             ) : null}
           </div>
@@ -624,7 +664,7 @@ export function ReviewPage() {
               disabled={isSubmitting}
               onClick={() => void handleStepRating('again')}
             >
-              继续（标记 Again）
+              {t('review.againWrong')}
             </button>
           </div>
         ) : null}

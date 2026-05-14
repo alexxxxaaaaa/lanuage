@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { SoundOutlined } from '@ant-design/icons'
 import { Link, useNavigate } from 'react-router-dom'
 import { submitReviewResult } from '../api/review'
 import { getTodayNewWords } from '../api/words'
 import { SpeakButton } from '../components/SpeakButton'
+import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
 import type { ReviewRating, Word } from '../types'
 import { speak, stopSpeaking } from '../utils/speech'
@@ -20,8 +21,14 @@ type BatchSummary = {
   rating: ReviewRating
 }
 
+function katakanaToHiragana(value: string) {
+  return value.replace(/[ァ-ヶ]/g, (ch) =>
+    String.fromCharCode(ch.charCodeAt(0) - 0x60),
+  )
+}
+
 function normalizeAnswer(value: string) {
-  return value.trim().toLowerCase().replace(/\s+/g, ' ')
+  return katakanaToHiragana(value.trim().toLowerCase()).replace(/\s+/g, ' ')
 }
 
 function isAnswerCorrect(typed: string, word: Word) {
@@ -97,6 +104,7 @@ function chunkInto<T>(items: T[], size: number): T[][] {
 
 export function LearnPage() {
   const navigate = useNavigate()
+  const { t } = useI18n()
   const reviewFolderId = useAppStore((state) => state.reviewFolderId)
   const sessionLimit = useAppStore((state) => state.sessionLimit)
   const todayReviews = useAppStore((state) => state.todayReviews)
@@ -118,6 +126,7 @@ export function LearnPage() {
   const [status, setStatus] = useState<Status>('idle')
   const [usedHintByWord, setUsedHintByWord] = useState<Record<string, boolean>>({})
   const [sessionSummary, setSessionSummary] = useState<BatchSummary[]>([])
+  const recallInputRef = useRef<HTMLInputElement | null>(null)
 
   const batches = useMemo(() => chunkInto(allWords, BATCH_SIZE), [allWords])
   const currentBatch = batches[batchIdx] ?? []
@@ -133,10 +142,10 @@ export function LearnPage() {
       : Math.round((sessionSummary.length / allWords.length) * 100)
 
   const folderName = useMemo(() => {
-    if (!reviewFolderId) return '全部'
+    if (!reviewFolderId) return t('home.all')
     const folders = useAppStore.getState().folders
-    return folders.find((item) => item.id === reviewFolderId)?.name ?? '当前分类'
-  }, [reviewFolderId])
+    return folders.find((item) => item.id === reviewFolderId)?.name ?? t('home.all')
+  }, [reviewFolderId, t])
 
   // Load words once per folder/limit change
   useEffect(() => {
@@ -162,7 +171,7 @@ export function LearnPage() {
         setUsedHintByWord({})
         setSessionSummary([])
       } catch {
-        setError('加载今日新词失败')
+        setError(t('learn.loadFailed'))
       } finally {
         setIsLoading(false)
       }
@@ -179,6 +188,17 @@ export function LearnPage() {
     setTypedAnswer('')
     setStatus('idle')
   }, [phase, itemIdx, batchIdx, recoveryQueue[0]?.id])
+
+  // Auto-focus the recall input when entering a test phase or advancing to next item.
+  useEffect(() => {
+    if (phase === 'cloze' || phase === 'recall' || phase === 'recovery') {
+      if (status === 'idle') {
+        // wait a tick for the input to mount/enable
+        const id = window.setTimeout(() => recallInputRef.current?.focus(), 0)
+        return () => window.clearTimeout(id)
+      }
+    }
+  }, [phase, itemIdx, batchIdx, recoveryQueue[0]?.id, status])
 
   // Auto-speak word on study + when answer revealed
   useEffect(() => {
@@ -366,8 +386,8 @@ export function LearnPage() {
     return (
       <section className="page">
         <div className="card learn-card state-card">
-          <h2>正在准备学习清单...</h2>
-          <p className="muted">按你设置的数量加载未学习单词。</p>
+          <h2>{t('learn.preparing')}</h2>
+          <p className="muted">{t('learn.preparingHint')}</p>
         </div>
       </section>
     )
@@ -378,7 +398,7 @@ export function LearnPage() {
       <section className="page">
         <div className="card learn-card state-card">
           <h2>{error}</h2>
-          <p className="muted">请刷新或稍后重试。</p>
+          <p className="muted">{t('learn.retryLater')}</p>
         </div>
       </section>
     )
@@ -388,12 +408,11 @@ export function LearnPage() {
     return (
       <section className="page">
         <div className="card learn-card state-card">
-          <h2>暂无可学习单词</h2>
+          <h2>{t('learn.empty')}</h2>
           <p className="muted">
-            当前分类下没有"未学习"单词。
             {dueCount > 0
-              ? `你今天还有 ${dueCount} 个到期单词需要复习。`
-              : '可以先添加新词。'}
+              ? t('learn.emptyHintWithDue', { count: dueCount })
+              : t('learn.emptyHintNoDue')}
           </p>
           <div className="actions">
             {dueCount > 0 ? (
@@ -402,14 +421,14 @@ export function LearnPage() {
                 className="primary-button"
                 onClick={() => navigate('/review')}
               >
-                现在去复习 {dueCount} 个到期词
+                {t('learn.goReview', { count: dueCount })}
               </button>
             ) : null}
             <Link
               className={dueCount > 0 ? 'secondary-link' : 'primary-link'}
               to="/words/new"
             >
-              去添加单词
+              {t('learn.addWord')}
             </Link>
           </div>
         </div>
@@ -424,9 +443,9 @@ export function LearnPage() {
     return (
       <section className="page">
         <div className="card learn-card state-card">
-          <h2>学习完成</h2>
+          <h2>{t('learn.sessionDoneTitle')}</h2>
           <p className="muted">
-            本次学习 {total} 个 · {perfect} 个完美 · {slipped} 个有错过
+            {t('learn.sessionDoneSummary', { total, perfect, slipped })}
           </p>
           <ul className="learn-summary-list">
             {sessionSummary.map((item, idx) => (
@@ -440,7 +459,7 @@ export function LearnPage() {
                       : '✗ Again'}
                 </span>
                 {item.errors > 0 ? (
-                  <span className="muted">{item.errors} 次错</span>
+                  <span className="muted">{t('learn.errorCount', { count: item.errors })}</span>
                 ) : null}
               </li>
             ))}
@@ -452,14 +471,14 @@ export function LearnPage() {
                 className="primary-button"
                 onClick={() => navigate('/review')}
               >
-                现在去复习 {dueCount} 个到期词
+                {t('learn.goReview', { count: dueCount })}
               </button>
             ) : null}
             <Link
               className={dueCount > 0 ? 'secondary-link' : 'primary-link'}
               to="/"
             >
-              回首页
+              {t('learn.backHome')}
             </Link>
           </div>
         </div>
@@ -476,11 +495,11 @@ export function LearnPage() {
       : ''
 
   const phaseLabel: Record<Phase, string> = {
-    study: '学习卡',
-    cloze: '完形填空',
-    recall: '释义→单词',
-    recovery: '错题重练',
-    'session-done': '完成',
+    study: t('learn.phaseStudy'),
+    cloze: t('learn.phaseCloze'),
+    recall: t('learn.phaseRecall'),
+    recovery: t('learn.phaseRecovery'),
+    'session-done': t('learn.phaseDone'),
   }
 
   const stageItemCount =
@@ -500,21 +519,19 @@ export function LearnPage() {
         <div className="learn-top">
           <div>
             <p className="eyebrow">{phaseLabel[phase]}</p>
-            <h2>
-              今日新词学习（{folderName}）
-            </h2>
+            <h2>{t('learn.cardTitle', { folder: folderName })}</h2>
             <p className="muted">
-              批次 {batchIdx + 1} / {totalBatches}
+              {t('learn.batchInfo', { current: batchIdx + 1, total: totalBatches })}
               {phase !== 'recovery'
-                ? ` · 第 ${stageItemPosition} / ${stageItemCount}`
-                : ` · 队列剩 ${stageItemCount} 个`}
+                ? ` ${t('learn.itemInfo', { pos: stageItemPosition, count: stageItemCount })}`
+                : ` ${t('learn.recoveryQueue', { count: stageItemCount })}`}
               {phase === 'recovery'
-                ? ` · 第 ${recoveryAttempt}/${RECOVERY_MAX_ATTEMPTS} 次尝试`
+                ? ` ${t('learn.recoveryAttempt', { attempt: recoveryAttempt, max: RECOVERY_MAX_ATTEMPTS })}`
                 : ''}
             </p>
           </div>
           <span className="learn-limit-pill">
-            本次共 {allWords.length} 个
+            {t('learn.sessionTotal', { count: allWords.length })}
           </span>
         </div>
         <div className="progress-track">
@@ -534,29 +551,29 @@ export function LearnPage() {
               <span className="muted word-reading">{currentWord.reading}</span>
             </div>
             {currentWord.partOfSpeech ? (
-              <p className="muted">词性：{currentWord.partOfSpeech}</p>
+              <p className="muted">{t('learn.partOfSpeech', { value: currentWord.partOfSpeech })}</p>
             ) : null}
             {currentWord.meaning ? (
               <div className="learn-section">
-                <p className="learn-label">释义</p>
+                <p className="learn-label">{t('learn.meaningLabel')}</p>
                 <p className="learn-text">{currentWord.meaning}</p>
               </div>
             ) : null}
             {currentWord.example ? (
               <div className="learn-section">
-                <p className="learn-label">例句</p>
+                <p className="learn-label">{t('learn.exampleLabel')}</p>
                 <p className="word-example-text">{currentWord.example}</p>
               </div>
             ) : null}
             {currentWord.note ? (
               <div className="learn-section">
-                <p className="learn-label">笔记</p>
+                <p className="learn-label">{t('learn.noteLabel')}</p>
                 <p className="muted learn-note">{currentWord.note}</p>
               </div>
             ) : null}
             <div className="actions">
               <button type="button" className="primary-button" onClick={advanceStudy}>
-                记下了
+                {t('learn.gotIt')}
               </button>
             </div>
           </div>
@@ -564,39 +581,43 @@ export function LearnPage() {
 
         {phase === 'cloze' ? (
           <div className="recall-block">
-            <p className="recall-prompt-label">完形填空 · 填出缺失的单词</p>
+            <p className="recall-prompt-label">{t('learn.clozeLabel')}</p>
             {clozeSentence ? (
               <p className="recall-prompt-text">{clozeSentence}</p>
             ) : (
               <>
-                <p className="recall-prompt-text muted">
-                  （该词没有可用例句，请直接回想）
-                </p>
+                <p className="recall-prompt-text muted">{t('learn.noClozeFallback')}</p>
                 <p className="recall-prompt-text">{currentWord.meaning}</p>
               </>
             )}
             {examplePair?.translation ? (
-              <p className="muted recall-pos">中文：{examplePair.translation}</p>
+              <p className="muted recall-pos">
+                {t('learn.clozeChineseLabel', { value: examplePair.translation })}
+              </p>
             ) : null}
 
             <div className="recall-input-row">
               <input
+                ref={recallInputRef}
                 type="text"
                 className="recall-input"
                 value={typedAnswer}
                 onChange={(event) => setTypedAnswer(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
+                    // Always stop propagation so window-level Enter doesn't
+                    // also advance in the same keystroke.
+                    event.preventDefault()
+                    event.stopPropagation()
                     if (status === 'idle') submitTyped()
                   }
                 }}
                 placeholder={
                   currentWord.language === 'jp'
-                    ? '输入单词（汉字或假名都可）'
-                    : '输入单词'
+                    ? t('learn.inputPlaceholderJp')
+                    : t('learn.inputPlaceholderEn')
                 }
                 disabled={status !== 'idle'}
-                autoFocus
               />
               {status === 'idle' ? (
                 <>
@@ -604,17 +625,17 @@ export function LearnPage() {
                     type="button"
                     className="secondary-button hint-button"
                     onClick={playHint}
-                    title="听一下（用过提示后最高 Hard）"
+                    title={t('learn.hint')}
                   >
-                    <SoundOutlined /> 听一下
+                    <SoundOutlined /> {t('learn.hint')}
                   </button>
                   <button
                     type="button"
                     className="ghost-button"
                     onClick={markForgot}
-                    title="我忘了，直接看答案"
+                    title={t('learn.forgot')}
                   >
-                    我忘了
+                    {t('learn.forgot')}
                   </button>
                   <button
                     type="button"
@@ -622,7 +643,7 @@ export function LearnPage() {
                     disabled={!typedAnswer.trim()}
                     onClick={submitTyped}
                   >
-                    提交
+                    {t('learn.submit')}
                   </button>
                 </>
               ) : null}
@@ -641,32 +662,36 @@ export function LearnPage() {
 
         {phase === 'recall' ? (
           <div className="recall-block">
-            <p className="recall-prompt-label">请输入这个意思对应的单词</p>
+            <p className="recall-prompt-label">{t('learn.recallLabel')}</p>
             <p className="recall-prompt-text">
-              {currentWord.meaning || currentWord.note || '（无释义）'}
+              {currentWord.meaning || currentWord.note || t('review.meaningEmpty')}
             </p>
             {currentWord.partOfSpeech ? (
-              <p className="muted recall-pos">词性：{currentWord.partOfSpeech}</p>
+              <p className="muted recall-pos">{t('learn.partOfSpeech', { value: currentWord.partOfSpeech })}</p>
             ) : null}
 
             <div className="recall-input-row">
               <input
+                ref={recallInputRef}
                 type="text"
                 className="recall-input"
                 value={typedAnswer}
                 onChange={(event) => setTypedAnswer(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
+                    // Always stop propagation so window-level Enter doesn't
+                    // also advance in the same keystroke.
+                    event.preventDefault()
+                    event.stopPropagation()
                     if (status === 'idle') submitTyped()
                   }
                 }}
                 placeholder={
                   currentWord.language === 'jp'
-                    ? '输入单词（汉字或假名都可）'
-                    : '输入单词'
+                    ? t('learn.inputPlaceholderJp')
+                    : t('learn.inputPlaceholderEn')
                 }
                 disabled={status !== 'idle'}
-                autoFocus
               />
               {status === 'idle' ? (
                 <>
@@ -674,17 +699,17 @@ export function LearnPage() {
                     type="button"
                     className="secondary-button hint-button"
                     onClick={playHint}
-                    title="听一下（用过提示后最高 Hard）"
+                    title={t('learn.hint')}
                   >
-                    <SoundOutlined /> 听一下
+                    <SoundOutlined /> {t('learn.hint')}
                   </button>
                   <button
                     type="button"
                     className="ghost-button"
                     onClick={markForgot}
-                    title="我忘了，直接看答案"
+                    title={t('learn.forgot')}
                   >
-                    我忘了
+                    {t('learn.forgot')}
                   </button>
                   <button
                     type="button"
@@ -692,7 +717,7 @@ export function LearnPage() {
                     disabled={!typedAnswer.trim()}
                     onClick={submitTyped}
                   >
-                    提交
+                    {t('learn.submit')}
                   </button>
                 </>
               ) : null}
@@ -711,9 +736,7 @@ export function LearnPage() {
 
         {phase === 'recovery' ? (
           <div className="recall-block">
-            <p className="recall-prompt-label">
-              错题重练 · 写对才能毕业
-            </p>
+            <p className="recall-prompt-label">{t('learn.recoveryLabel')}</p>
             <p className="recall-prompt-text">
               {currentWord.meaning || currentWord.note || '（无释义）'}
             </p>
@@ -723,22 +746,26 @@ export function LearnPage() {
 
             <div className="recall-input-row">
               <input
+                ref={recallInputRef}
                 type="text"
                 className="recall-input"
                 value={typedAnswer}
                 onChange={(event) => setTypedAnswer(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
+                    // Always stop propagation so window-level Enter doesn't
+                    // also advance in the same keystroke.
+                    event.preventDefault()
+                    event.stopPropagation()
                     if (status === 'idle') submitTyped()
                   }
                 }}
                 placeholder={
                   currentWord.language === 'jp'
-                    ? '输入单词（汉字或假名都可）'
-                    : '输入单词'
+                    ? t('learn.inputPlaceholderJp')
+                    : t('learn.inputPlaceholderEn')
                 }
                 disabled={status !== 'idle'}
-                autoFocus
               />
               {status === 'idle' ? (
                 <>
@@ -746,17 +773,17 @@ export function LearnPage() {
                     type="button"
                     className="secondary-button hint-button"
                     onClick={playHint}
-                    title="听一下（用过提示后最高 Hard）"
+                    title={t('learn.hint')}
                   >
-                    <SoundOutlined /> 听一下
+                    <SoundOutlined /> {t('learn.hint')}
                   </button>
                   <button
                     type="button"
                     className="ghost-button"
                     onClick={markForgot}
-                    title="我忘了，直接看答案"
+                    title={t('learn.forgot')}
                   >
-                    我忘了
+                    {t('learn.forgot')}
                   </button>
                   <button
                     type="button"
@@ -764,7 +791,7 @@ export function LearnPage() {
                     disabled={!typedAnswer.trim()}
                     onClick={submitTyped}
                   >
-                    提交
+                    {t('learn.submit')}
                   </button>
                 </>
               ) : null}
@@ -778,10 +805,10 @@ export function LearnPage() {
                 onAdvance={() => advanceRecovery(status === 'correct')}
                 continueLabel={
                   status === 'correct'
-                    ? '继续'
+                    ? t('learn.continue')
                     : recoveryAttempt < RECOVERY_MAX_ATTEMPTS
-                      ? '再试一次'
-                      : '跳过'
+                      ? t('learn.retry')
+                      : t('learn.skip')
                 }
               />
             ) : null}
@@ -790,7 +817,7 @@ export function LearnPage() {
 
         {isSubmitting ? (
           <p className="muted" style={{ textAlign: 'center', marginTop: 12 }}>
-            正在提交批次评分...
+            {t('learn.submittingBatch')}
           </p>
         ) : null}
       </div>
@@ -803,7 +830,7 @@ function FeedbackBlock({
   typed,
   word,
   onAdvance,
-  continueLabel = '继续',
+  continueLabel,
 }: {
   status: Status
   typed: string
@@ -811,10 +838,12 @@ function FeedbackBlock({
   onAdvance: () => void
   continueLabel?: string
 }) {
+  const { t } = useI18n()
+  const label = continueLabel ?? t('learn.continue')
   return status === 'correct' ? (
     <div className="recall-feedback recall-feedback-correct">
       <p>
-        <strong>✓ 正确</strong>
+        <strong>{t('learn.correct')}</strong>
       </p>
       <div className="recall-reveal">
         <strong>{word.word}</strong>
@@ -826,7 +855,7 @@ function FeedbackBlock({
           reading={word.reading}
           lang={word.language}
           size="md"
-          label="朗读单词"
+          label={t('learn.readWord')}
         />
       </div>
       {word.example ? (
@@ -834,18 +863,18 @@ function FeedbackBlock({
       ) : null}
       <div className="actions">
         <button type="button" className="primary-button" onClick={onAdvance}>
-          {continueLabel}（Enter）
+          {label}（Enter）
         </button>
       </div>
     </div>
   ) : (
     <div className="recall-feedback recall-feedback-wrong">
       <p>
-        <strong>✗ 答错了</strong>
-        <span className="muted">  你输入：{typed}</span>
+        <strong>{t('learn.wrong')}</strong>
+        <span className="muted">  {t('learn.yourInput', { value: typed })}</span>
       </p>
       <div className="recall-reveal">
-        <span className="muted">正确答案：</span>
+        <span className="muted">{t('learn.correctAnswer')}</span>
         <strong>{word.word}</strong>
         {word.reading ? (
           <span className="muted">{word.reading}</span>
@@ -855,7 +884,7 @@ function FeedbackBlock({
           reading={word.reading}
           lang={word.language}
           size="md"
-          label="朗读单词"
+          label={t('learn.readWord')}
         />
       </div>
       {word.example ? (
@@ -863,7 +892,7 @@ function FeedbackBlock({
       ) : null}
       <div className="actions">
         <button type="button" className="danger-button" onClick={onAdvance}>
-          {continueLabel}（Enter）
+          {label}（Enter）
         </button>
       </div>
     </div>
