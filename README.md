@@ -36,6 +36,18 @@ npm run server:dev
 - Client: <http://localhost:5173>
 - Server: <http://localhost:3000>
 
+## Using the cloud account from local dev
+
+默认情况下 `npm run client:dev` 会读取 [client/.env.development](client/.env.development)，把 `VITE_API_BASE_URL` 指向线上 Worker，所以本地浏览器登录的是线上账号，看到的是线上 D1 的数据。本地的 `server` 进程依然可以跑，但前端不会去访问它。
+
+如果想临时回去用本地 SQLite + 本地 server，新建 `client/.env.development.local`（已被 gitignore，因为 `.gitignore` 里有 `*.local`）：
+
+```
+VITE_API_BASE_URL=""
+```
+
+留空时 axios 走相对路径，Vite dev 代理把 `/api/*` 转到 `http://localhost:3000`，也就是本地 Hono 服务。删掉这个文件即可恢复连线上。
+
 ## What does **not** sync across machines
 
 - **`server/prisma/dev.db`** — your local data file. Gitignored on purpose. Each machine has its own.
