@@ -165,6 +165,7 @@ export function HomePage() {
           onCancel={() => setShowDueList(false)}
           footer={null}
           width={560}
+          styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
         >
           {dueListItems.length === 0 ? (
             <p className="muted">{t('home.dueListEmpty')}</p>
