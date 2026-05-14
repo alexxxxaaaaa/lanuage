@@ -152,51 +152,60 @@ export function HomePage() {
             <button
               type="button"
               className="ghost-button home-due-toggle"
-              onClick={() => setShowDueList((prev) => !prev)}
+              onClick={() => setShowDueList(true)}
             >
-              {showDueList
-                ? t('home.hideDueList')
-                : t('home.showDueList', { count: dueListItems.length })}
+              {t('home.showDueList', { count: dueListItems.length })}
             </button>
-            {showDueList ? (
-              <ul className="home-due-list">
-                {dueListItems.map((item) => (
-                  <li key={item.wordId} className="home-due-item">
-                    <div className="home-due-item-info">
-                      <strong>{item.word.word}</strong>
-                      {item.word.reading ? (
-                        <span className="muted">{item.word.reading}</span>
-                      ) : null}
-                      <span className="folder-language">
-                        {item.word.folder?.name ??
-                          item.word.language.toUpperCase()}
-                      </span>
-                    </div>
-                    {item.word.meaning ? (
-                      <p className="muted home-due-item-meaning">
-                        {item.word.meaning}
-                      </p>
-                    ) : null}
-                    <div className="home-due-item-actions">
-                      <button
-                        type="button"
-                        className="ghost-button"
-                        disabled={masteringWordId === item.wordId}
-                        onClick={() =>
-                          void handleMarkMastered(item.wordId, item.word.word)
-                        }
-                      >
-                        {masteringWordId === item.wordId
-                          ? t('home.marking')
-                          : t('home.markMastered')}
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
           </div>
         ) : null}
+
+        <Modal
+          title={t('home.dueListTitle', { count: dueListItems.length })}
+          open={showDueList}
+          onCancel={() => setShowDueList(false)}
+          footer={null}
+          width={560}
+        >
+          {dueListItems.length === 0 ? (
+            <p className="muted">{t('home.dueListEmpty')}</p>
+          ) : (
+            <ul className="home-due-list">
+              {dueListItems.map((item) => (
+                <li key={item.wordId} className="home-due-item">
+                  <div className="home-due-item-info">
+                    <strong>{item.word.word}</strong>
+                    {item.word.reading ? (
+                      <span className="muted">{item.word.reading}</span>
+                    ) : null}
+                    <span className="folder-language">
+                      {item.word.folder?.name ??
+                        item.word.language.toUpperCase()}
+                    </span>
+                  </div>
+                  {item.word.meaning ? (
+                    <p className="muted home-due-item-meaning">
+                      {item.word.meaning}
+                    </p>
+                  ) : null}
+                  <div className="home-due-item-actions">
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      disabled={masteringWordId === item.wordId}
+                      onClick={() =>
+                        void handleMarkMastered(item.wordId, item.word.word)
+                      }
+                    >
+                      {masteringWordId === item.wordId
+                        ? t('home.marking')
+                        : t('home.markMastered')}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Modal>
         {/* <div className="hero-actions">
           <button
             type="button"
