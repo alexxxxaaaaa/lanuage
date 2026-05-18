@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { SoundOutlined } from '@ant-design/icons'
 import { Link } from 'react-router-dom'
 import { SpeakButton } from '../components/SpeakButton'
@@ -51,6 +51,7 @@ export function ReviewPage() {
   const [typedRecall, setTypedRecall] = useState('')
   const [recallStatus, setRecallStatus] = useState<'idle' | 'correct' | 'wrong'>('idle')
   const [recallUsedHint, setRecallUsedHint] = useState(false)
+  const recallInputRef = useRef<HTMLInputElement | null>(null)
 
   const folderList = Array.isArray(folders) ? folders : []
 
@@ -246,6 +247,15 @@ export function ReviewPage() {
     setRecallUsedHint(false)
   }, [currentStep.key, currentReview?.wordId])
 
+  // After moving to the next word inside the recall step, re-focus the input —
+  // autoFocus only fires on first mount, so swapping to a new word keeps it blurred.
+  useEffect(() => {
+    if (currentStep.key !== 'recall') return
+    if (recallStatus !== 'idle') return
+    const id = window.setTimeout(() => recallInputRef.current?.focus(), 0)
+    return () => window.clearTimeout(id)
+  }, [currentStep.key, currentReview?.wordId, recallStatus])
+
   const katakanaToHiragana = (value: string) =>
     value.replace(/[ァ-ヶ]/g, (ch) =>
       String.fromCharCode(ch.charCodeAt(0) - 0x60),
@@ -419,6 +429,7 @@ export function ReviewPage() {
 
             <div className="recall-input-row">
               <input
+                ref={recallInputRef}
                 type="text"
                 className="recall-input"
                 value={typedRecall}
