@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Modal, message } from 'antd'
+import { Modal, Tabs, message } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
 import { useI18n } from '../i18n'
 import {
@@ -51,6 +51,19 @@ export function HomePage() {
     }
     return todayReviews
   }, [todayReviews, dueReviews])
+
+  // Group due items by folder for tabbed display.
+  const dueGroups = useMemo(() => {
+    const map = new Map<string, { folderId: string; folderName: string; items: typeof dueListItems }>()
+    for (const item of dueListItems) {
+      const folderId = item.word.folder?.id ?? item.word.folderId ?? 'unknown'
+      const folderName = item.word.folder?.name ?? item.word.language.toUpperCase()
+      const group = map.get(folderId) ?? { folderId, folderName, items: [] }
+      group.items.push(item)
+      map.set(folderId, group)
+    }
+    return Array.from(map.values())
+  }, [dueListItems])
   useEffect(() => {
     useAppStore.getState().clearError()
     void useAppStore.getState().fetchFolders()
@@ -170,41 +183,48 @@ export function HomePage() {
           {dueListItems.length === 0 ? (
             <p className="muted">{t('home.dueListEmpty')}</p>
           ) : (
-            <ul className="home-due-list">
-              {dueListItems.map((item) => (
-                <li key={item.wordId} className="home-due-item">
-                  <div className="home-due-item-info">
-                    <strong>{item.word.word}</strong>
-                    {item.word.reading ? (
-                      <span className="muted">{item.word.reading}</span>
-                    ) : null}
-                    <span className="folder-language">
-                      {item.word.folder?.name ??
-                        item.word.language.toUpperCase()}
-                    </span>
-                  </div>
-                  {item.word.meaning ? (
-                    <p className="muted home-due-item-meaning">
-                      {item.word.meaning}
-                    </p>
-                  ) : null}
-                  <div className="home-due-item-actions">
-                    <button
-                      type="button"
-                      className="ghost-button"
-                      disabled={masteringWordId === item.wordId}
-                      onClick={() =>
-                        void handleMarkMastered(item.wordId, item.word.word)
-                      }
-                    >
-                      {masteringWordId === item.wordId
-                        ? t('home.marking')
-                        : t('home.markMastered')}
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <Tabs
+              items={dueGroups.map((group) => ({
+                key: group.folderId,
+                label: `${group.folderName}（${group.items.length}）`,
+                children: (
+                  <ul className="home-due-list">
+                    {group.items.map((item) => (
+                      <li key={item.wordId} className="home-due-item">
+                        <div className="home-due-item-info">
+                          <strong>{item.word.word}</strong>
+                          {item.word.reading ? (
+                            <span className="muted">{item.word.reading}</span>
+                          ) : null}
+                          <span className="folder-language">
+                            {item.word.language.toUpperCase()}
+                          </span>
+                        </div>
+                        {item.word.meaning ? (
+                          <p className="muted home-due-item-meaning">
+                            {item.word.meaning}
+                          </p>
+                        ) : null}
+                        <div className="home-due-item-actions">
+                          <button
+                            type="button"
+                            className="ghost-button"
+                            disabled={masteringWordId === item.wordId}
+                            onClick={() =>
+                              void handleMarkMastered(item.wordId, item.word.word)
+                            }
+                          >
+                            {masteringWordId === item.wordId
+                              ? t('home.marking')
+                              : t('home.markMastered')}
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ),
+              }))}
+            />
           )}
         </Modal>
         {/* <div className="hero-actions">
