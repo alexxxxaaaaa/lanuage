@@ -154,26 +154,36 @@ function buildPrompt(word: string, language: SupportedLanguage) {
     language === "en"
       ? "note: verb->过去式/过去分词, noun->复数, adjective->比较级/最高级; no fabrication"
       : "note: 简短中文用法";
-
+  // Push the model toward sentences that actually exercise the word's morphology
+  // instead of bare dictionary form. JP especially needs verb/adjective conjugation
+  // to be useful for learners.
+  const exampleStyle =
+    language === "jp"
+      ? 'example: exactly 2 lines; each line "<日本語の例文>｜<中文翻译>". 句子要有一定语境(从句/接续/复合句优先)，避免只用辞書形：动词应使用至少一种变形(て形/た形/ない形/敬語ます形/受身/可能/使役/条件形/意向形等)，形容词应展示语境(过去/否定/连用)。两句要使用不同的形态/语境，不要重复。'
+      : 'example: exactly 2 lines; each line "<English sentence>｜<中文翻译>". Sentences should show real syntactic context (subordinate clause/perfect aspect/passive/comparative as appropriate). Avoid bare present-tense templates; vary structure between the two lines.';
   return [
     "Return JSON only: word,language,reading,partOfSpeech,meaning,example,note.",
     `language="${language}", ${languageHint}.`,
     "meaning: 简体中文, 按词性分行(如 n./v.).",
-    'example: exactly 2 lines; each line "<目标语言句子>｜<中文翻译>".',
+    exampleStyle,
     noteHint,
-    "Keep concise: meaning<=140 chars, example<=200 chars, note<=60 chars.",
+    "Keep concise: meaning<=140 chars, example<=260 chars, note<=60 chars.",
     `word: ${word}`,
   ].join("\n");
 }
 
 function buildPromptRetry(word: string, language: SupportedLanguage) {
+  const exampleRule =
+    language === "jp"
+      ? 'example cannot be empty, exactly 2 lines, each line "<日本語の例文>｜<中文翻译>". 两句使用不同的动/形变形或语境(如 て形/た形/ない形/敬語/受身/可能/使役/条件形)，避免只给辞書形。'
+      : 'example cannot be empty, exactly 2 lines, each line "<English sentence>｜<Chinese translation>". Two lines must vary in syntactic structure (tense/voice/clause type).';
   return [
     "Return strict JSON only: word,language,reading,partOfSpeech,meaning,example,note.",
     `language must be "${language}".`,
     `word must stay "${word}".`,
     "reading cannot be empty.",
     "meaning cannot be empty, must be concise Simplified Chinese.",
-    'example cannot be empty, exactly 2 lines, each line "<target sentence>｜<Chinese translation>".',
+    exampleRule,
     "partOfSpeech should be a short value like n./v./adj./adv. when possible.",
     "for English adjectives (adj.), note should include comparative and superlative.",
     "no markdown, no explanation text outside JSON.",
