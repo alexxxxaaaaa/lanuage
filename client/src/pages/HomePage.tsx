@@ -44,13 +44,12 @@ export function HomePage() {
   const [tomorrowReview, setTomorrowReview] = useState({ en: 0, jp: 0, total: 0 })
   const [showDueList, setShowDueList] = useState(false)
   const [masteringWordId, setMasteringWordId] = useState<string | null>(null)
-  const todayReviews = useAppStore((state) => state.todayReviews)
-  const dueListItems = useMemo(() => {
-    if (!Array.isArray(todayReviews) || todayReviews.length === 0) {
-      return Array.isArray(dueReviews) ? dueReviews : []
-    }
-    return todayReviews
-  }, [todayReviews, dueReviews])
+  // Always show full due pool on Home; todayReviews is filtered by reviewFolderId
+  // (the per-session filter chosen in the Review page) which would hide other folders.
+  const dueListItems = useMemo(
+    () => (Array.isArray(dueReviews) ? dueReviews : []),
+    [dueReviews],
+  )
 
   // Group due items by folder for tabbed display.
   const dueGroups = useMemo(() => {
