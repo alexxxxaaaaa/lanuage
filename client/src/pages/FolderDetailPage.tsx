@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Input, Tag } from 'antd'
 import { Modal } from 'antd'
 import { Pagination } from 'antd'
@@ -114,6 +114,17 @@ export function FolderDetailPage() {
   const folder = currentFolder && currentFolder.id === id ? currentFolder : null
   const folderList = Array.isArray(folders) ? folders : []
   const words = folder?.words ?? []
+  // Count words added today (user-local midnight onwards).
+  const todayNewCount = useMemo(() => {
+    const startOfToday = new Date()
+    startOfToday.setHours(0, 0, 0, 0)
+    const cutoff = startOfToday.getTime()
+    return words.filter((w) => {
+      if (!w.createdAt) return false
+      const t = new Date(w.createdAt).getTime()
+      return Number.isFinite(t) && t >= cutoff
+    }).length
+  }, [words])
   const learnedWords = words.filter(
     (word) =>
       Boolean(word.review?.lastReviewedAt) || (word.review?.repetition ?? 0) > 0,
@@ -232,6 +243,20 @@ export function FolderDetailPage() {
     await useAppStore.getState().deleteWord(word.id)
   }
 
+  const togglePin = async (word: Word) => {
+    const willPin = !word.isPinned
+    await useAppStore.getState().updateWord(word.id, { isPinned: willPin })
+    if (id) {
+      await useAppStore.getState().fetchFolderById(id)
+    }
+    // Pinned words sort to the top of the server-side ordering, so jump the
+    // user back to page 1 so they can actually see the word they just pinned.
+    if (willPin) {
+      setPage(1)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
+
   return (
     <section className="page">
       <div className="section-header">
@@ -249,6 +274,14 @@ export function FolderDetailPage() {
           </h2>
           <p className="muted">
             {t('folderDetail.totalWords', { count: words.length })}
+            {todayNewCount > 0 ? (
+              <>
+                {' · '}
+                <span className="folder-today-new">
+                  {t('folderDetail.todayNew', { count: todayNewCount })}
+                </span>
+              </>
+            ) : null}
           </p>
           <div className="session-picker">
             <span className="session-picker-label">
@@ -331,143 +364,7 @@ export function FolderDetailPage() {
       ) : null}
 
       <div className="word-list word-list-folder">
-        {pagedWords.map((word) =>
-          editingWordId === word.id && form ? (
-            <form
-              key={word.id}
-              className="card word-card word-edit word-card-full"
-              onSubmit={(event) => handleSave(event, word.id)}
-            >
-              <div className="word-grid">
-                <label className="form-field">
-                  <span>{t('folderDetail.formWord')}</span>
-                  <input
-                    value={form.word}
-                    onChange={(event) =>
-                      setForm((prev) =>
-                        prev ? { ...prev, word: event.target.value } : prev,
-                      )
-                    }
-                    required
-                  />
-                </label>
-                <label className="form-field">
-                  <span>{t('folderDetail.formReading')}</span>
-                  <input
-                    value={form.reading}
-                    onChange={(event) =>
-                      setForm((prev) =>
-                        prev ? { ...prev, reading: event.target.value } : prev,
-                      )
-                    }
-                    required
-                  />
-                </label>
-                <label className="form-field form-field-full">
-                  <span>{t('folderDetail.formFolder')}</span>
-                  <select
-                    value={form.folderId}
-                    disabled={isLoadingFolders}
-                    onChange={(event) =>
-                      setForm((prev) =>
-                        prev ? { ...prev, folderId: event.target.value } : prev,
-                      )
-                    }
-                    required
-                  >
-                    <option value="">{t('folderDetail.formChooseFolder')}</option>
-                    {folderList.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name} ({item.language})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="form-field form-field-full">
-                  <span>{t('folderDetail.formSourceNote')}</span>
-                  <select
-                    value={form.sourceNoteId}
-                    onChange={(event) =>
-                      setForm((prev) =>
-                        prev ? { ...prev, sourceNoteId: event.target.value } : prev,
-                      )
-                    }
-                  >
-                    <option value="">{t('folderDetail.formNoSource')}</option>
-                    {noteOptions.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="form-field form-field-full">
-                  <span>{t('folderDetail.formPartOfSpeech')}</span>
-                  <input
-                    value={form.partOfSpeech}
-                    onChange={(event) =>
-                      setForm((prev) =>
-                        prev ? { ...prev, partOfSpeech: event.target.value } : prev,
-                      )
-                    }
-                    placeholder={t('folderDetail.formPosPlaceholder')}
-                  />
-                </label>
-                <label className="form-field form-field-full">
-                  <span>{t('folderDetail.formMeaning')}</span>
-                  <textarea
-                    rows={3}
-                    value={form.meaning}
-                    onChange={(event) =>
-                      setForm((prev) =>
-                        prev ? { ...prev, meaning: event.target.value } : prev,
-                      )
-                    }
-                  />
-                </label>
-                <label className="form-field form-field-full">
-                  <span>{t('folderDetail.formExample')}</span>
-                  <textarea
-                    rows={2}
-                    value={form.example}
-                    onChange={(event) =>
-                      setForm((prev) =>
-                        prev ? { ...prev, example: event.target.value } : prev,
-                      )
-                    }
-                  />
-                </label>
-                <label className="form-field form-field-full">
-                  <span>{t('folderDetail.formNote')}</span>
-                  <textarea
-                    rows={2}
-                    value={form.note}
-                    onChange={(event) =>
-                      setForm((prev) =>
-                        prev ? { ...prev, note: event.target.value } : prev,
-                      )
-                    }
-                  />
-                </label>
-              </div>
-              <div className="form-actions">
-                <button
-                  type="submit"
-                  className="primary-button"
-                  disabled={isSubmitting}
-                >
-                  {t('folderDetail.save')}
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={cancelEdit}
-                >
-                  {t('folderDetail.cancel')}
-                </button>
-              </div>
-            </form>
-          ) : (
+        {pagedWords.map((word) => (
             <article
               key={word.id}
               id={`word-${word.id}`}
@@ -495,6 +392,14 @@ export function FolderDetailPage() {
                   </div>
                 </div>
                 <div className="folder-card-actions">
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => void togglePin(word)}
+                    title={word.isPinned ? '取消置顶' : '置顶(优先学习)'}
+                  >
+                    {word.isPinned ? '取消置顶' : '置顶'}
+                  </button>
                   <button
                     type="button"
                     className="ghost-button"
@@ -582,6 +487,156 @@ export function FolderDetailPage() {
           />
         </div>
       ) : null}
+
+      <Modal
+        open={editingWordId !== null && form !== null}
+        onCancel={cancelEdit}
+        title={
+          editingWordId
+            ? words.find((w) => w.id === editingWordId)?.word ?? t('folderDetail.edit')
+            : t('folderDetail.edit')
+        }
+        width={720}
+        destroyOnHidden
+        footer={null}
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
+      >
+        {form && editingWordId ? (
+          <form
+            className="word-edit"
+            onSubmit={(event) => handleSave(event, editingWordId)}
+          >
+            <div className="word-grid">
+              <label className="form-field">
+                <span>{t('folderDetail.formWord')}</span>
+                <input
+                  value={form.word}
+                  onChange={(event) =>
+                    setForm((prev) =>
+                      prev ? { ...prev, word: event.target.value } : prev,
+                    )
+                  }
+                  required
+                />
+              </label>
+              <label className="form-field">
+                <span>{t('folderDetail.formReading')}</span>
+                <input
+                  value={form.reading}
+                  onChange={(event) =>
+                    setForm((prev) =>
+                      prev ? { ...prev, reading: event.target.value } : prev,
+                    )
+                  }
+                  required
+                />
+              </label>
+              <label className="form-field form-field-full">
+                <span>{t('folderDetail.formFolder')}</span>
+                <select
+                  value={form.folderId}
+                  disabled={isLoadingFolders}
+                  onChange={(event) =>
+                    setForm((prev) =>
+                      prev ? { ...prev, folderId: event.target.value } : prev,
+                    )
+                  }
+                  required
+                >
+                  <option value="">{t('folderDetail.formChooseFolder')}</option>
+                  {folderList.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} ({item.language})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="form-field form-field-full">
+                <span>{t('folderDetail.formSourceNote')}</span>
+                <select
+                  value={form.sourceNoteId}
+                  onChange={(event) =>
+                    setForm((prev) =>
+                      prev ? { ...prev, sourceNoteId: event.target.value } : prev,
+                    )
+                  }
+                >
+                  <option value="">{t('folderDetail.formNoSource')}</option>
+                  {noteOptions.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="form-field form-field-full">
+                <span>{t('folderDetail.formPartOfSpeech')}</span>
+                <input
+                  value={form.partOfSpeech}
+                  onChange={(event) =>
+                    setForm((prev) =>
+                      prev ? { ...prev, partOfSpeech: event.target.value } : prev,
+                    )
+                  }
+                  placeholder={t('folderDetail.formPosPlaceholder')}
+                />
+              </label>
+              <label className="form-field form-field-full">
+                <span>{t('folderDetail.formMeaning')}</span>
+                <textarea
+                  rows={3}
+                  value={form.meaning}
+                  onChange={(event) =>
+                    setForm((prev) =>
+                      prev ? { ...prev, meaning: event.target.value } : prev,
+                    )
+                  }
+                />
+              </label>
+              <label className="form-field form-field-full">
+                <span>{t('folderDetail.formExample')}</span>
+                <textarea
+                  rows={2}
+                  value={form.example}
+                  onChange={(event) =>
+                    setForm((prev) =>
+                      prev ? { ...prev, example: event.target.value } : prev,
+                    )
+                  }
+                />
+              </label>
+              <label className="form-field form-field-full">
+                <span>{t('folderDetail.formNote')}</span>
+                <textarea
+                  rows={2}
+                  value={form.note}
+                  onChange={(event) =>
+                    setForm((prev) =>
+                      prev ? { ...prev, note: event.target.value } : prev,
+                    )
+                  }
+                />
+              </label>
+            </div>
+            <div className="form-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={cancelEdit}
+              >
+                {t('folderDetail.cancel')}
+              </button>
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={isSubmitting}
+              >
+                {t('folderDetail.save')}
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </Modal>
     </section>
   )
 }

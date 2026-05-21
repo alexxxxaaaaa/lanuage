@@ -26,6 +26,7 @@ type UpdateWordInput = Partial<
   >
 > & {
   sourceNoteId?: string | null
+  isPinned?: boolean
 }
 
 function assertRequiredField(value: string, fieldName: string) {
@@ -164,15 +165,74 @@ export async function getWords(userId: string, folderId?: string, query?: string
           }
         : {}),
     },
-    orderBy: {
-      createdAt: 'desc',
-    },
+    // Pinned first (latest pinnedAt at the top within the pinned group), then
+    // the regular createdAt-desc order for everything else.
+    orderBy: [
+      { isPinned: 'desc' },
+      { pinnedAt: 'desc' },
+      { createdAt: 'desc' },
+    ],
     include: {
       folder: true,
       sourceNote: true,
       review: true,
     },
   })
+}
+
+export async function suggestWords(userId: string, query: string, limit = 10) {
+  const term = query.trim()
+  if (!term) return []
+
+  // Escape LIKE wildcards so user-typed % / _ don't act as wildcards.
+  const escaped = term.replace(/[\\%_]/g, (ch) => `\\${ch}`)
+  const contains = `%${escaped}%`
+  const prefix = `${escaped}%`
+  const safeLimit = Math.min(Math.max(limit, 1), 20)
+
+  // Raw query so we can ORDER BY exact > prefix > contains relevance buckets.
+  // The Folder join scopes results to this user.
+  const rows = await prisma.$queryRaw<
+    Array<{
+      id: string
+      word: string
+      reading: string
+      meaning: string
+      language: string
+      folderId: string
+      folderName: string | null
+    }>
+  >`
+    SELECT w.id, w.word, w.reading, w.meaning, w.language, w.folderId,
+           f.name AS folderName
+    FROM Word w
+    JOIN Folder f ON f.id = w.folderId
+    WHERE f.userId = ${userId}
+      AND (
+        w.word LIKE ${contains} ESCAPE '\\'
+        OR w.reading LIKE ${contains} ESCAPE '\\'
+      )
+    ORDER BY
+      CASE
+        WHEN w.word = ${term} OR w.reading = ${term} THEN 0
+        WHEN w.word LIKE ${prefix} ESCAPE '\\'
+          OR w.reading LIKE ${prefix} ESCAPE '\\' THEN 1
+        ELSE 2
+      END,
+      LENGTH(w.word),
+      w.word
+    LIMIT ${safeLimit}
+  `
+
+  return rows.map((row) => ({
+    id: row.id,
+    word: row.word,
+    reading: row.reading,
+    meaning: row.meaning,
+    language: row.language,
+    folderId: row.folderId,
+    folderName: row.folderName ?? '',
+  }))
 }
 
 export async function getTodayNewWords(userId: string, folderId?: string) {
@@ -185,9 +245,12 @@ export async function getTodayNewWords(userId: string, folderId?: string) {
         { review: { is: { lastReviewedAt: null } } },
       ],
     },
-    orderBy: {
-      createdAt: 'desc',
-    },
+    // Pinned words come first in the learn queue.
+    orderBy: [
+      { isPinned: 'desc' },
+      { pinnedAt: 'desc' },
+      { createdAt: 'desc' },
+    ],
     include: {
       folder: true,
       review: true,
@@ -209,6 +272,8 @@ export async function updateWord(
 
   const data: Omit<Partial<CreateWordInput>, 'sourceNoteId'> & {
     sourceNoteId?: string | null
+    isPinned?: boolean
+    pinnedAt?: Date | null
   } = {}
   const requiredFields: Array<'word' | 'reading'> = ['word', 'reading']
   const optionalFields: Array<'meaning' | 'example' | 'note' | 'partOfSpeech'> = [
@@ -264,6 +329,12 @@ export async function updateWord(
     }
     data.folderId = normalizedFolderId
     data.language = targetFolder.language
+  }
+
+  if (updates.isPinned !== undefined) {
+    data.isPinned = updates.isPinned
+    // Stamp pinnedAt only when transitioning false→true; clear when unpinning.
+    data.pinnedAt = updates.isPinned ? new Date() : null
   }
 
   if (Object.keys(data).length === 0) {

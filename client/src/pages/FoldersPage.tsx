@@ -222,23 +222,25 @@ export function FoldersPage() {
               <Link className="folder-card-link" to={`/folders/${folder.id}`}>
                 <div className="folder-top">
                   <strong>{folder.name}</strong>
-                  <div className="folder-top-tags">
-                    {(folder.dueCount ?? 0) > 0 ? (
-                      <span className="folder-due-pill">
-                        {t('folders.dueToday', { count: folder.dueCount ?? 0 })}
-                      </span>
-                    ) : (folder.reviewedTodayCount ?? 0) > 0 ? (
-                      <span className="folder-done-pill">
-                        {t('folders.reviewedToday', {
-                          count: folder.reviewedTodayCount ?? 0,
-                        })}
-                      </span>
-                    ) : null}
-                    <span className="folder-language">
-                      {folder.language.toUpperCase()}
+                  <span className="folder-language">
+                    {folder.language.toUpperCase()}
+                  </span>
+                </div>
+                {(folder.dueCount ?? 0) > 0 ? (
+                  <div className="folder-status">
+                    <span className="folder-due-pill">
+                      {t('folders.dueToday', { count: folder.dueCount ?? 0 })}
                     </span>
                   </div>
-                </div>
+                ) : (folder.reviewedTodayCount ?? 0) > 0 ? (
+                  <div className="folder-status">
+                    <span className="folder-done-pill">
+                      {t('folders.reviewedToday', {
+                        count: folder.reviewedTodayCount ?? 0,
+                      })}
+                    </span>
+                  </div>
+                ) : null}
                 <p className="muted">{t('folders.wordCount', { count: folder._count?.words ?? 0 })}</p>
                 {(folder._count?.words ?? 0) > 0 ? (
                   <div className="folder-mastery">

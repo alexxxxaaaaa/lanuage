@@ -6,8 +6,10 @@ import { authRouter } from './routes/auth'
 import { dictionaryRouter } from './routes/dictionary'
 import { expressionsRouter } from './routes/expressions'
 import { foldersRouter } from './routes/folders'
+import { grammarRouter } from './routes/grammar'
 import { healthRouter } from './routes/health'
 import { notesRouter } from './routes/notes'
+import { podcastsRouter } from './routes/podcasts'
 import { reviewRouter } from './routes/review'
 import { wordsRouter } from './routes/words'
 import { handleError } from './middleware/errorHandler'
@@ -45,6 +47,12 @@ export function createApp() {
 
   app.use('/api/expressions/*', requireAuth)
   app.route('/api/expressions', expressionsRouter)
+
+  app.use('/api/grammar/*', requireAuth)
+  app.route('/api/grammar', grammarRouter)
+
+  app.use('/api/podcasts/*', requireAuth)
+  app.route('/api/podcasts', podcastsRouter)
 
   app.use('/api/dictionary/*', requireAuth)
   app.route('/api/dictionary', dictionaryRouter)

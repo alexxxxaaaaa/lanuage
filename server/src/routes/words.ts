@@ -4,6 +4,7 @@ import {
   deleteWord,
   getTodayNewWords,
   getWords,
+  suggestWords,
   updateWord,
 } from '../services/wordService'
 import { getUserId, type AppEnv } from '../middleware/requireAuth'
@@ -40,6 +41,14 @@ wordsRouter.get('/today-new', async (c) => {
   const folderId = c.req.query('folderId')
   const words = await getTodayNewWords(getUserId(c), folderId)
   return c.json(words)
+})
+
+wordsRouter.get('/suggest', async (c) => {
+  const q = c.req.query('q') ?? ''
+  const limitRaw = c.req.query('limit')
+  const limit = limitRaw ? Number(limitRaw) : 10
+  const items = await suggestWords(getUserId(c), q, Number.isFinite(limit) ? limit : 10)
+  return c.json({ items })
 })
 
 function csvEscape(value: unknown) {
@@ -124,6 +133,7 @@ wordsRouter.patch('/:id', async (c) => {
     partOfSpeech?: string
     sourceNoteId?: string | null
     folderId?: string
+    isPinned?: boolean
   }>()
   const updated = await updateWord(getUserId(c), c.req.param('id'), body)
   return c.json(updated)

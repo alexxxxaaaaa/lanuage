@@ -16,3 +16,4 @@ migrations_dir = "prisma/migrations"
 #   - OPENAI_MODEL: non-sensitive, can live here
 [vars]
 OPENAI_MODEL = "gpt-4.1-mini"
+DAILY_AI_TOKEN_BUDGET = "50000"

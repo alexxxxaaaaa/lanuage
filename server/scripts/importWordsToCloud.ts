@@ -55,7 +55,13 @@ async function call<T>(
     },
   })
   const text = await res.text()
-  const body = text ? JSON.parse(text) : null
+  let body: unknown = null
+  try {
+    body = text ? JSON.parse(text) : null
+  } catch {
+    // Server returned non-JSON (typically a Cloudflare HTML error page).
+    body = { error: `non-json response: ${text.slice(0, 160).replace(/\s+/g, ' ')}` }
+  }
   if (!res.ok) {
     const err = new Error(
       `${init.method ?? 'GET'} ${path} -> ${res.status} ${JSON.stringify(body)}`,
@@ -94,11 +100,22 @@ async function ensureFolder(token: string): Promise<Folder> {
 }
 
 async function postWord(token: string, folderId: string, record: WordRecord) {
-  return call('/api/words', {
-    method: 'POST',
-    token,
-    body: JSON.stringify({ ...record, folderId }),
-  })
+  const payload = JSON.stringify({ ...record, folderId })
+  // Retry on transient gateway errors / non-JSON HTML responses. Stop on 409
+  // (duplicate) and other 4xx since those are deterministic.
+  let lastErr: unknown
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      return await call('/api/words', { method: 'POST', token, body: payload })
+    } catch (err) {
+      const e = err as { status?: number }
+      lastErr = err
+      if (e.status === 409) throw err
+      if (e.status && e.status >= 400 && e.status < 500) throw err
+      await new Promise((r) => setTimeout(r, 200 * 2 ** attempt))
+    }
+  }
+  throw lastErr
 }
 
 async function runBatch<T>(items: T[], worker: (item: T) => Promise<void>) {
@@ -147,7 +164,9 @@ async function main() {
 
   const folder = await ensureFolder(token)
 
-  const stats = await runBatch(records, (r) => postWord(token, folder.id, r))
+  const stats = await runBatch(records, async (r) => {
+    await postWord(token, folder.id, r)
+  })
   console.log(
     `done. added=${stats.added} duplicated=${stats.duplicated} failed=${stats.failed}`,
   )

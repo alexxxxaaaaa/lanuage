@@ -4,10 +4,16 @@ import { getEnv } from "../lib/env";
 import { AppError } from "../errors/AppError";
 
 type SupportedLanguage = "en" | "jp";
+type SourceLanguage = SupportedLanguage | "zh";
 
 type FillWordInput = {
   word: string;
+  /** Legacy field; kept for callers that don't pass sourceLanguage. */
   language: SupportedLanguage;
+  /** New: the language the user typed. Defaults to `language`. */
+  sourceLanguage?: SourceLanguage;
+  /** New: only meaningful when source=zh — what language to translate INTO. */
+  targetLanguage?: SupportedLanguage;
   extended?: boolean;
   userId: string;
 };
@@ -169,6 +175,36 @@ function buildPrompt(word: string, language: SupportedLanguage) {
     noteHint,
     "Keep concise: meaning<=140 chars, example<=260 chars, note<=60 chars.",
     `word: ${word}`,
+  ].join("\n");
+}
+
+function buildTranslatePrompt(chineseWord: string, target: SupportedLanguage) {
+  // Translation mode: the user typed Chinese; we need the equivalent word in
+  // `target`. The returned `word` is the target-language word, `language` is
+  // the target language.
+  const headInfo =
+    target === "jp"
+      ? "Translate the Chinese concept into a natural Japanese word/expression."
+      : "Translate the Chinese concept into a natural English word/expression.";
+  const langHint = target === "jp" ? "jp + kana reading" : "en + IPA reading";
+  const exampleStyle =
+    target === "jp"
+      ? 'example: exactly 2 lines; each line "<日本語の例文>｜<中文翻译>". 句子要展示真实语境(从句/复合句/受身/可能/敬語等),避免只用辞書形。两行使用不同形态。'
+      : 'example: exactly 2 lines; each line "<English sentence>｜<中文翻译>". Show real syntactic context (tense/voice/clause). Two lines vary.';
+  const noteHint =
+    target === "en"
+      ? "note: verb->过去式/过去分词, noun->复数, adjective->比较级/最高级 (when applicable); 若有其它常用对应词,列在 note 末尾"
+      : "note: 简短中文用法; 若有其它常用对应词(如「问候」可同时对应 挨拶/こんにちは),列在 note 末尾。";
+  return [
+    "Return JSON only: word,language,reading,partOfSpeech,meaning,example,note.",
+    headInfo,
+    `language="${target}", ${langHint}.`,
+    "word: the target-language equivalent of the input Chinese (kanji or kana for jp; ascii for en). Pick the most common natural translation. If multiple valid options exist, pick one; mention alternatives in note.",
+    "meaning: 简体中文释义, 简洁, 按词性分行(如 n./v.).",
+    exampleStyle,
+    noteHint,
+    "Keep concise: meaning<=140 chars, example<=260 chars, note<=80 chars.",
+    `chinese input: ${chineseWord}`,
   ].join("\n");
 }
 
@@ -363,14 +399,24 @@ function safeParseExpressionJson(
 
 export async function fillWordByAi(input: FillWordInput) {
   const word = sanitize(input.word);
-  const language = input.language;
+  const source: SourceLanguage = input.sourceLanguage ?? input.language;
+  // For zh source the result's language is the target; otherwise the result
+  // word is in the source language itself.
+  const target: SupportedLanguage =
+    source === "zh"
+      ? input.targetLanguage ?? "jp"
+      : source;
+  const isTranslateMode = source === "zh";
   const tokenBudget = input.extended
     ? MAX_OUTPUT_TOKENS_EXTENDED
     : MAX_OUTPUT_TOKENS;
 
   if (!word) throw new AppError("word is required", 400);
-  if (!SUPPORTED_LANGUAGES.includes(language)) {
-    throw new AppError("language must be en or jp", 400);
+  if (!SUPPORTED_LANGUAGES.includes(target)) {
+    throw new AppError("targetLanguage must be en or jp", 400);
+  }
+  if (source !== "zh" && !SUPPORTED_LANGUAGES.includes(source)) {
+    throw new AppError("sourceLanguage must be en, jp, or zh", 400);
   }
 
   await assertWithinDailyBudget(input.userId);
@@ -387,7 +433,9 @@ export async function fillWordByAi(input: FillWordInput) {
       },
       {
         role: "user",
-        content: buildPrompt(word, language),
+        content: isTranslateMode
+          ? buildTranslatePrompt(word, target)
+          : buildPrompt(word, target),
       },
     ],
     max_tokens: tokenBudget,
@@ -403,7 +451,7 @@ export async function fillWordByAi(input: FillWordInput) {
   await prisma.aiUsageLog.create({
     data: {
       word,
-      language,
+      language: target,
       model: getDefaultModel(),
       feature: "word_fill",
       promptTokens: usage?.prompt_tokens ?? 0,
@@ -414,6 +462,11 @@ export async function fillWordByAi(input: FillWordInput) {
   });
 
   const firstResult = safeParseJson(content, word);
+  // In translate mode, force-pin language to target — `safeParseJson` defaults
+  // to 'en' when the AI omits the field, which would be wrong for zh→jp.
+  if (isTranslateMode) {
+    firstResult.language = target;
+  }
   firstResult.note = normalizeEnglishAdjectiveNote(firstResult);
   if (!isSparseFillWordResult(firstResult)) {
     return firstResult;
@@ -430,7 +483,10 @@ export async function fillWordByAi(input: FillWordInput) {
       },
       {
         role: "user",
-        content: buildPromptRetry(word, language),
+        content: isTranslateMode
+          ? buildTranslatePrompt(word, target) +
+            "\n注意: 第一次返回有字段缺失,请确保 meaning 和 example 都不为空。"
+          : buildPromptRetry(word, target),
       },
     ],
     max_tokens: tokenBudget,
@@ -446,7 +502,7 @@ export async function fillWordByAi(input: FillWordInput) {
   await prisma.aiUsageLog.create({
     data: {
       word,
-      language,
+      language: target,
       model: getDefaultModel(),
       feature: "word_fill",
       promptTokens: retryUsage?.prompt_tokens ?? 0,
@@ -458,16 +514,192 @@ export async function fillWordByAi(input: FillWordInput) {
 
   const retryResult = safeParseJson(retryContent, word);
   retryResult.note = normalizeEnglishAdjectiveNote(retryResult);
+  // In translate mode the result word is the translation (from AI), not the
+  // Chinese input — don't clobber it. In definition mode the word stays.
   return {
     ...firstResult,
     ...retryResult,
-    word,
-    language,
-    reading: retryResult.reading || firstResult.reading || word,
+    word: isTranslateMode
+      ? retryResult.word || firstResult.word
+      : word,
+    language: target,
+    reading: retryResult.reading || firstResult.reading || (isTranslateMode ? '' : word),
     partOfSpeech: retryResult.partOfSpeech || firstResult.partOfSpeech,
     meaning: retryResult.meaning || firstResult.meaning,
     example: retryResult.example || firstResult.example,
     note: retryResult.note || firstResult.note,
+  };
+}
+
+type ExampleOnlyInput = {
+  word: string;
+  reading?: string;
+  meaning?: string;
+  language: SupportedLanguage;
+  userId: string;
+};
+
+const MAX_EXAMPLE_ONLY_TOKENS = 160;
+
+function buildExampleOnlyPrompt(input: ExampleOnlyInput) {
+  const rule =
+    input.language === "jp"
+      ? '2 行,每行 "<日本語例文>｜<中文翻译>"。两行用不同时态/词形,不要都用辞書形。'
+      : '2 lines, each "<English>｜<中文>". Vary tense/voice.';
+  return [
+    'JSON, key "example" only.',
+    `lang=${input.language}`,
+    input.meaning ? `义:${sanitize(input.meaning)}` : "",
+    rule,
+    `词:${sanitize(input.word)}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export async function generateExampleOnlyByAi(input: ExampleOnlyInput) {
+  const word = sanitize(input.word);
+  if (!word) throw new AppError("word is required", 400);
+  if (!SUPPORTED_LANGUAGES.includes(input.language)) {
+    throw new AppError("language must be en or jp", 400);
+  }
+
+  await assertWithinDailyBudget(input.userId);
+
+  const client = getOpenAIClient();
+  const completion = await client.chat.completions.create({
+    model: getDefaultModel(),
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content: "You return strict JSON with only the requested key.",
+      },
+      { role: "user", content: buildExampleOnlyPrompt({ ...input, word }) },
+    ],
+    max_tokens: MAX_EXAMPLE_ONLY_TOKENS,
+    temperature: 0.2,
+  });
+
+  const content = completion.choices[0]?.message?.content;
+  if (!content) throw new AppError("AI did not return content", 502);
+
+  const usage = completion.usage;
+  await prisma.aiUsageLog.create({
+    data: {
+      word,
+      language: input.language,
+      model: getDefaultModel(),
+      feature: "example_only",
+      promptTokens: usage?.prompt_tokens ?? 0,
+      completionTokens: usage?.completion_tokens ?? 0,
+      totalTokens: usage?.total_tokens ?? 0,
+      userId: input.userId,
+    },
+  });
+
+  const parsed = parseModelJsonObject<{ example?: unknown }>(content);
+  // The model sometimes returns example as an array of lines instead of a
+  // newline-joined string; flatten both shapes before sanitizing.
+  const raw = parsed.example;
+  const flat = Array.isArray(raw)
+    ? raw.filter((x) => typeof x === "string" && x.trim()).join("\n")
+    : typeof raw === "string"
+      ? raw
+      : "";
+  return { example: sanitize(flat) };
+}
+
+type FillGrammarInput = {
+  pattern: string;
+  userId: string;
+};
+
+type FillGrammarResult = {
+  pattern: string;
+  connection: string;
+  meaning: string;
+  example: string;
+  exampleZh: string;
+  note: string;
+};
+
+const MAX_GRAMMAR_FILL_TOKENS = 360;
+
+function buildGrammarPrompt(pattern: string) {
+  return [
+    'Return strict JSON only with keys: pattern, connection, meaning, example, exampleZh, note.',
+    `Input pattern: ${pattern}`,
+    'pattern: echo back the pattern exactly as given.',
+    'connection: 接续规则,简体中文,如 "名词 / 动词辞書形 + にあたって"。多条用 \\n 分隔。',
+    'meaning: 中文释义,逗号分隔多个义项,<=60 字。',
+    'example: 日本語例句,正好 2 行,每行一句完整句,使用 \\n 分隔。两行体现不同语境/词形(如 て形/た形/ない形/敬語/受身/可能/使役/条件形)。每句必须包含该句型。',
+    'exampleZh: 与 example 一一对应的中文翻译,正好 2 行,使用 \\n 分隔,顺序与 example 一致。',
+    'note: 注意点/近义对比/语感差别,<=100 字,可为空字符串。',
+  ].join('\n');
+}
+
+export async function fillGrammarByAi(input: FillGrammarInput): Promise<FillGrammarResult> {
+  const pattern = sanitize(input.pattern);
+  if (!pattern) throw new AppError('pattern is required', 400);
+
+  await assertWithinDailyBudget(input.userId);
+
+  const client = getOpenAIClient();
+  const completion = await client.chat.completions.create({
+    model: getDefaultModel(),
+    response_format: { type: 'json_object' },
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a Japanese N1 grammar assistant. Return strict JSON only.',
+      },
+      { role: 'user', content: buildGrammarPrompt(pattern) },
+    ],
+    max_tokens: MAX_GRAMMAR_FILL_TOKENS,
+    temperature: 0.2,
+  });
+
+  const content = completion.choices[0]?.message?.content;
+  if (!content) throw new AppError('AI did not return content', 502);
+
+  const usage = completion.usage;
+  await prisma.aiUsageLog.create({
+    data: {
+      word: pattern,
+      language: 'jp',
+      model: getDefaultModel(),
+      feature: 'grammar_fill',
+      promptTokens: usage?.prompt_tokens ?? 0,
+      completionTokens: usage?.completion_tokens ?? 0,
+      totalTokens: usage?.total_tokens ?? 0,
+      userId: input.userId,
+    },
+  });
+
+  const parsed = parseModelJsonObject<{
+    pattern?: unknown;
+    connection?: unknown;
+    meaning?: unknown;
+    example?: unknown;
+    exampleZh?: unknown;
+    note?: unknown;
+  }>(content);
+
+  // Flatten array-shaped fields (the model occasionally returns example/exampleZh
+  // as ["line1", "line2"]) before sanitizing.
+  const flatten = (v: unknown): string => {
+    if (Array.isArray(v)) return v.filter((x) => typeof x === 'string' && x.trim()).join('\n');
+    return typeof v === 'string' ? v : '';
+  };
+
+  return {
+    pattern,
+    connection: sanitize(flatten(parsed.connection)),
+    meaning: sanitize(flatten(parsed.meaning)),
+    example: sanitize(flatten(parsed.example)),
+    exampleZh: sanitize(flatten(parsed.exampleZh)),
+    note: sanitize(flatten(parsed.note)),
   };
 }
 

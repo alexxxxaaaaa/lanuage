@@ -7,6 +7,8 @@ import {
   getTomorrowReviewStats,
   markWordMastered,
 } from '../api/review'
+import { getTodayNewWords } from '../api/words'
+import type { Word } from '../types'
 import { useAppStore } from '../store/useAppStore'
 
 const LEARN_LIMIT_OPTIONS: { value: number | null; label: string }[] = [
@@ -43,6 +45,9 @@ export function HomePage() {
   const [todayLearned, setTodayLearned] = useState({ en: 0, jp: 0, total: 0 })
   const [tomorrowReview, setTomorrowReview] = useState({ en: 0, jp: 0, total: 0 })
   const [showDueList, setShowDueList] = useState(false)
+  // When set, opens the new-learn preview modal scoped to that folder.
+  const [learnFolderId, setLearnFolderId] = useState<string | null>(null)
+  const [todayNewWords, setTodayNewWords] = useState<Word[]>([])
   const [masteringWordId, setMasteringWordId] = useState<string | null>(null)
   // Always show full due pool on Home; todayReviews is filtered by reviewFolderId
   // (the per-session filter chosen in the Review page) which would hide other folders.
@@ -63,10 +68,25 @@ export function HomePage() {
     }
     return Array.from(map.values())
   }, [dueListItems])
+
+  const newWordsForLearnFolder = useMemo(() => {
+    if (!learnFolderId) return [] as Word[]
+    return todayNewWords.filter(
+      (w) => (w.folder?.id ?? w.folderId) === learnFolderId,
+    )
+  }, [todayNewWords, learnFolderId])
+
+  const learnFolderName = useMemo(() => {
+    if (!learnFolderId) return ''
+    return folderList.find((f) => f.id === learnFolderId)?.name ?? ''
+  }, [folderList, learnFolderId])
   useEffect(() => {
     useAppStore.getState().clearError()
     void useAppStore.getState().fetchFolders()
     void useAppStore.getState().fetchTodayReviews()
+    void getTodayNewWords().then((list) => {
+      setTodayNewWords(Array.isArray(list) ? list : [])
+    })
     void Promise.all([getTodayLearnedStats(), getTomorrowReviewStats()]).then(
       ([todayStats, tomorrowStats]) => {
         setTodayLearned({
@@ -89,8 +109,13 @@ export function HomePage() {
     try {
       await markWordMastered(wordId)
       message.success(t('home.markedMastered', { word: wordLabel }))
-      await useAppStore.getState().fetchTodayReviews()
-      await useAppStore.getState().fetchFolders()
+      // Pull both due-pool and new-pool back so the modals reflect the change.
+      const [, , list] = await Promise.all([
+        useAppStore.getState().fetchTodayReviews(),
+        useAppStore.getState().fetchFolders(),
+        getTodayNewWords(),
+      ])
+      setTodayNewWords(Array.isArray(list) ? list : [])
     } catch {
       message.error(t('home.markMasteredFailed'))
     } finally {
@@ -99,8 +124,7 @@ export function HomePage() {
   }
 
   const handleStartLearnByFolder = (folderId: string) => {
-    useAppStore.getState().setReviewFolderId(folderId)
-    navigate('/learn')
+    setLearnFolderId(folderId)
   }
 
   const handleStartReviewByFolder = (folderId: string) => {
@@ -224,6 +248,69 @@ export function HomePage() {
                 ),
               }))}
             />
+          )}
+        </Modal>
+
+        <Modal
+          title={
+            learnFolderName
+              ? `${t('home.newListTitle', { count: newWordsForLearnFolder.length })} · ${learnFolderName}`
+              : t('home.newListTitle', { count: newWordsForLearnFolder.length })
+          }
+          open={learnFolderId !== null}
+          onCancel={() => setLearnFolderId(null)}
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button type="button" className="ghost-button" onClick={() => setLearnFolderId(null)}>
+                {t('expression.collapseCreate')}
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                disabled={newWordsForLearnFolder.length === 0}
+                onClick={() => {
+                  if (!learnFolderId) return
+                  useAppStore.getState().setReviewFolderId(learnFolderId)
+                  setLearnFolderId(null)
+                  navigate('/learn')
+                }}
+              >
+                {t('home.learnNew')}
+              </button>
+            </div>
+          }
+          width={560}
+          styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
+        >
+          {newWordsForLearnFolder.length === 0 ? (
+            <p className="muted">{t('home.newListEmpty')}</p>
+          ) : (
+            <ul className="home-due-list">
+              {newWordsForLearnFolder.map((w) => (
+                <li key={w.id} className="home-due-item">
+                  <div className="home-due-item-info">
+                    <strong>{w.word}</strong>
+                    {w.reading ? <span className="muted">{w.reading}</span> : null}
+                    <span className="folder-language">{w.language.toUpperCase()}</span>
+                  </div>
+                  {w.meaning ? (
+                    <p className="muted home-due-item-meaning">{w.meaning}</p>
+                  ) : null}
+                  <div className="home-due-item-actions">
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      disabled={masteringWordId === w.id}
+                      onClick={() => void handleMarkMastered(w.id, w.word)}
+                    >
+                      {masteringWordId === w.id
+                        ? t('home.marking')
+                        : t('home.markMastered')}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </Modal>
         {/* <div className="hero-actions">

@@ -2,7 +2,12 @@ import { apiClient } from './client'
 
 export type AiFillWordPayload = {
   word: string
+  /** Legacy: kept for backwards compatibility with existing callers. */
   language?: 'en' | 'jp'
+  /** What language the user typed in. `zh` enables translation mode. */
+  sourceLanguage?: 'en' | 'jp' | 'zh'
+  /** Only meaningful when sourceLanguage='zh' — what to translate INTO. */
+  targetLanguage?: 'en' | 'jp'
   extended?: boolean
 }
 
@@ -58,6 +63,22 @@ export type AiExpressionCasualResult = {
   enCasual: string
   jpCasual: string
   sceneTag: string
+}
+
+export type AiFillGrammarResult = {
+  pattern: string
+  connection: string
+  meaning: string
+  example: string
+  exampleZh: string
+  note: string
+}
+
+export async function fillGrammarByAi(pattern: string) {
+  const response = await apiClient.post<AiFillGrammarResult>('/api/ai/fill-grammar', {
+    pattern,
+  })
+  return response.data
 }
 
 export async function fillWordByAi(payload: AiFillWordPayload) {

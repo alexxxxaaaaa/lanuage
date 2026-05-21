@@ -70,6 +70,7 @@ export type UpdateWordPayload = {
   partOfSpeech?: string
   sourceNoteId?: string | null
   folderId?: string
+  isPinned?: boolean
 }
 
 export type Review = {
@@ -97,6 +98,8 @@ export type Word = {
   language: string
   folderId: string
   sourceNoteId?: string | null
+  isPinned?: boolean
+  pinnedAt?: string | null
   createdAt?: string
   folder?: Folder
   sourceNote?: Note | null
@@ -128,4 +131,70 @@ export type CreateWordPayload = {
   sourceNoteId?: string
   language: string
   folderId: string
+}
+
+export type Grammar = {
+  id: string
+  pattern: string
+  connection: string
+  meaning: string
+  example: string
+  exampleZh: string
+  note: string
+  level: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type CreateGrammarPayload = {
+  pattern: string
+  connection?: string
+  meaning?: string
+  example?: string
+  exampleZh?: string
+  note?: string
+  level?: string
+}
+
+export type UpdateGrammarPayload = Partial<CreateGrammarPayload>
+
+export type PodcastSummary = {
+  id: string
+  youtubeId: string
+  title: string
+  primaryLang: 'jp' | 'en'
+  thumbnail: string
+  durationSec: number
+  lastPositionSec?: number
+  createdAt?: string
+}
+
+export type TranscriptLine = {
+  start: number
+  dur: number
+  text: string
+  zh?: string
+}
+
+export type Podcast = PodcastSummary & {
+  transcript: {
+    lines: TranscriptLine[]
+    primaryTrack: { languageCode: string; kind: string }
+    chineseTrack?: { languageCode: string; kind: string } | null
+  }
+}
+
+export type YoutubeCaptionTrack = {
+  languageCode: string
+  name: string
+  kind: 'asr' | 'manual'
+  baseUrl: string
+}
+
+export type YoutubeInspectResult = {
+  videoId: string
+  title: string
+  durationSec: number
+  thumbnail: string
+  captionTracks: YoutubeCaptionTrack[]
 }

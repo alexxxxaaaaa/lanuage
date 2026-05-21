@@ -31,6 +31,39 @@ function normalizeAnswer(value: string) {
   return katakanaToHiragana(value.trim().toLowerCase()).replace(/\s+/g, ' ')
 }
 
+/** Visual cue for the word's character / kana count. When the meaning prompt
+ *  is too vague to uniquely identify the word, this length hint constrains
+ *  the answer shape without giving the letters away. */
+function RecallLengthHint({ word }: { word: Word }) {
+  const wordChars = Array.from(word.word ?? '')
+  const readingChars = Array.from(word.reading ?? '')
+  if (wordChars.length === 0) return null
+  const isJp = word.language === 'jp'
+  // Render N underscore slots so the user sees the visual length too.
+  const slots = (n: number) =>
+    Array.from({ length: n }).map((_, i) => (
+      <span key={i} className="recall-length-slot">_</span>
+    ))
+  const same = word.word === word.reading || readingChars.length === 0
+  return (
+    <div className="recall-length-hint muted">
+      <div className="recall-length-row">
+        {slots(wordChars.length)}
+        <span className="recall-length-count">
+          {wordChars.length}
+          {isJp ? ' 字' : ' letters'}
+        </span>
+      </div>
+      {isJp && !same ? (
+        <div className="recall-length-row recall-length-secondary">
+          {slots(readingChars.length)}
+          <span className="recall-length-count">{readingChars.length} 假名</span>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function isAnswerCorrect(typed: string, word: Word) {
   const candidate = normalizeAnswer(typed)
   if (!candidate) return false
@@ -72,9 +105,33 @@ function buildCloze(sentence: string, word: string): string | null {
   const isCjk = /[぀-ヿ一-龯]/.test(trimmed)
   const blank = '＿＿＿＿'
   if (isCjk) {
-    const idx = sentence.indexOf(trimmed)
-    if (idx === -1) return null
-    return sentence.slice(0, idx) + blank + sentence.slice(idx + trimmed.length)
+    // Literal match first.
+    let idx = sentence.indexOf(trimmed)
+    if (idx !== -1) {
+      return sentence.slice(0, idx) + blank + sentence.slice(idx + trimmed.length)
+    }
+    // Conjugation fallback: the dictionary form (e.g. 握る) may appear in the
+    // example as a conjugated form (握った / 握れる / 握らない). Match by the
+    // leading kanji run, then expand forward through the kana tail so the
+    // whole inflected word gets blanked, not just the kanji.
+    const stemMatch = trimmed.match(/^[一-龯]+/)
+    if (stemMatch) {
+      const stem = stemMatch[0]
+      idx = sentence.indexOf(stem)
+      if (idx !== -1) {
+        let end = idx + stem.length
+        // Eat hiragana/katakana/long-mark tail.
+        while (end < sentence.length && /[ぁ-ゟ゠-ヿー]/.test(sentence[end])) {
+          end++
+        }
+        return sentence.slice(0, idx) + blank + sentence.slice(end)
+      }
+    }
+    // Reading fallback: for hiragana-only words (e.g. するする) where the
+    // example may include the same kana directly. We don't have the reading
+    // here without plumbing — caller will pass null through to the empty
+    // path and the JSX renders the full sentence as fallback.
+    return null
   }
   const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const re = new RegExp(`\\b${escaped}\\b`, 'i')
@@ -214,7 +271,12 @@ export function LearnPage() {
     if (status === 'correct' || status === 'wrong') {
       speak(currentWord.word, currentWord.language)
     }
-  }, [status, currentWord?.id])
+    // currentWord.id is intentionally excluded — when advancing to the next
+    // recall item, status is still 'correct'/'wrong' from the previous answer
+    // and a re-run here would speak the NEW word right when the user is
+    // about to type it, giving away the answer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status])
 
   // ----- transition helpers -----
   const advanceStudy = () => {
@@ -489,10 +551,13 @@ export function LearnPage() {
   if (!currentWord) return null
 
   const examplePair = pickExamplePair(currentWord.example)
+  // null = couldn't blank out the target word in the example. Keep null and
+  // let the JSX render the original sentence (no blank) as a context-only
+  // fallback — better than a lone "___" with no surrounding Japanese.
   const clozeSentence =
     examplePair && phase === 'cloze'
-      ? buildCloze(examplePair.target, currentWord.word) ?? '___'
-      : ''
+      ? buildCloze(examplePair.target, currentWord.word)
+      : null
 
   const phaseLabel: Record<Phase, string> = {
     study: t('learn.phaseStudy'),
@@ -585,9 +650,18 @@ export function LearnPage() {
             {clozeSentence ? (
               <p className="recall-prompt-text">{clozeSentence}</p>
             ) : (
+              // Cloze couldn't be built (no example, or the target word isn't
+              // literally in it). Show the full Japanese example (no blank)
+              // so the user at least has context, plus the Chinese meaning
+              // to identify which word inside the sentence to type.
               <>
-                <p className="recall-prompt-text muted">{t('learn.noClozeFallback')}</p>
-                <p className="recall-prompt-text">{currentWord.meaning}</p>
+                {examplePair?.target ? (
+                  <p className="recall-prompt-text">{examplePair.target}</p>
+                ) : null}
+                <p className="muted">{t('learn.noClozeFallback')}</p>
+                {currentWord.meaning ? (
+                  <p className="recall-prompt-text">{currentWord.meaning}</p>
+                ) : null}
               </>
             )}
             {examplePair?.translation ? (
@@ -595,6 +669,7 @@ export function LearnPage() {
                 {t('learn.clozeChineseLabel', { value: examplePair.translation })}
               </p>
             ) : null}
+            <RecallLengthHint word={currentWord} />
 
             <div className="recall-input-row">
               <input
@@ -669,6 +744,8 @@ export function LearnPage() {
             {currentWord.partOfSpeech ? (
               <p className="muted recall-pos">{t('learn.partOfSpeech', { value: currentWord.partOfSpeech })}</p>
             ) : null}
+
+            <RecallLengthHint word={currentWord} />
 
             <div className="recall-input-row">
               <input

@@ -13,9 +13,14 @@ type DictionaryLookupResponse = {
   items: DictionaryLookupItem[]
 }
 
-export async function lookupDictionary(term: string, language: 'en' | 'jp') {
+export async function lookupDictionary(
+  term: string,
+  language: 'en' | 'jp',
+  options?: { signal?: AbortSignal },
+) {
   const response = await apiClient.get<DictionaryLookupResponse>('/api/dictionary/lookup', {
     params: { term, language },
+    signal: options?.signal,
   })
   return response.data.items ?? []
 }

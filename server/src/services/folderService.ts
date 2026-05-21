@@ -111,7 +111,14 @@ export async function getFolderById(userId: string, id: string) {
     where: { id, userId },
     include: {
       words: {
-        orderBy: { createdAt: 'desc' },
+        // Pinned words come first (latest pinnedAt at the top within the
+        // pinned group), then the regular createdAt-desc order. Mirrors the
+        // ordering used by getWords / getTodayNewWords.
+        orderBy: [
+          { isPinned: 'desc' },
+          { pinnedAt: 'desc' },
+          { createdAt: 'desc' },
+        ],
         include: { review: true, sourceNote: true },
       },
       _count: {

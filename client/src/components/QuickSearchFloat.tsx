@@ -1,11 +1,13 @@
 import { SearchOutlined } from '@ant-design/icons'
 import { FloatButton, Modal, Progress, message } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { fillWordByAi, type AiFillWordResult } from '../api/ai'
 import { getErrorMessage, isDuplicateWordError } from '../api/error'
 import { getWords } from '../api/words'
 import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
+import { SearchSuggest } from './SearchSuggest'
 import { SpeakButton } from './SpeakButton'
 import type { Word } from '../types'
 
@@ -13,6 +15,7 @@ const SEARCH_DEBOUNCE = 300
 
 export function QuickSearchFloat() {
   const { t } = useI18n()
+  const navigate = useNavigate()
   const folders = useAppStore((state) => state.folders)
   const fetchFolders = useAppStore((state) => state.fetchFolders)
   const createWord = useAppStore((state) => state.createWord)
@@ -37,6 +40,28 @@ export function QuickSearchFloat() {
     if (!open) return
     void fetchFolders()
   }, [open, fetchFolders])
+
+  // Global hotkey: press `q` (lowercase, no modifiers) anywhere outside an
+  // editable element to open the search popup.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'q' && e.key !== 'Q') return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      const target = e.target as HTMLElement | null
+      const tag = target?.tagName ?? ''
+      const editable =
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        (target?.isContentEditable ?? false)
+      if (editable) return
+      if (open) return
+      e.preventDefault()
+      setOpen(true)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open])
 
   // Debounced local search
   useEffect(() => {
@@ -158,14 +183,17 @@ export function QuickSearchFloat() {
         width={520}
       >
         <div className="quick-search-body">
-          <input
-            type="search"
-            className="quick-search-input"
+          <SearchSuggest
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={setQuery}
+            onSubmit={(text) => {
+              const q = text.trim()
+              if (!q) return
+              close()
+              navigate(`/words/search?q=${encodeURIComponent(q)}`)
+            }}
             placeholder={t('quickSearch.placeholder')}
-            autoFocus
-            autoComplete="off"
+            inputClassName="quick-search-input"
           />
 
           {!trimmed ? (
@@ -287,6 +315,7 @@ export function QuickSearchFloat() {
           ) : null}
         </div>
       </Modal>
+     
     </>
   )
 }

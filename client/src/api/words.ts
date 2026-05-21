@@ -29,3 +29,27 @@ export async function getTodayNewWords(params?: { folderId?: string }) {
   })
   return response.data
 }
+
+export type WordSuggestion = {
+  id: string
+  word: string
+  reading: string
+  meaning: string
+  language: string
+  folderId: string
+  folderName: string
+}
+
+export async function getWordSuggestions(
+  q: string,
+  options?: { limit?: number; signal?: AbortSignal },
+) {
+  const response = await apiClient.get<{ items: WordSuggestion[] }>(
+    '/api/words/suggest',
+    {
+      params: { q, limit: options?.limit ?? 10 },
+      signal: options?.signal,
+    },
+  )
+  return response.data.items
+}

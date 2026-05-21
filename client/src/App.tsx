@@ -12,6 +12,7 @@ import './App.css'
 import { useI18n } from './i18n'
 import { QuickSearchFloat } from './components/QuickSearchFloat'
 import { RequireAuth } from './components/RequireAuth'
+import { SearchSuggest } from './components/SearchSuggest'
 import { useAuthStore } from './store/authStore'
 import { AiUsagePage } from './pages/AiUsagePage'
 import { AddWordPage } from './pages/AddWordPage'
@@ -19,6 +20,10 @@ import { ExpressionFolderDetailPage } from './pages/ExpressionFolderDetailPage'
 import { ExpressionsPage } from './pages/ExpressionsPage'
 import { FolderDetailPage } from './pages/FolderDetailPage'
 import { FoldersPage } from './pages/FoldersPage'
+import { GrammarDetailPage } from './pages/GrammarDetailPage'
+import { GrammarPage } from './pages/GrammarPage'
+import { PodcastDetailPage } from './pages/PodcastDetailPage'
+import { PodcastsPage } from './pages/PodcastsPage'
 import { HomePage } from './pages/HomePage'
 import { LearnPage } from './pages/LearnPage'
 import { LoginPage } from './pages/LoginPage'
@@ -38,20 +43,22 @@ function AppShell() {
   const [isCodeOpen, setIsCodeOpen] = useState(false)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
-  useEffect(() => {
-    if (!location.pathname.startsWith('/words/search')) return
-    const params = new URLSearchParams(location.search)
-    setKeyword(params.get('q') ?? '')
-  }, [location.pathname, location.search])
-
   const handleGlobalSearch = (event: React.FormEvent) => {
     event.preventDefault()
-    const q = keyword.trim()
+    submitSearch(keyword)
+  }
+
+  const submitSearch = (text: string) => {
+    const q = text.trim()
     if (!q) {
       navigate('/words/search')
       return
     }
     navigate(`/words/search?q=${encodeURIComponent(q)}`)
+    // Clear the nav input after dispatching — the search page has its own
+    // input that holds the active query, so the nav box is just a compose
+    // box and should reset for the next search.
+    setKeyword('')
   }
 
   useEffect(() => {
@@ -96,6 +103,12 @@ function AppShell() {
       <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/expressions">
         {t('nav.expressions')}
       </NavLink>
+      <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/grammar">
+        {t('nav.grammar')}
+      </NavLink>
+      <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/podcasts">
+        {t('nav.podcasts')}
+      </NavLink>
       <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/ai-usage">
         {t('nav.aiUsage')}
       </NavLink>
@@ -111,10 +124,10 @@ function AppShell() {
 
         <nav className="nav">
           <form className="nav-search" onSubmit={handleGlobalSearch}>
-            <input
-              type="search"
+            <SearchSuggest
               value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
+              onChange={setKeyword}
+              onSubmit={submitSearch}
               placeholder={t('nav.searchPlaceholder')}
             />
             <button type="submit" className="primary-button">
@@ -190,6 +203,10 @@ function AppShell() {
           <Route path="/notes/:id" element={<NoteDetailPage />} />
           <Route path="/expressions" element={<ExpressionsPage />} />
           <Route path="/expressions/folders/:id" element={<ExpressionFolderDetailPage />} />
+          <Route path="/grammar" element={<GrammarPage />} />
+          <Route path="/grammar/:id" element={<GrammarDetailPage />} />
+          <Route path="/podcasts" element={<PodcastsPage />} />
+          <Route path="/podcasts/:id" element={<PodcastDetailPage />} />
         </Routes>
       </main>
       <FloatButton

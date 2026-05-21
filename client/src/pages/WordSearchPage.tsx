@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { fillWordByAi } from '../api/ai'
 import { getErrorMessage, isDuplicateWordError } from '../api/error'
 import { createWord, getWords } from '../api/words'
+import { SearchSuggest } from '../components/SearchSuggest'
 import { SpeakButton } from '../components/SpeakButton'
 import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
@@ -19,13 +20,36 @@ type DictResult = {
   note: string
 }
 
+type SourceOverride = 'auto' | 'zh' | 'jp' | 'en'
+
+const CHINESE_TARGET_KEY = 'word-search-chinese-target'
+
+function readStoredChineseTarget(): 'jp' | 'en' {
+  if (typeof window === 'undefined') return 'jp'
+  const v = window.localStorage.getItem(CHINESE_TARGET_KEY)
+  return v === 'en' || v === 'jp' ? v : 'jp'
+}
+
+function detectFromChars(text: string): 'zh' | 'jp' | 'en' {
+  // Kana presence is the only unambiguous Japanese signal — kanji is shared
+  // with Chinese. Pure ASCII = English. Otherwise treat as Chinese; the user
+  // can override via the picker if a kanji-only string is actually Japanese.
+  if (/[぀-ヿㇰ-ㇿ]/.test(text)) return 'jp'
+  if (/[一-龯]/.test(text)) return 'zh'
+  if (/[a-zA-Z]/.test(text)) return 'en'
+  return 'en'
+}
+
 export function WordSearchPage() {
   const { t } = useI18n()
   const [searchParams, setSearchParams] = useSearchParams()
   const q = searchParams.get('q') ?? ''
   const folders = useAppStore((state) => state.folders)
   const [keyword, setKeyword] = useState(q)
-  const [targetLanguage, setTargetLanguage] = useState<'en' | 'jp'>('en')
+  const [sourceOverride, setSourceOverride] = useState<SourceOverride>('auto')
+  const [chineseTarget, setChineseTarget] = useState<'en' | 'jp'>(() =>
+    readStoredChineseTarget(),
+  )
   const [isSearchingAi, setIsSearchingAi] = useState(false)
   const [aiProgress, setAiProgress] = useState(0)
   const [isSavingWord, setIsSavingWord] = useState(false)
@@ -34,6 +58,22 @@ export function WordSearchPage() {
   const [localMatches, setLocalMatches] = useState<Word[]>([])
   const [isSearchingLocal, setIsSearchingLocal] = useState(false)
   const [autoAiFiredFor, setAutoAiFiredFor] = useState('')
+
+  // Persist last chosen target language so the next zh search defaults to it.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(CHINESE_TARGET_KEY, chineseTarget)
+  }, [chineseTarget])
+
+  // Detected source language from chars, plus the active source after override.
+  const detectedSource = useMemo(() => detectFromChars(keyword), [keyword])
+  const effectiveSource: 'zh' | 'jp' | 'en' =
+    sourceOverride === 'auto' ? detectedSource : sourceOverride
+  // The language the *saved* word ends up in:
+  //   - zh source → translate target (jp/en)
+  //   - jp/en source → same as source (definition mode)
+  const targetLanguage: 'en' | 'jp' =
+    effectiveSource === 'zh' ? chineseTarget : effectiveSource
 
   useEffect(() => {
     void useAppStore.getState().fetchFolders()
@@ -56,7 +96,16 @@ export function WordSearchPage() {
     void (async () => {
       try {
         const results = await getWords({ q: trimmed })
-        if (!cancelled) setLocalMatches(results ?? [])
+        if (cancelled) return
+        const list = results ?? []
+        setLocalMatches(list)
+        // Fire AI auto-lookup only AFTER local search completes with zero
+        // hits — keeping the two as separate useEffects had a race where the
+        // AI fired before isSearchingLocal flipped to true on first render.
+        if (list.length === 0 && autoAiFiredFor !== trimmed) {
+          setAutoAiFiredFor(trimmed)
+          void runAiLookup()
+        }
       } catch {
         if (!cancelled) setLocalMatches([])
       } finally {
@@ -66,6 +115,9 @@ export function WordSearchPage() {
     return () => {
       cancelled = true
     }
+    // runAiLookup / autoAiFiredFor are intentionally excluded — we re-fire on
+    // q change only; same-q re-search is handled in submitKeyword.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q])
 
   const wordFolders = useMemo(
@@ -105,7 +157,17 @@ export function WordSearchPage() {
       return
     }
     setError(null)
-    setSearchParams(text === q ? searchParams : { q: text })
+    if (text !== q) {
+      // URL change will pick up via the auto-fire useEffect below, which
+      // itself skips AI when the local library already has matches.
+      setSearchParams({ q: text })
+      return
+    }
+    // Same query as the URL — URL won't re-trigger the auto-fire effect, so
+    // we handle the re-search manually here. Skip AI when the library
+    // already has the word; no point burning tokens on something we have.
+    if (localMatches.length > 0 || isSearchingLocal) return
+    void runAiLookup()
   }
 
   const runAiLookup = async () => {
@@ -114,10 +176,6 @@ export function WordSearchPage() {
       setError(t('wordSearch.enterKeyword'))
       return
     }
-    // If the input contains kana/kanji, treat as Japanese regardless of toggle —
-    // forcing JP→EN translation here defeats the user's actual intent.
-    const hasJapaneseChar = /[぀-ヿㇰ-ㇿ一-龯]/.test(text)
-    const lookupLanguage: 'en' | 'jp' = hasJapaneseChar ? 'jp' : targetLanguage
     setIsSearchingAi(true)
     setAiProgress(8)
     setError(null)
@@ -129,8 +187,14 @@ export function WordSearchPage() {
       })
     }, 400)
     try {
-      const word = await fillWordByAi({ word: text, language: lookupLanguage })
-      setWordResult({ ...word, language: word.language ?? lookupLanguage })
+      const word = await fillWordByAi({
+        word: text,
+        sourceLanguage: effectiveSource,
+        targetLanguage,
+        // Legacy: kept so older code paths see a valid en/jp value.
+        language: targetLanguage,
+      })
+      setWordResult({ ...word, language: word.language ?? targetLanguage })
     } catch (searchError) {
       setError(getErrorMessage(searchError, t('wordSearch.lookupFailed')))
     } finally {
@@ -141,18 +205,10 @@ export function WordSearchPage() {
     }
   }
 
-  // Auto-fire AI lookup once when a new query returns zero local matches.
-  useEffect(() => {
-    const trimmed = q.trim()
-    if (!trimmed) return
-    if (isSearchingLocal) return
-    if (localMatches.length > 0) return
-    if (autoAiFiredFor === trimmed) return
-    setAutoAiFiredFor(trimmed)
-    void runAiLookup()
-    // runAiLookup is intentionally not in deps — we only fire once per new q
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, isSearchingLocal, localMatches.length, autoAiFiredFor])
+  // Auto-fire AI on q-change is now folded into the local-search effect above
+  // (had to combine them — running as two parallel useEffects raced on the
+  // initial isSearchingLocal flip and burned AI calls even when the library
+  // had a match).
 
   const handleAddWord = async () => {
     if (!wordResult) return
@@ -202,32 +258,52 @@ export function WordSearchPage() {
 
       <div className="card dict-search-card">
         <div className="dict-search-row">
-          <input
-            type="search"
-            className="dict-search-input"
+          <SearchSuggest
             value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') submitKeyword()
+            onChange={setKeyword}
+            onSubmit={(text) => {
+              setKeyword(text)
+              if (text !== q) {
+                setSearchParams({ q: text })
+              } else if (localMatches.length === 0 && !isSearchingLocal) {
+                // Same q, no local hit — fire AI manually.
+                void runAiLookup()
+              }
             }}
             placeholder={t('wordSearch.placeholder')}
+            inputClassName="dict-search-input"
+            className="dict-search-suggest"
           />
-          <div className="lang-toggle">
-            <button
-              type="button"
-              className={targetLanguage === 'en' ? 'is-active' : ''}
-              onClick={() => setTargetLanguage('en')}
+          <label className="lang-picker" title="覆盖自动检测的输入语言">
+            <span className="muted">输入</span>
+            <select
+              value={sourceOverride}
+              onChange={(event) =>
+                setSourceOverride(event.target.value as SourceOverride)
+              }
             >
-              EN
-            </button>
-            <button
-              type="button"
-              className={targetLanguage === 'jp' ? 'is-active' : ''}
-              onClick={() => setTargetLanguage('jp')}
-            >
-              JP
-            </button>
-          </div>
+              <option value="auto">
+                自动 ({detectedSource === 'zh' ? '中文' : detectedSource === 'jp' ? '日语' : '英语'})
+              </option>
+              <option value="zh">中文</option>
+              <option value="jp">日语</option>
+              <option value="en">英语</option>
+            </select>
+          </label>
+          {effectiveSource === 'zh' ? (
+            <label className="lang-picker" title="把这个中文词翻译成…">
+              <span className="muted">查</span>
+              <select
+                value={chineseTarget}
+                onChange={(event) =>
+                  setChineseTarget(event.target.value as 'en' | 'jp')
+                }
+              >
+                <option value="jp">日语</option>
+                <option value="en">英语</option>
+              </select>
+            </label>
+          ) : null}
           <button type="button" className="primary-button" onClick={submitKeyword}>
             {t('wordSearch.search')}
           </button>

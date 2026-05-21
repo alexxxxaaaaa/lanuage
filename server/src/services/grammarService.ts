@@ -1,0 +1,133 @@
+import { prisma } from '../lib/prisma'
+import { AppError } from '../errors/AppError'
+
+type CreateGrammarInput = {
+  pattern: string
+  connection?: string
+  meaning?: string
+  example?: string
+  exampleZh?: string
+  note?: string
+  level?: string
+}
+
+type UpdateGrammarInput = Partial<CreateGrammarInput>
+
+function sanitizeUnicode(input: string) {
+  return input.replace(
+    /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+    '',
+  )
+}
+
+function normalize(input?: string) {
+  return sanitizeUnicode((input ?? '').trim())
+}
+
+function mapUniqueError(error: unknown): never {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code?: unknown }).code)
+      : ''
+  if (code === 'P2002') {
+    throw new AppError('grammar already exists', 409)
+  }
+  throw error
+}
+
+export async function createGrammar(userId: string, input: CreateGrammarInput) {
+  const pattern = normalize(input.pattern)
+  if (!pattern) throw new AppError('pattern is required', 400)
+
+  try {
+    return await prisma.grammar.create({
+      data: {
+        pattern,
+        connection: normalize(input.connection),
+        meaning: normalize(input.meaning),
+        example: normalize(input.example),
+        exampleZh: normalize(input.exampleZh),
+        note: normalize(input.note),
+        level: normalize(input.level) || 'N1',
+        userId,
+      },
+    })
+  } catch (error) {
+    mapUniqueError(error)
+  }
+}
+
+export async function getGrammars(
+  userId: string,
+  query?: string,
+  level?: string,
+) {
+  const normalized = query?.trim()
+  return prisma.grammar.findMany({
+    where: {
+      userId,
+      ...(level ? { level } : {}),
+      ...(normalized
+        ? {
+            OR: [
+              { pattern: { contains: normalized } },
+              { meaning: { contains: normalized } },
+              { example: { contains: normalized } },
+              { exampleZh: { contains: normalized } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { createdAt: 'asc' },
+  })
+}
+
+export async function getGrammar(userId: string, id: string) {
+  const grammar = await prisma.grammar.findFirst({ where: { id, userId } })
+  if (!grammar) throw new AppError('grammar not found', 404)
+  return grammar
+}
+
+export async function updateGrammar(
+  userId: string,
+  id: string,
+  updates: UpdateGrammarInput,
+) {
+  const existing = await prisma.grammar.findFirst({ where: { id, userId } })
+  if (!existing) throw new AppError('grammar not found', 404)
+
+  const data: Record<string, string> = {}
+  const allowed: Array<keyof CreateGrammarInput> = [
+    'pattern',
+    'connection',
+    'meaning',
+    'example',
+    'exampleZh',
+    'note',
+    'level',
+  ]
+  for (const field of allowed) {
+    const value = updates[field]
+    if (value === undefined) continue
+    const normalized = normalize(value)
+    if (field === 'pattern' && !normalized) {
+      throw new AppError('pattern cannot be empty', 400)
+    }
+    data[field] = normalized
+  }
+
+  if (Object.keys(data).length === 0) return existing
+
+  try {
+    return await prisma.grammar.update({ where: { id }, data })
+  } catch (error) {
+    mapUniqueError(error)
+  }
+}
+
+export async function deleteGrammar(userId: string, id: string) {
+  const existing = await prisma.grammar.findFirst({ where: { id, userId } })
+  if (!existing) throw new AppError('grammar not found', 404)
+  await prisma.grammar.delete({ where: { id } })
+  return { id }
+}

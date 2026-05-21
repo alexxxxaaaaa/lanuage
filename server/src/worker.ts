@@ -10,6 +10,7 @@ export type WorkerBindings = {
   OPENAI_API_KEY?: string
   OPENAI_MODEL?: string
   ADMIN_USERNAMES?: string
+  DAILY_AI_TOKEN_BUDGET?: string
 }
 
 const app = createApp()
@@ -28,6 +29,7 @@ export default {
       OPENAI_API_KEY: env.OPENAI_API_KEY,
       OPENAI_MODEL: env.OPENAI_MODEL,
       ADMIN_USERNAMES: env.ADMIN_USERNAMES,
+      DAILY_AI_TOKEN_BUDGET: env.DAILY_AI_TOKEN_BUDGET,
     }
 
     try {

@@ -16,6 +16,8 @@ model User {
   notes             Note[]
   expressionFolders ExpressionFolder[]
   aiUsageLogs       AiUsageLog[]
+  grammars          Grammar[]
+  podcasts          Podcast[]
 }
 
 model Folder {
@@ -40,12 +42,15 @@ model Word {
   language     String
   folderId     String
   sourceNoteId String?
+  isPinned     Boolean  @default(false)
+  pinnedAt     DateTime?
   folder       Folder   @relation(fields: [folderId], references: [id])
   sourceNote   Note?    @relation(fields: [sourceNoteId], references: [id])
   review       Review?
   createdAt    DateTime @default(now())
 
   @@unique([folderId, word])
+  @@index([folderId, isPinned, pinnedAt])
 }
 
 model Note {
@@ -118,4 +123,43 @@ model ExpressionFolder {
 
   @@unique([name, language, userId])
   @@index([userId])
+}
+
+model Grammar {
+  id          String   @id @default(uuid())
+  pattern     String
+  connection  String   @default("")
+  meaning     String   @default("")
+  example     String   @default("")
+  exampleZh   String   @default("")
+  note        String   @default("")
+  level       String   @default("N1")
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, pattern])
+  @@index([userId])
+  @@index([level])
+}
+
+model Podcast {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  youtubeId   String
+  title       String
+  primaryLang String   @default("jp")
+  thumbnail   String   @default("")
+  durationSec Int      @default(0)
+  // JSON-serialized transcript:
+  //   { lines: [{ start: ms, dur: ms, text: string, zh?: string }] }
+  transcript      String
+  lastPositionSec Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@unique([userId, youtubeId])
 }
