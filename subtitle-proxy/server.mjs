@@ -122,6 +122,10 @@ async function extract(videoId) {
       '--sub-format',
       'json3',
       '--skip-download',
+      // Some videos (livestreams, DRM-only, members-only previews) have no
+      // downloadable video format; yt-dlp would otherwise abort even though
+      // we only care about subtitles + metadata.
+      '--ignore-no-formats-error',
       '--no-cache-dir',
       '--ignore-config',
       ...cookieArgs(),
