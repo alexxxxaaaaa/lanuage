@@ -218,14 +218,23 @@ const server = http.createServer(async (req, res) => {
       try {
         const r = await fetchWithRetry(u, target.headers())
         const text = await r.text()
+        // Show the actual context around each "ytInitialPlayerResponse"
+        // occurrence so we can see if it's the variable assignment we want
+        // or a key reference.
+        const contexts = []
+        let cursor = 0
+        for (let i = 0; i < 4; i++) {
+          const idx = text.indexOf('ytInitialPlayerResponse', cursor)
+          if (idx < 0) break
+          contexts.push(text.slice(Math.max(0, idx - 30), idx + 60).replace(/\s+/g, ' '))
+          cursor = idx + 1
+        }
         probes.push({
           host: new URL(u).hostname,
           status: r.status,
           bytes: text.length,
-          hasPlayerResponse: text.includes('ytInitialPlayerResponse'),
-          hasCaptionTracks: text.includes('captionTracks'),
-          // first 200 bytes of body to see what they actually serve
-          head: text.slice(0, 200).replace(/\s+/g, ' '),
+          markerCount: (text.match(/ytInitialPlayerResponse/g) || []).length,
+          contexts,
         })
       } catch (e) {
         probes.push({ host: new URL(u).hostname, error: String(e) })
