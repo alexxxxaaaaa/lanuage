@@ -15,6 +15,7 @@ import {
   listUsers,
   listWords,
   resetUserPassword,
+  updateUserPermissions,
 } from '../services/adminService'
 import type { AppEnv } from '../middleware/requireAuth'
 
@@ -43,6 +44,11 @@ adminRouter.get('/users/:id', async (c) => c.json(await getUserDetail(c.req.para
 adminRouter.post('/users/:id/reset-password', async (c) => {
   const { password } = await c.req.json<{ password?: string }>()
   return c.json(await resetUserPassword(c.req.param('id'), password ?? ''))
+})
+
+adminRouter.patch('/users/:id/permissions', async (c) => {
+  const body = await c.req.json<{ canSeePodcast?: boolean }>()
+  return c.json(await updateUserPermissions(c.req.param('id'), body))
 })
 
 adminRouter.delete('/users/:id', async (c) => {

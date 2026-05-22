@@ -15,6 +15,7 @@ import { wordsRouter } from './routes/words'
 import { handleError } from './middleware/errorHandler'
 import { requireAdmin } from './middleware/requireAdmin'
 import { requireAuth, type AppEnv } from './middleware/requireAuth'
+import { requirePodcastAccess } from './middleware/requirePodcastAccess'
 
 export function createApp() {
   const app = new Hono<AppEnv>()
@@ -51,7 +52,7 @@ export function createApp() {
   app.use('/api/grammar/*', requireAuth)
   app.route('/api/grammar', grammarRouter)
 
-  app.use('/api/podcasts/*', requireAuth)
+  app.use('/api/podcasts/*', requireAuth, requirePodcastAccess)
   app.route('/api/podcasts', podcastsRouter)
 
   app.use('/api/dictionary/*', requireAuth)

@@ -91,7 +91,12 @@ export async function getUserById(id: string) {
   if (!user) {
     throw new AppError('用户不存在', 404)
   }
-  return { id: user.id, username: user.username, createdAt: user.createdAt }
+  return {
+    id: user.id,
+    username: user.username,
+    createdAt: user.createdAt,
+    canSeePodcast: user.canSeePodcast,
+  }
 }
 
 export async function verifyToken(token: string): Promise<{ sub: string; username: string }> {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { CodeOutlined, MenuOutlined, SearchOutlined } from '@ant-design/icons'
 import { Drawer, FloatButton, Modal, Select } from 'antd'
 import {
+  Navigate,
   NavLink,
   Route,
   Routes,
@@ -10,6 +11,7 @@ import {
 } from 'react-router-dom'
 import './App.css'
 import { useI18n } from './i18n'
+import { fetchMe } from './api/auth'
 import { QuickSearchFloat } from './components/QuickSearchFloat'
 import { RequireAuth } from './components/RequireAuth'
 import { SearchSuggest } from './components/SearchSuggest'
@@ -38,6 +40,8 @@ function AppShell() {
   const location = useLocation()
   const { language, setLanguage, t } = useI18n()
   const user = useAuthStore((state) => state.user)
+  const token = useAuthStore((state) => state.token)
+  const setUser = useAuthStore((state) => state.setUser)
   const clearSession = useAuthStore((state) => state.clearSession)
   const [keyword, setKeyword] = useState('')
   const [isCodeOpen, setIsCodeOpen] = useState(false)
@@ -89,6 +93,15 @@ function AppShell() {
     setIsDrawerOpen(false)
   }, [location.pathname])
 
+  // 登录态存在但 user 缓存里没 canSeePodcast 字段时，拉一次 /me 同步权限
+  useEffect(() => {
+    if (!token) return
+    if (user?.canSeePodcast !== undefined) return
+    fetchMe()
+      .then((fresh) => setUser(fresh))
+      .catch(() => {})
+  }, [token, user?.canSeePodcast, setUser])
+
   const navLinks = (
     <>
       <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/" end>
@@ -106,9 +119,11 @@ function AppShell() {
       <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/grammar">
         {t('nav.grammar')}
       </NavLink>
-      <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/podcasts">
-        {t('nav.podcasts')}
-      </NavLink>
+      {user?.canSeePodcast ? (
+        <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/podcasts">
+          {t('nav.podcasts')}
+        </NavLink>
+      ) : null}
       <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/ai-usage">
         {t('nav.aiUsage')}
       </NavLink>
@@ -205,8 +220,16 @@ function AppShell() {
           <Route path="/expressions/folders/:id" element={<ExpressionFolderDetailPage />} />
           <Route path="/grammar" element={<GrammarPage />} />
           <Route path="/grammar/:id" element={<GrammarDetailPage />} />
-          <Route path="/podcasts" element={<PodcastsPage />} />
-          <Route path="/podcasts/:id" element={<PodcastDetailPage />} />
+          <Route
+            path="/podcasts"
+            element={user?.canSeePodcast ? <PodcastsPage /> : <Navigate to="/" replace />}
+          />
+          <Route
+            path="/podcasts/:id"
+            element={
+              user?.canSeePodcast ? <PodcastDetailPage /> : <Navigate to="/" replace />
+            }
+          />
         </Routes>
       </main>
       <FloatButton
