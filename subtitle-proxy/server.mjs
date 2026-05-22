@@ -72,15 +72,12 @@ function runYtdlp(args) {
       stderr += d
     })
     proc.on('error', reject)
+    // Resolve regardless of exit code — yt-dlp sometimes raises during cleanup
+    // (e.g. cache writes) AFTER the info.json + subtitle files are already on
+    // disk. We treat the on-disk artifacts as the source of truth and let the
+    // caller decide if it got what it needs.
     proc.on('close', (code) => {
-      if (code === 0) resolve({ stdout, stderr })
-      else {
-        const err = new Error(
-          `yt-dlp exited ${code}: ${stderr.replace(/\s+/g, ' ').slice(0, 300)}`,
-        )
-        err.status = 502
-        reject(err)
-      }
+      resolve({ stdout, stderr, code })
     })
   })
 }
@@ -133,14 +130,16 @@ async function extract(videoId) {
       path.join(tempDir, '%(id)s.%(ext)s'),
       url,
     ]
-    await runYtdlp(args)
+    const { stderr, code } = await runYtdlp(args)
     const infoPath = path.join(tempDir, `${videoId}.info.json`)
     let info
     try {
       info = JSON.parse(await readFile(infoPath, 'utf-8'))
     } catch {
       throw Object.assign(
-        new Error(`yt-dlp produced no info.json for ${videoId}`),
+        new Error(
+          `yt-dlp produced no info.json for ${videoId} (exit ${code}): ${stderr.replace(/\s+/g, ' ').slice(0, 300)}`,
+        ),
         { status: 502 },
       )
     }
