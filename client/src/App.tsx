@@ -93,14 +93,13 @@ function AppShell() {
     setIsDrawerOpen(false)
   }, [location.pathname])
 
-  // 登录态存在但 user 缓存里没 canSeePodcast 字段时，拉一次 /me 同步权限
+  // 每次启动都拉一次 /me，保证权限（canSeePodcast 等）跟服务端同步
   useEffect(() => {
     if (!token) return
-    if (user?.canSeePodcast !== undefined) return
     fetchMe()
       .then((fresh) => setUser(fresh))
       .catch(() => {})
-  }, [token, user?.canSeePodcast, setUser])
+  }, [token, setUser])
 
   const navLinks = (
     <>
