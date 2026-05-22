@@ -38,10 +38,17 @@ function browserHeaders() {
 }
 
 function extractJsonAfter(html, marker) {
-  const i = html.indexOf(marker)
-  if (i < 0) return null
-  const start = html.indexOf('{', i + marker.length)
-  if (start < 0) return null
+  // Match the variable-assignment form (e.g. `var ytInitialPlayerResponse = {`)
+  // explicitly. The bare-marker version was also matching string-key
+  // occurrences (`"ytInitialPlayerResponse":` as a config field) and walking
+  // into the wrong JSON object, which silently returned an unrelated tree
+  // with no videoDetails/captionTracks.
+  const escapedMarker = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(escapedMarker + '\\s*=\\s*\\{')
+  const m = re.exec(html)
+  if (!m) return null
+  // Position of the `{` is the last char of the match.
+  const start = m.index + m[0].length - 1
   let depth = 0
   let inString = false
   let escape = false
