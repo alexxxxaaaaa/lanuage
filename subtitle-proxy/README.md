@@ -25,11 +25,14 @@ No dependencies — Node 18+ has native `fetch`. Run with `npm start`.
 2. On Render → New → Web Service → connect the repo.
 3. Settings:
    - **Environment**: `Node`
-   - **Build Command**: `pip install --user --break-system-packages -U yt-dlp && npm install`
-     - This installs yt-dlp into `~/.local/bin` (on PATH by default). `-U`
-       keeps it current since YouTube breaks yt-dlp every few weeks — Render
-       auto-redeploys on each git push, which re-runs this and pulls latest.
-     - `--break-system-packages` is needed on Ubuntu 23+ (PEP 668).
+   - **Build Command**:
+     ```
+     curl -fsSL -o yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux && chmod +x yt-dlp && npm install
+     ```
+     - Downloads the standalone PyInstaller-built yt-dlp binary next to
+       `server.mjs`. No Python install needed at runtime. Re-runs on each
+       deploy, so pushing to git keeps yt-dlp current (YouTube breaks it
+       every few weeks).
    - **Start Command**: `npm start`
    - **Region**: pick one close to YouTube's edge (Oregon works well)
 4. Add environment variable:
@@ -56,11 +59,15 @@ fetches. The manual subtitle-upload path stays as a fallback.
 
 ## Running locally for development
 
-Prereq: `yt-dlp` must be installed (Python module):
+Prereq: `yt-dlp` must be reachable from this dir. Two options:
 
 ```
-pip3 install --user -U yt-dlp     # or: brew install yt-dlp
-python3 -m yt_dlp --version       # sanity check
+# Option A: drop the macOS standalone binary next to server.mjs
+curl -fsSL -o yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos
+chmod +x yt-dlp
+
+# Option B: use system Python yt-dlp (if you already have it)
+export YT_DLP_CMD="python3 -m yt_dlp"
 ```
 
 Then:

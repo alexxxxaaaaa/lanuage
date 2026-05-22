@@ -22,9 +22,16 @@ import { spawn } from 'node:child_process'
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const PORT = Number(process.env.PORT) || 3001
 const PROXY_TOKEN = process.env.PROXY_TOKEN || ''
+
+// yt-dlp invocation. Default = standalone binary co-located with this file
+// (Build Command on Render curl-downloads it there). Locally on a dev box the
+// user can set YT_DLP_CMD="python3 -m yt_dlp" or "/usr/local/bin/yt-dlp".
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const ytDlpCmdParts = (process.env.YT_DLP_CMD || path.join(__dirname, 'yt-dlp')).split(' ')
 
 // Languages we ask yt-dlp to grab. Matches what the language-app cares about.
 const SUB_LANGS = 'en,ja,zh,zh-Hans,zh-CN'
@@ -54,10 +61,8 @@ const cache = new Map() // videoId -> { meta, linesByKey: Map, expiresAt }
 
 function runYtdlp(args) {
   return new Promise((resolve, reject) => {
-    // Use the Python module form so we don't depend on yt-dlp being on PATH —
-    // `python3 -m yt_dlp` works as long as `pip install yt-dlp` ran somewhere
-    // the Python user-site picks up.
-    const proc = spawn('python3', ['-m', 'yt_dlp', ...args])
+    const [cmd, ...preArgs] = ytDlpCmdParts
+    const proc = spawn(cmd, [...preArgs, ...args])
     let stdout = ''
     let stderr = ''
     proc.stdout.on('data', (d) => {
