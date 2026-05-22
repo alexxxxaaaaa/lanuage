@@ -198,6 +198,35 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  // Debug: hit YouTube and report what we got back so we can tell whether
+  // it's an IP-level block (small response) or a parser miss (big response
+  // but no `ytInitialPlayerResponse`).
+  if (req.method === 'GET' && url.pathname === '/debug/raw') {
+    if (!checkAuth(req)) return send(res, 401, { message: 'unauthorized' })
+    const videoId = url.searchParams.get('v') ?? ''
+    if (!videoId) return send(res, 400, { message: 'v required' })
+    const probes = []
+    for (const target of WATCH_TARGETS) {
+      const u = target.url(videoId)
+      try {
+        const r = await fetchWithRetry(u, target.headers())
+        const text = await r.text()
+        probes.push({
+          host: new URL(u).hostname,
+          status: r.status,
+          bytes: text.length,
+          hasPlayerResponse: text.includes('ytInitialPlayerResponse'),
+          hasCaptionTracks: text.includes('captionTracks'),
+          // first 200 bytes of body to see what they actually serve
+          head: text.slice(0, 200).replace(/\s+/g, ' '),
+        })
+      } catch (e) {
+        probes.push({ host: new URL(u).hostname, error: String(e) })
+      }
+    }
+    return send(res, 200, { videoId, probes })
+  }
+
   if (!checkAuth(req)) {
     send(res, 401, { message: 'unauthorized' })
     return
