@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { CodeOutlined, MenuOutlined, SearchOutlined } from '@ant-design/icons'
 import { Drawer, FloatButton, Modal, Select } from 'antd'
 import {
-  Navigate,
   NavLink,
   Route,
   Routes,
@@ -15,25 +14,11 @@ import { fetchMe } from './api/auth'
 import { QuickSearchFloat } from './components/QuickSearchFloat'
 import { RequireAuth } from './components/RequireAuth'
 import { SearchSuggest } from './components/SearchSuggest'
+import { TabbedRoot } from './components/TabbedRoot'
 import { useAuthStore } from './store/authStore'
-import { AiUsagePage } from './pages/AiUsagePage'
-import { AddWordPage } from './pages/AddWordPage'
-import { ExpressionFolderDetailPage } from './pages/ExpressionFolderDetailPage'
-import { ExpressionsPage } from './pages/ExpressionsPage'
-import { FolderDetailPage } from './pages/FolderDetailPage'
-import { FoldersPage } from './pages/FoldersPage'
-import { GrammarDetailPage } from './pages/GrammarDetailPage'
-import { GrammarPage } from './pages/GrammarPage'
-import { PodcastDetailPage } from './pages/PodcastDetailPage'
-import { PodcastsPage } from './pages/PodcastsPage'
-import { HomePage } from './pages/HomePage'
-import { LearnPage } from './pages/LearnPage'
+import { useTabsStore } from './store/tabsStore'
 import { LoginPage } from './pages/LoginPage'
-import { NoteDetailPage } from './pages/NoteDetailPage'
-import { NotesPage } from './pages/NotesPage'
 import { RegisterPage } from './pages/RegisterPage'
-import { ReviewPage } from './pages/ReviewPage'
-import { WordSearchPage } from './pages/WordSearchPage'
 
 function AppShell() {
   const navigate = useNavigate()
@@ -85,6 +70,7 @@ function AppShell() {
 
   const handleLogout = () => {
     clearSession()
+    useTabsStore.getState().closeAll()
     navigate('/login', { replace: true })
   }
 
@@ -204,32 +190,7 @@ function AppShell() {
       </Drawer>
 
       <main className="page-content">
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/folders" element={<FoldersPage />} />
-          <Route path="/folders/:id" element={<FolderDetailPage />} />
-          <Route path="/words/new" element={<AddWordPage />} />
-          <Route path="/words/search" element={<WordSearchPage />} />
-          <Route path="/learn" element={<LearnPage />} />
-          <Route path="/review" element={<ReviewPage />} />
-          <Route path="/ai-usage" element={<AiUsagePage />} />
-          <Route path="/notes" element={<NotesPage />} />
-          <Route path="/notes/:id" element={<NoteDetailPage />} />
-          <Route path="/expressions" element={<ExpressionsPage />} />
-          <Route path="/expressions/folders/:id" element={<ExpressionFolderDetailPage />} />
-          <Route path="/grammar" element={<GrammarPage />} />
-          <Route path="/grammar/:id" element={<GrammarDetailPage />} />
-          <Route
-            path="/podcasts"
-            element={user?.canSeePodcast ? <PodcastsPage /> : <Navigate to="/" replace />}
-          />
-          <Route
-            path="/podcasts/:id"
-            element={
-              user?.canSeePodcast ? <PodcastDetailPage /> : <Navigate to="/" replace />
-            }
-          />
-        </Routes>
+        <TabbedRoot />
       </main>
       <FloatButton
         icon={<CodeOutlined />}

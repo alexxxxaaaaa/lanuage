@@ -7,6 +7,7 @@ import { isDuplicateWordError } from '../api/error'
 import { useI18n } from '../i18n'
 import { getNotes } from '../api/notes'
 import { SpeakButton } from '../components/SpeakButton'
+import { useTab } from '../components/TabContext'
 import { VoicePicker } from '../components/VoicePicker'
 import { useAppStore } from '../store/useAppStore'
 import type { Word } from '../types'
@@ -75,6 +76,7 @@ function hasLearnedProgress(word: Word) {
 
 export function FolderDetailPage() {
   const { t } = useI18n()
+  const { setTitle } = useTab()
   const PAGE_SIZE = 12
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
@@ -113,6 +115,11 @@ export function FolderDetailPage() {
 
   const folder = currentFolder && currentFolder.id === id ? currentFolder : null
   const folderList = Array.isArray(folders) ? folders : []
+
+  useEffect(() => {
+    if (folder?.name) setTitle(folder.name)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folder?.name])
   const words = folder?.words ?? []
   // Count words added today (user-local midnight onwards).
   const todayNewCount = useMemo(() => {

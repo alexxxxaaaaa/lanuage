@@ -25,7 +25,11 @@ No dependencies — Node 18+ has native `fetch`. Run with `npm start`.
 2. On Render → New → Web Service → connect the repo.
 3. Settings:
    - **Environment**: `Node`
-   - **Build Command**: leave empty (no build step)
+   - **Build Command**: `pip install --user --break-system-packages -U yt-dlp && npm install`
+     - This installs yt-dlp into `~/.local/bin` (on PATH by default). `-U`
+       keeps it current since YouTube breaks yt-dlp every few weeks — Render
+       auto-redeploys on each git push, which re-runs this and pulls latest.
+     - `--break-system-packages` is needed on Ubuntu 23+ (PEP 668).
    - **Start Command**: `npm start`
    - **Region**: pick one close to YouTube's edge (Oregon works well)
 4. Add environment variable:
@@ -51,6 +55,15 @@ After redeploying the Worker, podcast imports use the proxy for YouTube
 fetches. The manual subtitle-upload path stays as a fallback.
 
 ## Running locally for development
+
+Prereq: `yt-dlp` must be installed (Python module):
+
+```
+pip3 install --user -U yt-dlp     # or: brew install yt-dlp
+python3 -m yt_dlp --version       # sanity check
+```
+
+Then:
 
 ```
 cd subtitle-proxy

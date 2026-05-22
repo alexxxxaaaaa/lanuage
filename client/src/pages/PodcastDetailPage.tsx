@@ -6,6 +6,7 @@ import {
   savePodcastPositionBeacon,
 } from '../api/podcasts'
 import { getErrorMessage } from '../api/error'
+import { useTab } from '../components/TabContext'
 import { getStoredToken } from '../store/authStore'
 import { getTokenizer, renderFuriganaHtml } from '../utils/furigana'
 import type { Podcast } from '../types'
@@ -69,6 +70,7 @@ function formatTime(ms: number) {
 
 export function PodcastDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const { setTitle } = useTab()
   const [podcast, setPodcast] = useState<Podcast | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -96,9 +98,13 @@ export function PodcastDetailPage() {
       .then((p) => {
         setPodcast(p)
         linesRef.current = p.transcript.lines
+        if (p.title) setTitle(p.title)
       })
       .catch((err) => setError(getErrorMessage(err, '加载失败')))
       .finally(() => setIsLoading(false))
+    // setTitle is stable across renders (tabId-scoped); excluding it keeps the
+    // effect from re-running when the active tab changes (which would re-fetch).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   // Lazy-build per-line furigana for Japanese podcasts. ~12MB dict downloads
@@ -162,15 +168,14 @@ export function PodcastDetailPage() {
               const sec = target.getCurrentTime()
               const ms = sec * 1000
               const lines = linesRef.current
-              // Linear scan from current index; transcripts are small.
+              // Find the last line whose start has been reached. Tracking by
+              // [start, start+dur) misses inter-line gaps (the silence between
+              // sentences) and would flip currentIdx to -1, which made the
+              // "previous sentence" hotkey rewind to the very beginning.
               let next = -1
               for (let i = 0; i < lines.length; i++) {
-                const ln = lines[i]
-                if (ms >= ln.start && ms < ln.start + ln.dur) {
-                  next = i
-                  break
-                }
-                if (ms < ln.start) break
+                if (lines[i].start <= ms) next = i
+                else break
               }
               if (next !== currentIdxRef.current) {
                 setCurrentIdx(next)

@@ -5,7 +5,7 @@ import { SpeakButton } from '../components/SpeakButton'
 import { VoicePicker } from '../components/VoicePicker'
 import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
-import { speak, stopSpeaking } from '../utils/speech'
+import { pickSpeakableText, speak, stopSpeaking } from '../utils/speech'
 
 type ReviewStepKey = 'recognition' | 'recall' | 'pronunciation'
 
@@ -15,6 +15,11 @@ export function ReviewPage() {
     () =>
       [
         {
+          key: 'pronunciation' as const,
+          label: t('review.stepPronunciation'),
+          hint: t('review.stepPronunciationHint'),
+        },
+        {
           key: 'recognition' as const,
           label: t('review.stepRecognition'),
           hint: t('review.stepRecognitionHint'),
@@ -23,11 +28,6 @@ export function ReviewPage() {
           key: 'recall' as const,
           label: t('review.stepRecall'),
           hint: t('review.stepRecallHint'),
-        },
-        {
-          key: 'pronunciation' as const,
-          label: t('review.stepPronunciation'),
-          hint: t('review.stepPronunciationHint'),
         },
       ],
     [t],
@@ -126,8 +126,8 @@ export function ReviewPage() {
 
     const previous = stepRatings[wordId] ?? {}
     const allRatings: Array<'again' | 'hard' | 'easy'> = [
+      previous.pronunciation ?? 'easy',
       previous.recognition ?? 'easy',
-      previous.recall ?? 'easy',
       rating,
     ]
     const cycleDelta = allRatings.reduce((sum, item) => sum + getDebtDelta(item), 0)
@@ -238,8 +238,24 @@ export function ReviewPage() {
 
   useEffect(() => {
     if (currentStep.key !== 'pronunciation' || !currentWord) return
-    speak(currentWord.word, currentWord.language)
-  }, [currentStep.key, currentReview?.wordId, currentWord?.word, currentWord?.language])
+    const speakText = pickSpeakableText(
+      currentWord.word,
+      currentWord.reading,
+      currentWord.language,
+    )
+    // Delay the first speak: voices may still be loading on first page hit, and
+    // sibling effects' cleanup (stopSpeaking) needs to settle before we queue.
+    const id = window.setTimeout(() => {
+      speak(speakText, currentWord.language)
+    }, 250)
+    return () => window.clearTimeout(id)
+  }, [
+    currentStep.key,
+    currentReview?.wordId,
+    currentWord?.word,
+    currentWord?.reading,
+    currentWord?.language,
+  ])
 
   useEffect(() => {
     setTypedRecall('')

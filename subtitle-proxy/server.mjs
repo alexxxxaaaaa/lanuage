@@ -1,172 +1,205 @@
-// Tiny HTTP service that proxies YouTube watch-page + caption fetches from
-// a non-Cloudflare IP. Cloudflare's shared edge IPs are heavily rate-limited
-// by YouTube; this service runs somewhere YouTube doesn't blacklist
-// (Render / Railway / your own machine) and the Worker calls it instead.
+// Subtitle proxy — runs yt-dlp under the hood. Replaces the previous raw HTTP
+// scrape, which kept getting LOGIN_REQUIRED on datacenter IPs. yt-dlp has all
+// the extractor magic baked in (PO tokens, visitor data, signature ciphers).
 //
-// Endpoints (all require `Authorization: Bearer <PROXY_TOKEN>` when the
-// PROXY_TOKEN env var is set):
+// Deploy notes (Render free tier):
+//   1. Build Command: `pip install --user --break-system-packages -U yt-dlp && npm install`
+//      (--break-system-packages handles Ubuntu 23+ PEP 668 protection; -U keeps
+//      yt-dlp current since YouTube breaks it every few weeks.)
+//   2. Start Command: `npm start` (unchanged)
+//   3. Make sure ~/.local/bin is on PATH (Render does this by default).
 //
-//   GET  /healthz                        → liveness probe
-//   POST /youtube/meta     {videoId}     → { title, durationSec, thumbnail,
-//                                            captionTracks: [...] }
-//   POST /youtube/captions {baseUrl}     → [{ start, dur, text }]
+// Endpoints (API surface unchanged so the Cloudflare Worker keeps working):
+//   GET  /healthz
+//   POST /youtube/meta     {videoId}  → metadata + captionTracks (synthetic baseUrl)
+//   POST /youtube/captions {baseUrl}  → parsed line array
 //
-// Node 18+ has built-in fetch — no dependencies.
+// The captionTracks' baseUrl uses a synthetic `proxy://VIDEO/LANG/KIND` scheme.
+// /captions parses that and looks up cached parsed lines — no second yt-dlp run.
 
 import http from 'node:http'
+import { spawn } from 'node:child_process'
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 
 const PORT = Number(process.env.PORT) || 3001
 const PROXY_TOKEN = process.env.PROXY_TOKEN || ''
-const BROWSER_UA =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0 Safari/537.36'
-const MOBILE_UA =
-  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile Safari/604.1'
 
-function browserHeaders() {
-  return {
-    'User-Agent': BROWSER_UA,
-    Accept:
-      'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Sec-Fetch-Dest': 'document',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'none',
-    'Sec-Fetch-User': '?1',
-    'Upgrade-Insecure-Requests': '1',
-    Cookie: 'CONSENT=YES+cb.20210328-17-p0.en+FX+000',
-  }
+// Languages we ask yt-dlp to grab. Matches what the language-app cares about.
+const SUB_LANGS = 'en,ja,zh,zh-Hans,zh-CN'
+
+// YouTube now gates subtitles behind a PO token. yt-dlp can fall back to using
+// a logged-in user's cookies to satisfy the check. Two ways to supply them:
+//   - YT_COOKIES_FROM_BROWSER=chrome|safari|firefox  (local dev — yt-dlp reads
+//     directly from the browser's cookie store)
+//   - YT_COOKIES_FILE=/etc/secrets/cookies.txt  (deployment — exported once
+//     from a logged-in browser, refreshed every 1-2 weeks)
+// Without either, subtitle requests will return empty captionTracks for most
+// videos.
+const YT_COOKIES_FROM_BROWSER = process.env.YT_COOKIES_FROM_BROWSER || ''
+const YT_COOKIES_FILE = process.env.YT_COOKIES_FILE || ''
+
+function cookieArgs() {
+  if (YT_COOKIES_FILE) return ['--cookies', YT_COOKIES_FILE]
+  if (YT_COOKIES_FROM_BROWSER) return ['--cookies-from-browser', YT_COOKIES_FROM_BROWSER]
+  return []
 }
 
-function extractJsonAfter(html, marker) {
-  // Match the variable-assignment form (e.g. `var ytInitialPlayerResponse = {`)
-  // explicitly. The bare-marker version was also matching string-key
-  // occurrences (`"ytInitialPlayerResponse":` as a config field) and walking
-  // into the wrong JSON object, which silently returned an unrelated tree
-  // with no videoDetails/captionTracks.
-  const escapedMarker = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const re = new RegExp(escapedMarker + '\\s*=\\s*\\{')
-  const m = re.exec(html)
-  if (!m) return null
-  // Position of the `{` is the last char of the match.
-  const start = m.index + m[0].length - 1
-  let depth = 0
-  let inString = false
-  let escape = false
-  for (let k = start; k < html.length; k++) {
-    const c = html[k]
-    if (inString) {
-      if (escape) escape = false
-      else if (c === '\\') escape = true
-      else if (c === '"') inString = false
-      continue
-    }
-    if (c === '"') inString = true
-    else if (c === '{') depth++
-    else if (c === '}') {
-      depth--
-      if (depth === 0) {
-        try {
-          return JSON.parse(html.slice(start, k + 1))
-        } catch {
-          return null
-        }
+// In-memory cache: one yt-dlp run populates BOTH /meta and /captions responses,
+// so the Worker's typical (meta → captions → captions) burst hits the cache for
+// 2 of 3 calls. TTL kept low because YouTube responses can age out.
+const CACHE_TTL_MS = 10 * 60 * 1000
+const cache = new Map() // videoId -> { meta, linesByKey: Map, expiresAt }
+
+function runYtdlp(args) {
+  return new Promise((resolve, reject) => {
+    // Use the Python module form so we don't depend on yt-dlp being on PATH —
+    // `python3 -m yt_dlp` works as long as `pip install yt-dlp` ran somewhere
+    // the Python user-site picks up.
+    const proc = spawn('python3', ['-m', 'yt_dlp', ...args])
+    let stdout = ''
+    let stderr = ''
+    proc.stdout.on('data', (d) => {
+      stdout += d
+    })
+    proc.stderr.on('data', (d) => {
+      stderr += d
+    })
+    proc.on('error', reject)
+    proc.on('close', (code) => {
+      if (code === 0) resolve({ stdout, stderr })
+      else {
+        const err = new Error(
+          `yt-dlp exited ${code}: ${stderr.replace(/\s+/g, ' ').slice(0, 300)}`,
+        )
+        err.status = 502
+        reject(err)
       }
-    }
-  }
-  return null
+    })
+  })
 }
 
-function watchUrl(domain, id) {
-  return `https://${domain}/watch?v=${id}&hl=en&bpctr=9999999999&has_verified=1`
-}
-
-const WATCH_TARGETS = [
-  { url: (id) => watchUrl('m.youtube.com', id), headers: () => ({ ...browserHeaders(), 'User-Agent': MOBILE_UA }) },
-  { url: (id) => watchUrl('www.youtube.com', id), headers: browserHeaders },
-  { url: (id) => watchUrl('www.youtube-nocookie.com', id), headers: browserHeaders },
-]
-
-async function fetchWithRetry(url, headers) {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await fetch(url, { headers })
-    if (res.ok || (res.status !== 429 && res.status !== 503)) return res
-    if (attempt === 0) await new Promise((r) => setTimeout(r, 600))
-  }
-  return fetch(url, { headers })
-}
-
-async function fetchVideoMeta(videoId) {
-  const errors = []
-  for (const target of WATCH_TARGETS) {
-    const url = target.url(videoId)
-    const res = await fetchWithRetry(url, target.headers())
-    if (!res.ok) {
-      errors.push(`${new URL(url).hostname}=${res.status}`)
-      continue
-    }
-    const html = await res.text()
-    const data = extractJsonAfter(html, 'ytInitialPlayerResponse')
-    if (!data) {
-      errors.push(`${new URL(url).hostname}=no-player-response`)
-      continue
-    }
-    const vd = data.videoDetails ?? {}
-    const tracks = data.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? []
-    const thumbs = vd.thumbnail?.thumbnails ?? []
-    return {
-      videoId,
-      title: vd.title ?? '',
-      durationSec: Number.parseInt(vd.lengthSeconds ?? '0', 10) || 0,
-      thumbnail: thumbs.length > 0 ? thumbs[thumbs.length - 1].url ?? '' : '',
-      captionTracks: tracks
-        .filter((t) => t.baseUrl && t.languageCode)
-        .map((t) => ({
-          languageCode: t.languageCode,
-          name: t.name?.simpleText ?? t.name?.runs?.[0]?.text ?? t.languageCode,
-          kind: t.kind === 'asr' ? 'asr' : 'manual',
-          baseUrl: t.baseUrl,
-        })),
-    }
-  }
-  const err = new Error(`YouTube fetch failed (${errors.join(', ')})`)
-  err.status = 502
-  throw err
-}
-
-async function fetchCaptionLines(baseUrl) {
-  const url = baseUrl.includes('?') ? `${baseUrl}&fmt=json3` : `${baseUrl}?fmt=json3`
-  const res = await fetchWithRetry(url, browserHeaders())
-  if (!res.ok) {
-    const err = new Error(`caption fetch failed (${res.status})`)
-    err.status = 502
-    throw err
-  }
-  const text = await res.text()
-  let data
-  try {
-    data = JSON.parse(text)
-  } catch {
-    const err = new Error(`caption response not JSON: ${text.slice(0, 120)}`)
-    err.status = 502
-    throw err
-  }
+function parseJson3(data) {
   const events = data.events ?? []
   const lines = []
   for (const ev of events) {
     if (!ev.segs) continue
-    const lineText = ev.segs
+    const text = ev.segs
       .map((s) => s.utf8 ?? '')
       .join('')
       .replace(/\n/g, ' ')
       .trim()
-    if (!lineText) continue
+    if (!text) continue
     lines.push({
       start: ev.tStartMs ?? 0,
       dur: ev.dDurationMs ?? 0,
-      text: lineText,
+      text,
     })
   }
   return lines
+}
+
+async function extract(videoId) {
+  const tempDir = await mkdtemp(path.join(tmpdir(), `yt-${videoId}-`))
+  try {
+    const url = `https://www.youtube.com/watch?v=${videoId}`
+    // Note: --dump-single-json suppresses actual file writes, so we use
+    // --write-info-json instead and read the .info.json from disk after.
+    const args = [
+      '--no-warnings',
+      '--quiet',
+      '--write-info-json',
+      '--write-subs',
+      '--write-auto-subs',
+      '--sub-langs',
+      SUB_LANGS,
+      '--sub-format',
+      'json3',
+      '--skip-download',
+      '--no-cache-dir',
+      '--ignore-config',
+      ...cookieArgs(),
+      '-o',
+      path.join(tempDir, '%(id)s.%(ext)s'),
+      url,
+    ]
+    await runYtdlp(args)
+    const infoPath = path.join(tempDir, `${videoId}.info.json`)
+    let info
+    try {
+      info = JSON.parse(await readFile(infoPath, 'utf-8'))
+    } catch {
+      throw Object.assign(
+        new Error(`yt-dlp produced no info.json for ${videoId}`),
+        { status: 502 },
+      )
+    }
+
+    // Read every json3 subtitle file yt-dlp dropped into the temp dir.
+    const files = await readdir(tempDir)
+    const linesByKey = new Map()
+    const tracks = []
+    for (const file of files) {
+      if (!file.endsWith('.json3')) continue
+      // yt-dlp filename pattern: VIDEOID.LANG.json3
+      const m = file.match(/\.([\w-]+)\.json3$/)
+      if (!m) continue
+      const lang = m[1]
+      try {
+        const raw = await readFile(path.join(tempDir, file), 'utf-8')
+        const data = JSON.parse(raw)
+        const lines = parseJson3(data)
+        if (lines.length === 0) continue
+        // Disambiguate "manual subs" vs "auto-generated" by checking which
+        // bucket yt-dlp listed this language under.
+        const inManual = !!info?.subtitles?.[lang]
+        const kind = inManual ? 'manual' : 'asr'
+        const key = `${lang}:${kind}`
+        if (linesByKey.has(key)) continue // already captured (prefer first/longer)
+        linesByKey.set(key, lines)
+        const trackInfo =
+          info?.subtitles?.[lang]?.[0] ?? info?.automatic_captions?.[lang]?.[0]
+        tracks.push({
+          languageCode: lang,
+          name: trackInfo?.name ?? lang,
+          kind,
+          baseUrl: `proxy://${videoId}/${encodeURIComponent(lang)}/${kind}`,
+        })
+      } catch {
+        // bad json3 file — skip, but other tracks may still succeed
+      }
+    }
+
+    // Pick the highest-resolution thumbnail yt-dlp surfaced.
+    let thumbnail = info?.thumbnail ?? ''
+    if (!thumbnail && Array.isArray(info?.thumbnails) && info.thumbnails.length > 0) {
+      thumbnail = info.thumbnails[info.thumbnails.length - 1]?.url ?? ''
+    }
+
+    return {
+      meta: {
+        videoId,
+        title: info?.title ?? '',
+        durationSec: info?.duration ? Math.round(Number(info.duration)) : 0,
+        thumbnail,
+        captionTracks: tracks,
+      },
+      linesByKey,
+    }
+  } finally {
+    // Fire-and-forget cleanup — failure here shouldn't fail the request.
+    rm(tempDir, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+async function getOrExtract(videoId) {
+  const now = Date.now()
+  const cached = cache.get(videoId)
+  if (cached && cached.expiresAt > now) return cached
+  const result = await extract(videoId)
+  cache.set(videoId, { ...result, expiresAt: now + CACHE_TTL_MS })
+  return result
 }
 
 // ---------- HTTP plumbing ----------
@@ -201,103 +234,33 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`)
 
   if (req.method === 'GET' && url.pathname === '/healthz') {
-    send(res, 200, { ok: true, uptime: process.uptime() })
-    return
-  }
-
-  // Debug: hit YouTube and inspect the parsed JSON top-level keys (so we can
-  // tell whether the page has videoDetails/captions at all).
-  if (req.method === 'GET' && url.pathname === '/debug/parsed') {
-    if (!checkAuth(req)) return send(res, 401, { message: 'unauthorized' })
-    const videoId = url.searchParams.get('v') ?? ''
-    if (!videoId) return send(res, 400, { message: 'v required' })
-    const probes = []
-    for (const target of WATCH_TARGETS) {
-      const u = target.url(videoId)
-      try {
-        const r = await fetchWithRetry(u, target.headers())
-        if (!r.ok) {
-          probes.push({ host: new URL(u).hostname, status: r.status })
-          continue
-        }
-        const html = await r.text()
-        const data = extractJsonAfter(html, 'ytInitialPlayerResponse')
-        if (!data) {
-          probes.push({ host: new URL(u).hostname, parsed: false })
-          continue
-        }
-        const playabilityStatus = data?.playabilityStatus
-        probes.push({
-          host: new URL(u).hostname,
-          parsed: true,
-          topKeys: Object.keys(data),
-          hasVideoDetails: !!data.videoDetails,
-          title: data.videoDetails?.title,
-          captionTrackCount: data.captions?.playerCaptionsTracklistRenderer?.captionTracks?.length ?? 0,
-          playability: playabilityStatus?.status,
-          playabilityReason: playabilityStatus?.reason,
-        })
-      } catch (e) {
-        probes.push({ host: new URL(u).hostname, error: String(e) })
-      }
-    }
-    return send(res, 200, { videoId, probes })
-  }
-
-  // Debug: hit YouTube and report what we got back so we can tell whether
-  // it's an IP-level block (small response) or a parser miss (big response
-  // but no `ytInitialPlayerResponse`).
-  if (req.method === 'GET' && url.pathname === '/debug/raw') {
-    if (!checkAuth(req)) return send(res, 401, { message: 'unauthorized' })
-    const videoId = url.searchParams.get('v') ?? ''
-    if (!videoId) return send(res, 400, { message: 'v required' })
-    const probes = []
-    for (const target of WATCH_TARGETS) {
-      const u = target.url(videoId)
-      try {
-        const r = await fetchWithRetry(u, target.headers())
-        const text = await r.text()
-        // Show the actual context around each "ytInitialPlayerResponse"
-        // occurrence so we can see if it's the variable assignment we want
-        // or a key reference.
-        const contexts = []
-        let cursor = 0
-        for (let i = 0; i < 4; i++) {
-          const idx = text.indexOf('ytInitialPlayerResponse', cursor)
-          if (idx < 0) break
-          contexts.push(text.slice(Math.max(0, idx - 30), idx + 60).replace(/\s+/g, ' '))
-          cursor = idx + 1
-        }
-        probes.push({
-          host: new URL(u).hostname,
-          status: r.status,
-          bytes: text.length,
-          markerCount: (text.match(/ytInitialPlayerResponse/g) || []).length,
-          contexts,
-        })
-      } catch (e) {
-        probes.push({ host: new URL(u).hostname, error: String(e) })
-      }
-    }
-    return send(res, 200, { videoId, probes })
+    return send(res, 200, { ok: true, uptime: process.uptime() })
   }
 
   if (!checkAuth(req)) {
-    send(res, 401, { message: 'unauthorized' })
-    return
+    return send(res, 401, { message: 'unauthorized' })
   }
 
   try {
     if (req.method === 'POST' && url.pathname === '/youtube/meta') {
       const body = await readBody(req)
       if (!body.videoId) return send(res, 400, { message: 'videoId required' })
-      const meta = await fetchVideoMeta(String(body.videoId))
+      const { meta } = await getOrExtract(String(body.videoId))
       return send(res, 200, meta)
     }
     if (req.method === 'POST' && url.pathname === '/youtube/captions') {
       const body = await readBody(req)
       if (!body.baseUrl) return send(res, 400, { message: 'baseUrl required' })
-      const lines = await fetchCaptionLines(String(body.baseUrl))
+      const m = String(body.baseUrl).match(/^proxy:\/\/([^/]+)\/([^/]+)\/([^/]+)$/)
+      if (!m) {
+        return send(res, 400, {
+          message: `invalid baseUrl (expected proxy:// scheme): ${String(body.baseUrl).slice(0, 80)}`,
+        })
+      }
+      const [, videoId, langEnc, kind] = m
+      const lang = decodeURIComponent(langEnc)
+      const { linesByKey } = await getOrExtract(videoId)
+      const lines = linesByKey.get(`${lang}:${kind}`) ?? []
       return send(res, 200, { lines })
     }
     send(res, 404, { message: 'not found' })

@@ -145,6 +145,93 @@ a {
   gap: 20px;
 }
 
+.tab-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  margin-bottom: 4px;
+  /* Stick to viewport top so you don't have to scroll up to switch tabs. */
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+.tab-strip::-webkit-scrollbar {
+  height: 6px;
+}
+.tab-strip::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+.tab-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.65);
+  cursor: pointer;
+  max-width: 220px;
+  min-width: 0;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.tab-pill:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: rgba(0, 0, 0, 0.85);
+}
+.tab-pill.active {
+  background: #1677ff;
+  border-color: #1677ff;
+  color: #fff;
+}
+.tab-pill-icon {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.tab-pill-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.tab-pill-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  font-size: 10px;
+  opacity: 0.55;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+.tab-pill-close:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.12);
+}
+.tab-pill.active .tab-pill-close:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.tab-pages {
+  display: contents;
+}
+.tab-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 .page {
   display: grid;
   gap: 20px;
@@ -1569,14 +1656,12 @@ button:disabled,
 
 .word-card-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: stretch;
   gap: 12px;
-  flex-wrap: wrap;
 }
 
 .word-card-header > div:first-child {
-  flex: 1;
   min-width: 0;
 }
 
@@ -1584,6 +1669,10 @@ button:disabled,
   font-size: 20px;
   color: var(--text-h);
   margin-right: 12px;
+  /* CJK characters allow line breaks between every glyph, which would split
+     "揃える" into "揃え" / "る" when the column is tight. Keep the word atomic. */
+  white-space: nowrap;
+  word-break: keep-all;
 }
 
 .word-reading {
