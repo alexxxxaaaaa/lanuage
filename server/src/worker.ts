@@ -11,6 +11,8 @@ export type WorkerBindings = {
   OPENAI_MODEL?: string
   ADMIN_USERNAMES?: string
   DAILY_AI_TOKEN_BUDGET?: string
+  SUBTITLE_PROXY_URL?: string
+  SUBTITLE_PROXY_TOKEN?: string
 }
 
 const app = createApp()
@@ -30,6 +32,8 @@ export default {
       OPENAI_MODEL: env.OPENAI_MODEL,
       ADMIN_USERNAMES: env.ADMIN_USERNAMES,
       DAILY_AI_TOKEN_BUDGET: env.DAILY_AI_TOKEN_BUDGET,
+      SUBTITLE_PROXY_URL: env.SUBTITLE_PROXY_URL,
+      SUBTITLE_PROXY_TOKEN: env.SUBTITLE_PROXY_TOKEN,
     }
 
     try {

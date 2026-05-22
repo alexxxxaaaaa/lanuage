@@ -1,0 +1,13 @@
+{
+  "name": "subtitle-proxy",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Tiny proxy that fetches YouTube metadata + captions from a non-Cloudflare IP",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.mjs"
+  }
+}

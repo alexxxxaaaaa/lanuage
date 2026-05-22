@@ -17,3 +17,7 @@ migrations_dir = "prisma/migrations"
 [vars]
 OPENAI_MODEL = "gpt-4.1-mini"
 DAILY_AI_TOKEN_BUDGET = "50000"
+# Subtitle proxy: a separate Node service that fetches YouTube from a
+# non-Cloudflare IP. The auth token goes via `wrangler secret put
+# SUBTITLE_PROXY_TOKEN`. Leave URL blank to disable proxy mode.
+SUBTITLE_PROXY_URL = ""

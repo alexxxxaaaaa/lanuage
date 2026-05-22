@@ -10,6 +10,7 @@
  * that's an acceptable tradeoff vs. the official API's per-quota costs.
  */
 import { AppError } from '../errors/AppError'
+import { getEnv } from '../lib/env'
 
 export type CaptionTrack = {
   languageCode: string
@@ -204,7 +205,31 @@ export async function fetchVideoMetaViaOEmbed(videoId: string): Promise<{
   }
 }
 
+/** When SUBTITLE_PROXY_URL is configured we ALWAYS go through the proxy —
+ *  Cloudflare's edge IPs are blacklisted by YouTube and the direct fetch
+ *  path below is kept only as a "if you're not on CF" fallback. */
+async function callProxy<T>(path: string, body: unknown): Promise<T | null> {
+  const proxyUrl = getEnv('SUBTITLE_PROXY_URL')?.trim()
+  if (!proxyUrl) return null
+  const proxyToken = getEnv('SUBTITLE_PROXY_TOKEN')?.trim()
+  const res = await fetch(`${proxyUrl.replace(/\/+$/, '')}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(proxyToken ? { Authorization: `Bearer ${proxyToken}` } : {}),
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const txt = (await res.text()).replace(/\s+/g, ' ').slice(0, 200)
+    throw new AppError(`subtitle proxy returned ${res.status}: ${txt}`, 502)
+  }
+  return (await res.json()) as T
+}
+
 export async function fetchVideoMeta(videoId: string): Promise<VideoMeta> {
+  const viaProxy = await callProxy<VideoMeta>('/youtube/meta', { videoId })
+  if (viaProxy) return viaProxy
   const errors: Array<{ url: string; status: number }> = []
   for (const target of WATCH_TARGETS) {
     const url = target.url(videoId)
@@ -260,6 +285,9 @@ type Json3Caption = {
 }
 
 export async function fetchCaptionLines(baseUrl: string): Promise<CaptionLine[]> {
+  const viaProxy = await callProxy<{ lines: CaptionLine[] }>('/youtube/captions', { baseUrl })
+  if (viaProxy) return viaProxy.lines
+
   // Append `&fmt=json3` for parseable JSON. The baseUrl already carries query.
   const url = baseUrl.includes('?') ? `${baseUrl}&fmt=json3` : `${baseUrl}?fmt=json3`
   // Caption fetch tends to need a real browser-like UA — the timedtext
