@@ -205,6 +205,45 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  // Debug: hit YouTube and inspect the parsed JSON top-level keys (so we can
+  // tell whether the page has videoDetails/captions at all).
+  if (req.method === 'GET' && url.pathname === '/debug/parsed') {
+    if (!checkAuth(req)) return send(res, 401, { message: 'unauthorized' })
+    const videoId = url.searchParams.get('v') ?? ''
+    if (!videoId) return send(res, 400, { message: 'v required' })
+    const probes = []
+    for (const target of WATCH_TARGETS) {
+      const u = target.url(videoId)
+      try {
+        const r = await fetchWithRetry(u, target.headers())
+        if (!r.ok) {
+          probes.push({ host: new URL(u).hostname, status: r.status })
+          continue
+        }
+        const html = await r.text()
+        const data = extractJsonAfter(html, 'ytInitialPlayerResponse')
+        if (!data) {
+          probes.push({ host: new URL(u).hostname, parsed: false })
+          continue
+        }
+        const playabilityStatus = data?.playabilityStatus
+        probes.push({
+          host: new URL(u).hostname,
+          parsed: true,
+          topKeys: Object.keys(data),
+          hasVideoDetails: !!data.videoDetails,
+          title: data.videoDetails?.title,
+          captionTrackCount: data.captions?.playerCaptionsTracklistRenderer?.captionTracks?.length ?? 0,
+          playability: playabilityStatus?.status,
+          playabilityReason: playabilityStatus?.reason,
+        })
+      } catch (e) {
+        probes.push({ host: new URL(u).hostname, error: String(e) })
+      }
+    }
+    return send(res, 200, { videoId, probes })
+  }
+
   // Debug: hit YouTube and report what we got back so we can tell whether
   // it's an IP-level block (small response) or a parser miss (big response
   // but no `ytInitialPlayerResponse`).
