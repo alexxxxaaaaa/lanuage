@@ -33,8 +33,9 @@ const PROXY_TOKEN = process.env.PROXY_TOKEN || ''
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ytDlpCmdParts = (process.env.YT_DLP_CMD || path.join(__dirname, 'yt-dlp')).split(' ')
 
-// Languages we ask yt-dlp to grab. Matches what the language-app cares about.
-const SUB_LANGS = 'en,ja,zh,zh-Hans,zh-CN'
+// Languages we ask yt-dlp to grab. Uses wildcards so zh-TW / zh-Hant / en-US
+// / ja-JP variants all match, without having to enumerate every YouTube code.
+const SUB_LANGS = 'en.*,ja.*,zh.*,en,ja,zh'
 
 // YouTube now gates subtitles behind a PO token. yt-dlp can fall back to using
 // a logged-in user's cookies to satisfy the check. Two ways to supply them:
