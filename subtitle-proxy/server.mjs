@@ -251,6 +251,29 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok: true, uptime: process.uptime() })
   }
 
+  // Debug: run yt-dlp --list-subs with our cookies and return the FULL stderr
+  // (and stdout head) so we can see whether cookies are authenticating us and
+  // what subtitles YouTube is willing to show.
+  if (req.method === 'GET' && url.pathname === '/debug/yt-test') {
+    if (!checkAuth(req)) return send(res, 401, { message: 'unauthorized' })
+    const videoId = url.searchParams.get('v') || 'dQw4w9WgXcQ'
+    const args = [
+      '--list-subs',
+      '--no-warnings',
+      '--ignore-config',
+      ...cookieArgs(),
+      `https://www.youtube.com/watch?v=${videoId}`,
+    ]
+    const { stdout, stderr, code } = await runYtdlp(args)
+    return send(res, 200, {
+      videoId,
+      code,
+      args,
+      stdoutHead: stdout.slice(0, 2000),
+      stderrFull: stderr,
+    })
+  }
+
   // Debug: confirms whether the cookies file Render mounted is actually
   // readable + how big it is. Returns the first ~80 chars so we can see if
   // it looks like a real Netscape cookie jar.
