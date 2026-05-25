@@ -185,7 +185,17 @@ export function LearnPage() {
   const [sessionSummary, setSessionSummary] = useState<BatchSummary[]>([])
   const recallInputRef = useRef<HTMLInputElement | null>(null)
 
-  const batches = useMemo(() => chunkInto(allWords, BATCH_SIZE), [allWords])
+  // Append a "final review" batch containing every word in the session, so
+  // after the per-5 batches the user gets one unified cloze+recall pass over
+  // everything they just learned. Only when there is more than one regular
+  // batch — otherwise the only batch IS already the whole set.
+  const batches = useMemo(() => {
+    const chunks = chunkInto(allWords, BATCH_SIZE)
+    if (allWords.length > BATCH_SIZE) chunks.push(allWords)
+    return chunks
+  }, [allWords])
+  const hasFinalRound = allWords.length > BATCH_SIZE
+  const isFinalRound = hasFinalRound && batchIdx === batches.length - 1
   const currentBatch = batches[batchIdx] ?? []
   const currentWord =
     phase === 'recovery'
@@ -338,31 +348,47 @@ export function LearnPage() {
   const finishBatch = async () => {
     setIsSubmitting(true)
     setError(null)
-    const summaries: BatchSummary[] = []
     try {
-      for (const w of currentBatch) {
-        const errs = errorsByWord[w.id] ?? 0
-        const hinted = usedHintByWord[w.id] ?? false
-        let rating = computeRating(errs)
-        if (rating === 'easy' && hinted) rating = 'hard'
-        try {
-          await submitReviewResult({ wordId: w.id, rating })
-        } catch {
-          // continue with other words even if one fails
+      // Final review round is a self-check only — every word already had its
+      // FSRS review submitted in its original 5-word batch. Submitting again
+      // here would overwrite that rating with one based on a much harder
+      // delayed-recall result, which is not what we want.
+      if (!isFinalRound) {
+        const summaries: BatchSummary[] = []
+        for (const w of currentBatch) {
+          const errs = errorsByWord[w.id] ?? 0
+          const hinted = usedHintByWord[w.id] ?? false
+          let rating = computeRating(errs)
+          if (rating === 'easy' && hinted) rating = 'hard'
+          try {
+            await submitReviewResult({ wordId: w.id, rating })
+          } catch {
+            // continue with other words even if one fails
+          }
+          summaries.push({ word: w.word, errors: errs, rating })
         }
-        summaries.push({ word: w.word, errors: errs, rating })
+        setSessionSummary((prev) => [...prev, ...summaries])
       }
-      setSessionSummary((prev) => [...prev, ...summaries])
-      // clear error map for this batch's words (not strictly needed)
       if (batchIdx >= batches.length - 1) {
         setPhase('session-done')
       } else {
-        setBatchIdx(batchIdx + 1)
+        const nextIdx = batchIdx + 1
+        const nextIsFinal = hasFinalRound && nextIdx === batches.length - 1
+        setBatchIdx(nextIdx)
         setItemIdx(0)
-        setPhase('study')
+        // Final round skips Study (the user already saw every word) and goes
+        // straight to cloze. Reset error/recovery state so the round starts
+        // fresh — pre-existing errorsByWord from per-batch tests would
+        // pre-poison the recovery queue.
+        setPhase(nextIsFinal ? 'cloze' : 'study')
         setRecoveryQueue([])
         setRecoveryAttempts({})
         setUsedHintByWord({})
+        if (nextIsFinal) {
+          setErrorsByWord({})
+          setTypedAnswer('')
+          setStatus('idle')
+        }
       }
     } finally {
       setIsSubmitting(false)
@@ -566,6 +592,9 @@ export function LearnPage() {
     recovery: t('learn.phaseRecovery'),
     'session-done': t('learn.phaseDone'),
   }
+  const phaseDisplay = isFinalRound
+    ? `${t('learn.finalRoundPrefix')} · ${phaseLabel[phase]}`
+    : phaseLabel[phase]
 
   const stageItemCount =
     phase === 'recovery' ? recoveryQueue.length : currentBatch.length
@@ -583,7 +612,7 @@ export function LearnPage() {
       <div className="card learn-card">
         <div className="learn-top">
           <div>
-            <p className="eyebrow">{phaseLabel[phase]}</p>
+            <p className="eyebrow">{phaseDisplay}</p>
             <h2>{t('learn.cardTitle', { folder: folderName })}</h2>
             <p className="muted">
               {t('learn.batchInfo', { current: batchIdx + 1, total: totalBatches })}
