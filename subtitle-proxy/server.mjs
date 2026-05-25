@@ -78,6 +78,11 @@ function runYtdlp(args) {
     // disk. We treat the on-disk artifacts as the source of truth and let the
     // caller decide if it got what it needs.
     proc.on('close', (code) => {
+      if (stderr.trim()) {
+        // Echo to Render logs so we can diagnose silent yt-dlp failures
+        // (e.g. cookies path bad, PO token missing) without losing them.
+        console.log(`[yt-dlp exit=${code}] ${stderr.replace(/\s+/g, ' ').slice(0, 500)}`)
+      }
       resolve({ stdout, stderr, code })
     })
   })
@@ -244,6 +249,36 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && url.pathname === '/healthz') {
     return send(res, 200, { ok: true, uptime: process.uptime() })
+  }
+
+  // Debug: confirms whether the cookies file Render mounted is actually
+  // readable + how big it is. Returns the first ~80 chars so we can see if
+  // it looks like a real Netscape cookie jar.
+  if (req.method === 'GET' && url.pathname === '/debug/cookies') {
+    if (!checkAuth(req)) return send(res, 401, { message: 'unauthorized' })
+    const info = {
+      ytDlpCmd: ytDlpCmdParts,
+      YT_COOKIES_FILE: process.env.YT_COOKIES_FILE || null,
+      YT_COOKIES_FROM_BROWSER: process.env.YT_COOKIES_FROM_BROWSER || null,
+      cookiesArgs: cookieArgs(),
+      file: null,
+    }
+    if (process.env.YT_COOKIES_FILE) {
+      try {
+        const stat = await import('node:fs/promises').then((m) =>
+          m.stat(process.env.YT_COOKIES_FILE),
+        )
+        const head = await readFile(process.env.YT_COOKIES_FILE, 'utf-8')
+        info.file = {
+          size: stat.size,
+          firstLine: head.split('\n')[0]?.slice(0, 100) ?? '',
+          looksLikeNetscape: head.startsWith('# Netscape HTTP Cookie File'),
+        }
+      } catch (e) {
+        info.file = { error: String(e) }
+      }
+    }
+    return send(res, 200, info)
   }
 
   if (!checkAuth(req)) {
