@@ -605,8 +605,12 @@ export function ReviewPage() {
                 <small className="part-of-speech-slot">
                   {currentWord.partOfSpeech ? t('review.partOfSpeech', { value: currentWord.partOfSpeech }) : '\u00A0'}
                 </small>
-                
-                <small className="multiline-text">{currentWord.example || currentWord.meaning}</small>
+                <small className="multiline-text recall-meaning">
+                  {currentWord.meaning || t('review.meaningEmpty')}
+                </small>
+                {currentWord.example ? (
+                  <small className="multiline-text">{currentWord.example}</small>
+                ) : null}
               </>
             ) : null}
           </span>

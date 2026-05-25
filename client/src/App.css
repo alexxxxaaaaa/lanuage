@@ -1374,10 +1374,8 @@ button:disabled,
     display: none;
   }
 
-  .nav-search-icon {
-    /* On mobile we rely on the QuickSearchFloat — hide the duplicate icon. */
-    display: none;
-  }
+  /* The QuickSearchFloat covers in-place lookup; the icon stays so users can
+     jump to the full search page (filters, suggestions, AI fallback). */
 
   .hide-on-mobile-float.ant-float-btn {
     display: none !important;
