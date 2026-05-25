@@ -71,10 +71,13 @@ export function HomePage() {
 
   const newWordsForLearnFolder = useMemo(() => {
     if (!learnFolderId) return [] as Word[]
-    return todayNewWords.filter(
+    const filtered = todayNewWords.filter(
       (w) => (w.folder?.id ?? w.folderId) === learnFolderId,
     )
-  }, [todayNewWords, learnFolderId])
+    // Modal previews exactly what the upcoming /learn session will cover, so
+    // it must respect the same `Learn Count` cap the learn page applies.
+    return sessionLimit === null ? filtered : filtered.slice(0, sessionLimit)
+  }, [todayNewWords, learnFolderId, sessionLimit])
 
   const learnFolderName = useMemo(() => {
     if (!learnFolderId) return ''
