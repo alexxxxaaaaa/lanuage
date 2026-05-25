@@ -2384,6 +2384,17 @@ button:disabled,
   gap: 14px;
 }
 
+/* Inside the Quick Search modal the suggest dropdown sits in the normal flow,
+   not absolutely positioned. Otherwise it overflows the modal box since the
+   modal body doesn't clip absolute children. */
+.quick-search-body .search-suggest-dropdown {
+  position: static;
+  top: auto;
+  margin-top: 4px;
+  box-shadow: none;
+  max-height: 320px;
+}
+
 .quick-search-input {
   width: 100%;
   padding: 12px 14px;
