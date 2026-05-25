@@ -34,6 +34,13 @@ body {
 
 #root {
   min-height: 100vh;
+  /* clip (not hidden) so any overflowing element gets cut without creating a
+     scroll container — keeps position:sticky on .tab-strip working. */
+  overflow-x: clip;
+}
+
+html {
+  overflow-x: clip;
 }
 
 a,
