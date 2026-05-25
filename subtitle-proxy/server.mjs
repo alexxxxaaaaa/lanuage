@@ -19,7 +19,7 @@
 
 import http from 'node:http'
 import { spawn } from 'node:child_process'
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
+import { copyFile, mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -46,10 +46,27 @@ const SUB_LANGS = 'en.*,ja.*,zh.*,en,ja,zh'
 // Without either, subtitle requests will return empty captionTracks for most
 // videos.
 const YT_COOKIES_FROM_BROWSER = process.env.YT_COOKIES_FROM_BROWSER || ''
-const YT_COOKIES_FILE = process.env.YT_COOKIES_FILE || ''
+const YT_COOKIES_FILE_SOURCE = process.env.YT_COOKIES_FILE || ''
+
+// Render mounts Secret Files at /etc/secrets/<filename> as READ-ONLY. yt-dlp
+// wants to write back refreshed session tokens after each run and crashes
+// when it can't. So we copy the source file into the writable tmpdir at
+// boot, and hand yt-dlp that copy.
+let YT_COOKIES_FILE_EFFECTIVE = ''
+async function prepareCookiesFile() {
+  if (!YT_COOKIES_FILE_SOURCE) return
+  const dest = path.join(tmpdir(), 'yt-cookies.txt')
+  try {
+    await copyFile(YT_COOKIES_FILE_SOURCE, dest)
+    YT_COOKIES_FILE_EFFECTIVE = dest
+    console.log(`cookies copied: ${YT_COOKIES_FILE_SOURCE} → ${dest}`)
+  } catch (e) {
+    console.error(`failed to copy cookies file: ${e}`)
+  }
+}
 
 function cookieArgs() {
-  if (YT_COOKIES_FILE) return ['--cookies', YT_COOKIES_FILE]
+  if (YT_COOKIES_FILE_EFFECTIVE) return ['--cookies', YT_COOKIES_FILE_EFFECTIVE]
   if (YT_COOKIES_FROM_BROWSER) return ['--cookies-from-browser', YT_COOKIES_FROM_BROWSER]
   return []
 }
@@ -281,7 +298,8 @@ const server = http.createServer(async (req, res) => {
     if (!checkAuth(req)) return send(res, 401, { message: 'unauthorized' })
     const info = {
       ytDlpCmd: ytDlpCmdParts,
-      YT_COOKIES_FILE: process.env.YT_COOKIES_FILE || null,
+      YT_COOKIES_FILE_source: YT_COOKIES_FILE_SOURCE || null,
+      YT_COOKIES_FILE_effective: YT_COOKIES_FILE_EFFECTIVE || null,
       YT_COOKIES_FROM_BROWSER: process.env.YT_COOKIES_FROM_BROWSER || null,
       cookiesArgs: cookieArgs(),
       file: null,
@@ -336,6 +354,8 @@ const server = http.createServer(async (req, res) => {
     send(res, status, { message: e.message ?? 'internal error' })
   }
 })
+
+await prepareCookiesFile()
 
 server.listen(PORT, () => {
   console.log(`subtitle-proxy listening on :${PORT}`)
