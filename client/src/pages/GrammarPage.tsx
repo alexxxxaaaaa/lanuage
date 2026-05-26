@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { fillGrammarByAi } from '../api/ai'
 import { createGrammar, getGrammars } from '../api/grammar'
+import { getGrammarReviewCounts } from '../api/grammarReview'
 import { getErrorMessage } from '../api/error'
 import type { CreateGrammarPayload, Grammar } from '../types'
 
@@ -25,13 +26,21 @@ export function GrammarPage() {
   const [form, setForm] = useState<CreateGrammarPayload>(EMPTY_FORM)
   const [keyword, setKeyword] = useState('')
   const [level, setLevel] = useState<string>('')
+  const [counts, setCounts] = useState<{ due: number; unlearned: number }>({
+    due: 0,
+    unlearned: 0,
+  })
 
   const load = async () => {
     setIsLoading(true)
     setError(null)
     try {
-      const list = await getGrammars()
+      const [list, c] = await Promise.all([
+        getGrammars(),
+        getGrammarReviewCounts().catch(() => ({ due: 0, unlearned: 0 })),
+      ])
       setGrammars(list)
+      setCounts(c)
     } catch (err) {
       setError(getErrorMessage(err, '加载语法列表失败'))
     } finally {
@@ -115,15 +124,41 @@ export function GrammarPage() {
         <div>
           <p className="eyebrow">Grammar</p>
           <h2>语法</h2>
-          <p className="muted">N1 句型表 · 当前 {grammars.length} 条</p>
+          <p className="muted">
+            N1 句型表 · 当前 {grammars.length} 条 · 今日到期{' '}
+            <strong>{counts.due}</strong> · 新语法{' '}
+            <strong>{counts.unlearned}</strong>
+          </p>
         </div>
-        <button
-          type="button"
-          className="primary-button"
-          onClick={() => setIsCreating((prev) => !prev)}
-        >
-          {isCreating ? '收起' : '新建句型'}
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Link
+            to="/grammar/learn"
+            className={`primary-button ${counts.unlearned === 0 ? 'disabled-link' : ''}`}
+            aria-disabled={counts.unlearned === 0}
+            onClick={(e) => {
+              if (counts.unlearned === 0) e.preventDefault()
+            }}
+          >
+            学习新语法 ({counts.unlearned})
+          </Link>
+          <Link
+            to="/grammar/review"
+            className={`secondary-button ${counts.due === 0 ? 'disabled-link' : ''}`}
+            aria-disabled={counts.due === 0}
+            onClick={(e) => {
+              if (counts.due === 0) e.preventDefault()
+            }}
+          >
+            复习 ({counts.due})
+          </Link>
+          <button
+            type="button"
+            className="ghost-button"
+            onClick={() => setIsCreating((prev) => !prev)}
+          >
+            {isCreating ? '收起' : '新建句型'}
+          </button>
+        </div>
       </div>
 
       <div className="card" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>

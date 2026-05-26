@@ -7,6 +7,8 @@ import { FolderDetailPage } from './pages/FolderDetailPage'
 import { FoldersPage } from './pages/FoldersPage'
 import { GrammarDetailPage } from './pages/GrammarDetailPage'
 import { GrammarPage } from './pages/GrammarPage'
+import { LearnGrammarPage } from './pages/LearnGrammarPage'
+import { ReviewGrammarPage } from './pages/ReviewGrammarPage'
 import { PodcastDetailPage } from './pages/PodcastDetailPage'
 import { PodcastsPage } from './pages/PodcastsPage'
 import { HomePage } from './pages/HomePage'
@@ -34,6 +36,8 @@ export function buildRoutes(opts: { canSeePodcast: boolean }): RouteObject[] {
     { path: '/expressions', element: <ExpressionsPage /> },
     { path: '/expressions/folders/:id', element: <ExpressionFolderDetailPage /> },
     { path: '/grammar', element: <GrammarPage /> },
+    { path: '/grammar/learn', element: <LearnGrammarPage /> },
+    { path: '/grammar/review', element: <ReviewGrammarPage /> },
     { path: '/grammar/:id', element: <GrammarDetailPage /> },
     {
       path: '/podcasts',

@@ -226,6 +226,51 @@ a {
 .tab-pages {
   display: contents;
 }
+
+/* Grammar learn / review */
+.grammar-learn-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.grammar-study-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.grammar-study-pattern {
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--text-h);
+  word-break: keep-all;
+}
+.grammar-study-line {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+.grammar-study-examples {
+  border-top: 1px dashed var(--border);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.grammar-flip-pattern {
+  font-size: 32px;
+  word-break: keep-all;
+}
+.disabled-link {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: not-allowed;
+}
 .tab-page {
   display: flex;
   flex-direction: column;

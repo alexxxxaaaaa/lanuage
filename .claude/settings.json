@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+
+      "Edit(client/src/**)",
+      "Edit(server/src/**)",
+      "Edit(subtitle-proxy/**)",
+      "Edit(.claude/**)",
+      "Write(client/src/**)",
+      "Write(server/src/**)",
+      "Write(subtitle-proxy/**)",
+      "Write(.claude/**)",
+
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git blame:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(echo:*)",
+      "Bash(pwd:*)",
+      "Bash(which:*)",
+
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "Bash(npm test:*)",
+      "Bash(yarn:*)",
+      "Bash(pnpm:*)",
+      "Bash(python3:*)",
+      "Bash(node:*)",
+
+      "Bash(curl https://lanuage-brhb.onrender.com/*)",
+      "Bash(curl http://localhost:*)",
+      "Bash(curl -s*localhost:*)",
+
+      "Bash(pkill:*)",
+      "Bash(lsof:*)",
+      "Bash(ps:*)",
+
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(cd:*)",
+      "Bash(sleep:*)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git rebase:*)",
+      "Bash(git checkout --:*)",
+      "Bash(git restore:*)",
+      "Bash(git branch -D:*)",
+
+      "Bash(rm -rf:*)",
+      "Bash(rm -fr:*)",
+      "Bash(sudo:*)",
+
+      "Bash(wrangler deploy:*)",
+      "Bash(wrangler pages deploy:*)",
+      "Bash(wrangler d1 execute*--remote*)",
+      "Bash(wrangler secret put:*)",
+      "Bash(wrangler secret delete:*)",
+
+      "Bash(npm publish:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh release create:*)",
+
+      "Edit(.env*)",
+      "Write(.env*)",
+      "Edit(**/.env*)",
+      "Write(**/.env*)"
+    ]
+  }
+}

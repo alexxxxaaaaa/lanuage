@@ -144,6 +144,8 @@ const STATIC_TITLES: Array<{ test: RegExp; title: string }> = [
   { test: /^\/expressions$/, title: '表达' },
   { test: /^\/expressions\//, title: '表达详情' },
   { test: /^\/grammar$/, title: '语法' },
+  { test: /^\/grammar\/learn/, title: '语法学习' },
+  { test: /^\/grammar\/review/, title: '语法复习' },
   { test: /^\/grammar\//, title: '语法详情' },
   { test: /^\/podcasts$/, title: '播客' },
   { test: /^\/podcasts\//, title: '播客详情' },

@@ -137,12 +137,28 @@ model Grammar {
   level       String   @default("N1")
   userId      String
   user        User     @relation(fields: [userId], references: [id])
+  review      GrammarReview?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@unique([userId, pattern])
   @@index([userId])
   @@index([level])
+}
+
+model GrammarReview {
+  id              String    @id @default(uuid())
+  grammarId       String    @unique
+  grammar         Grammar   @relation(fields: [grammarId], references: [id])
+  interval        Int       @default(1)
+  repetition      Int       @default(0)
+  easeFactor      Float     @default(2.5)
+  difficultyScore Int       @default(0)
+  lastRating      String    @default("")
+  recentRatings   String    @default("")
+  firstLearnedAt  DateTime?
+  nextReviewDate  DateTime
+  lastReviewedAt  DateTime?
 }
 
 model Podcast {

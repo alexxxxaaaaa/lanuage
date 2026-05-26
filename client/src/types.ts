@@ -144,6 +144,25 @@ export type Grammar = {
   level: string
   createdAt?: string
   updatedAt?: string
+  review?: GrammarReview | null
+}
+
+export type GrammarReview = {
+  id: string
+  grammarId: string
+  interval: number
+  repetition: number
+  easeFactor: number
+  difficultyScore: number
+  lastRating: string
+  recentRatings: string
+  firstLearnedAt: string | null
+  nextReviewDate: string
+  lastReviewedAt: string | null
+}
+
+export type GrammarReviewItem = GrammarReview & {
+  grammar: Grammar
 }
 
 export type CreateGrammarPayload = {

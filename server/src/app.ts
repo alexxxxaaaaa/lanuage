@@ -7,6 +7,7 @@ import { dictionaryRouter } from './routes/dictionary'
 import { expressionsRouter } from './routes/expressions'
 import { foldersRouter } from './routes/folders'
 import { grammarRouter } from './routes/grammar'
+import { grammarReviewRouter } from './routes/grammarReview'
 import { healthRouter } from './routes/health'
 import { notesRouter } from './routes/notes'
 import { podcastsRouter } from './routes/podcasts'
@@ -51,6 +52,9 @@ export function createApp() {
 
   app.use('/api/grammar/*', requireAuth)
   app.route('/api/grammar', grammarRouter)
+
+  app.use('/api/grammar-reviews/*', requireAuth)
+  app.route('/api/grammar-reviews', grammarReviewRouter)
 
   app.use('/api/podcasts/*', requireAuth, requirePodcastAccess)
   app.route('/api/podcasts', podcastsRouter)
