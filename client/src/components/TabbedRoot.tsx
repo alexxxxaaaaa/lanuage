@@ -61,13 +61,42 @@ export function TabbedRoot() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId])
 
-  // Capture the outgoing tab's scrollY *synchronously* on store update — must
-  // run before React commits the display swap, otherwise document height has
-  // already collapsed and window.scrollY no longer reflects the old tab.
+  // Track latest scroll position via a scroll listener. We DON'T just read
+  // window.scrollY — CSS in this app (overflow-x: clip on #root, etc.) means
+  // the actual scrolling element can be document.scrollingElement, body, or
+  // #root rather than the viewport itself. Use document-level capture phase
+  // so we catch the event no matter which ancestor scrolls.
+  const liveScrollRef = useRef(0)
+  const readScroll = () =>
+    document.scrollingElement?.scrollTop ??
+    window.scrollY ??
+    document.documentElement?.scrollTop ??
+    document.body?.scrollTop ??
+    0
+  const doScroll = (top: number) => {
+    window.scrollTo(0, top)
+    if (document.scrollingElement) document.scrollingElement.scrollTop = top
+    if (document.documentElement) document.documentElement.scrollTop = top
+    if (document.body) document.body.scrollTop = top
+    const root = document.getElementById('root')
+    if (root) root.scrollTop = top
+  }
+  useEffect(() => {
+    liveScrollRef.current = readScroll()
+    const onScroll = () => {
+      liveScrollRef.current = readScroll()
+    }
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    return () =>
+      document.removeEventListener('scroll', onScroll, { capture: true })
+  }, [])
+
+  // Save the outgoing tab's scrollY on every store update where activeId
+  // actually moves. Uses the live ref above instead of reading scrollY again.
   useEffect(() => {
     const unsub = useTabsStore.subscribe((state, prev) => {
       if (state.activeId !== prev.activeId && prev.activeId) {
-        scrollByTab.current[prev.activeId] = window.scrollY
+        scrollByTab.current[prev.activeId] = liveScrollRef.current
       }
       // Garbage-collect entries for tabs that were just closed.
       const liveIds = new Set(state.tabs.map((t) => t.id))
@@ -78,12 +107,30 @@ export function TabbedRoot() {
     return unsub
   }, [])
 
-  // Restore the incoming tab's scrollY after React commits (layout phase, pre
-  // paint) so the user never sees the jump-to-top flash.
+  // Disable the browser's own scroll-restoration so it doesn't fight us on
+  // back/forward navigation between tabs.
+  useEffect(() => {
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual'
+    }
+  }, [])
+
+  // Restore the incoming tab's scrollY after React commits. We fire BOTH a
+  // sync scrollTo (immediately after DOM commit) AND a rAF retry, because in
+  // some browsers the document height needs one paint frame to reflect the
+  // newly-visible tab's content — the first scrollTo gets clamped if the
+  // doc is still measuring the OLD tab.
   useLayoutEffect(() => {
     if (!activeId) return
     const target = scrollByTab.current[activeId] ?? 0
-    window.scrollTo({ top: target, left: 0, behavior: 'instant' as ScrollBehavior })
+    // Single sync scroll. We do NOT retry in a later rAF — if we did, that
+    // retry would fire AFTER child pages' useEffects (e.g. PodcastDetailPage's
+    // scrollIntoView for the current playing line) and undo their work,
+    // bouncing the page back to top.
+    doScroll(target)
+    liveScrollRef.current = target
+    // doScroll / readScroll are stable module-level-style helpers; safe to omit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId])
 
   return (
@@ -96,7 +143,7 @@ export function TabbedRoot() {
             className="tab-page"
             style={{ display: tab.id === activeId ? 'block' : 'none' }}
           >
-            <TabProvider tabId={tab.id}>
+            <TabProvider tabId={tab.id} isActive={tab.id === activeId}>
               <TabContent path={tab.path} routes={routes} />
             </TabProvider>
           </div>

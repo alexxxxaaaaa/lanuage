@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { fillGrammarByAi } from '../api/ai'
 import { createGrammar, getGrammars } from '../api/grammar'
 import { getGrammarReviewCounts } from '../api/grammarReview'
@@ -17,6 +17,7 @@ const EMPTY_FORM: CreateGrammarPayload = {
 }
 
 export function GrammarPage() {
+  const navigate = useNavigate()
   const [grammars, setGrammars] = useState<Grammar[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -30,6 +31,7 @@ export function GrammarPage() {
     due: 0,
     unlearned: 0,
   })
+  const [learnCount, setLearnCount] = useState<number | null>(10)
 
   const load = async () => {
     setIsLoading(true)
@@ -130,27 +132,45 @@ export function GrammarPage() {
             <strong>{counts.unlearned}</strong>
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Link
-            to="/grammar/learn"
-            className={`primary-button ${counts.unlearned === 0 ? 'disabled-link' : ''}`}
-            aria-disabled={counts.unlearned === 0}
-            onClick={(e) => {
-              if (counts.unlearned === 0) e.preventDefault()
-            }}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <label className="session-inline" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className="muted">每次学</span>
+            <select
+              value={learnCount === null ? 'all' : String(learnCount)}
+              onChange={(e) => {
+                const v = e.target.value
+                setLearnCount(v === 'all' ? null : Number(v))
+              }}
+            >
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="30">30</option>
+              <option value="all">全部</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() =>
+              navigate(
+                learnCount === null
+                  ? '/grammar/learn'
+                  : `/grammar/learn?count=${learnCount}`,
+              )
+            }
           >
-            学习新语法 ({counts.unlearned})
-          </Link>
-          <Link
-            to="/grammar/review"
-            className={`secondary-button ${counts.due === 0 ? 'disabled-link' : ''}`}
-            aria-disabled={counts.due === 0}
-            onClick={(e) => {
-              if (counts.due === 0) e.preventDefault()
-            }}
+            学习新语法
+            {counts.unlearned > 0 ? <span className="btn-badge">{counts.unlearned}</span> : null}
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => navigate('/grammar/review')}
           >
-            复习 ({counts.due})
-          </Link>
+            复习
+            {counts.due > 0 ? <span className="btn-badge">{counts.due}</span> : null}
+          </button>
           <button
             type="button"
             className="ghost-button"

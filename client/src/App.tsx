@@ -17,6 +17,7 @@ import { SearchSuggest } from './components/SearchSuggest'
 import { TabbedRoot } from './components/TabbedRoot'
 import { useAuthStore } from './store/authStore'
 import { useTabsStore } from './store/tabsStore'
+import { primeSpeechOnFirstGesture } from './utils/speech'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
 
@@ -67,6 +68,11 @@ function AppShell() {
     window.addEventListener('keydown', handleKeydown)
     return () => window.removeEventListener('keydown', handleKeydown)
   }, [])
+
+  // Unlock speechSynthesis on the user's very first click/keypress anywhere,
+  // otherwise Chrome's autoplay policy silently drops the auto-speak when the
+  // review page mounts before any gesture has been consumed.
+  useEffect(() => primeSpeechOnFirstGesture(), [])
 
   const handleLogout = () => {
     clearSession()

@@ -111,11 +111,10 @@ export async function getFolderById(userId: string, id: string) {
     where: { id, userId },
     include: {
       words: {
-        // Pinned words come first (latest pinnedAt at the top within the
-        // pinned group), then the regular createdAt-desc order. Mirrors the
-        // ordering used by getWords / getTodayNewWords.
+        // Unified pinnedAt-desc timeline (mirrors getWords / getTodayNewWords).
+        // Pinning a word refreshes pinnedAt = now, so it surfaces back to top.
+        // New words receive pinnedAt = createdAt at insertion.
         orderBy: [
-          { isPinned: 'desc' },
           { pinnedAt: 'desc' },
           { createdAt: 'desc' },
         ],

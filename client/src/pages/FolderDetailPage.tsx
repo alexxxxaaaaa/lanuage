@@ -250,18 +250,16 @@ export function FolderDetailPage() {
     await useAppStore.getState().deleteWord(word.id)
   }
 
-  const togglePin = async (word: Word) => {
-    const willPin = !word.isPinned
-    await useAppStore.getState().updateWord(word.id, { isPinned: willPin })
+  const pinToTop = async (word: Word) => {
+    // Re-stamps the word's pinnedAt to "now" server-side. There is no unpin —
+    // newly-added words also get pinnedAt = now at creation, so the list is a
+    // unified "most recently surfaced first" timeline.
+    await useAppStore.getState().updateWord(word.id, { isPinned: true })
     if (id) {
       await useAppStore.getState().fetchFolderById(id)
     }
-    // Pinned words sort to the top of the server-side ordering, so jump the
-    // user back to page 1 so they can actually see the word they just pinned.
-    if (willPin) {
-      setPage(1)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
+    setPage(1)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   return (
@@ -402,10 +400,10 @@ export function FolderDetailPage() {
                   <button
                     type="button"
                     className="ghost-button"
-                    onClick={() => void togglePin(word)}
-                    title={word.isPinned ? '取消置顶' : '置顶(优先学习)'}
+                    onClick={() => void pinToTop(word)}
+                    title="把这个词放到第一个"
                   >
-                    {word.isPinned ? '取消置顶' : '置顶'}
+                    置顶
                   </button>
                   <button
                     type="button"

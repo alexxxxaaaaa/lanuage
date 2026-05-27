@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { getUnlearnedGrammars, initGrammarReview } from '../api/grammarReview'
 import { useTab } from '../components/TabContext'
 import type { Grammar, ReviewRating } from '../types'
@@ -21,6 +21,15 @@ function chunkInto<T>(items: T[], size: number): T[][] {
 
 export function LearnGrammarPage() {
   const { setTitle } = useTab()
+  const [searchParams] = useSearchParams()
+  // ?count=N caps the session to first N unlearned grammars (sorted by
+  // createdAt asc, matching what GrammarPage's count selector chose).
+  const countLimit = (() => {
+    const raw = searchParams.get('count')
+    if (!raw) return null
+    const n = Number(raw)
+    return Number.isFinite(n) && n > 0 ? n : null
+  })()
   const [allGrammars, setAllGrammars] = useState<Grammar[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -42,7 +51,8 @@ export function LearnGrammarPage() {
       setError(null)
       try {
         const result = await getUnlearnedGrammars()
-        setAllGrammars(Array.isArray(result.items) ? result.items : [])
+        const items = Array.isArray(result.items) ? result.items : []
+        setAllGrammars(countLimit === null ? items : items.slice(0, countLimit))
       } catch {
         setError('加载语法点失败')
       } finally {

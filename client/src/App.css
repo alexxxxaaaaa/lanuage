@@ -271,6 +271,28 @@ a {
   pointer-events: none;
   cursor: not-allowed;
 }
+
+/* Pill counter inside a button (e.g. "学习新语法  3"). Inherits the button's
+   color so it stays readable on primary / secondary / ghost backgrounds. */
+.btn-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+.secondary-button .btn-badge,
+.ghost-button .btn-badge {
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+}
 .tab-page {
   display: flex;
   flex-direction: column;
@@ -2920,6 +2942,55 @@ button:disabled,
   white-space: nowrap;
 }
 .podcast-toolbar > * { white-space: nowrap; flex-shrink: 0; }
+
+.podcast-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.55);
+  min-width: 36px;
+  text-align: center;
+}
+
+.podcast-progress {
+  flex: 1 1 200px;
+  min-width: 140px;
+  max-width: 320px;
+  height: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  cursor: pointer;
+  outline: none;
+}
+.podcast-progress::-webkit-slider-runnable-track {
+  height: 4px;
+  background: transparent;
+}
+.podcast-progress::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #1677ff;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  margin-top: -5px;
+  cursor: pointer;
+}
+.podcast-progress::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #1677ff;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+.podcast-progress::-moz-range-track {
+  height: 4px;
+  background: transparent;
+}
 
 /* Circular primary play button. */
 .podcast-play {

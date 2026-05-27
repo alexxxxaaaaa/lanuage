@@ -55,7 +55,16 @@
       "Bash(cp:*)",
       "Bash(mv:*)",
       "Bash(cd:*)",
-      "Bash(sleep:*)"
+      "Bash(sleep:*)",
+
+      "Bash(cd /Users/zhuyandi/Desktop/language/client && npx tsc:*)",
+      "Bash(cd /Users/zhuyandi/Desktop/language/server && npx tsc:*)",
+      "Bash(cd /Users/zhuyandi/Desktop/language/client && npm run:*)",
+      "Bash(cd /Users/zhuyandi/Desktop/language/server && npm run:*)",
+      "Bash(cd /Users/zhuyandi/Desktop/language/server && npx prisma:*)",
+      "Bash(cd /Users/zhuyandi/Desktop/language/subtitle-proxy && PROXY_TOKEN=*)",
+      "Bash(curl -sf https://lanuage-brhb.onrender.com/*)",
+      "Bash(curl -sS https://lanuage-brhb.onrender.com/*)"
     ],
     "deny": [
       "Bash(git push:*)",

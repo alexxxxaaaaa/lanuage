@@ -129,6 +129,10 @@ export async function createWord(userId: string, input: CreateWordInput) {
         sourceNoteId: normalizedSourceNoteId || null,
         language: normalizedLanguage,
         folderId: normalizedFolderId,
+        // Every word gets a pinnedAt at birth — the list is sorted by
+        // pinnedAt desc, so new entries naturally surface to the top and
+        // share the same timeline as user-triggered pins.
+        pinnedAt: new Date(),
         review: {
           create: {
             interval: 1,
@@ -165,10 +169,10 @@ export async function getWords(userId: string, folderId?: string, query?: string
           }
         : {}),
     },
-    // Pinned first (latest pinnedAt at the top within the pinned group), then
-    // the regular createdAt-desc order for everything else.
+    // Unified timeline: every word has pinnedAt (set on creation, refreshed on
+    // user pin), so a single descending sort puts the most recently created OR
+    // pinned items at the top. Newer events always win.
     orderBy: [
-      { isPinned: 'desc' },
       { pinnedAt: 'desc' },
       { createdAt: 'desc' },
     ],
@@ -245,9 +249,8 @@ export async function getTodayNewWords(userId: string, folderId?: string) {
         { review: { is: { lastReviewedAt: null } } },
       ],
     },
-    // Pinned words come first in the learn queue.
+    // Same unified pinnedAt-desc timeline used elsewhere.
     orderBy: [
-      { isPinned: 'desc' },
       { pinnedAt: 'desc' },
       { createdAt: 'desc' },
     ],
@@ -331,10 +334,12 @@ export async function updateWord(
     data.language = targetFolder.language
   }
 
-  if (updates.isPinned !== undefined) {
-    data.isPinned = updates.isPinned
-    // Stamp pinnedAt only when transitioning false→true; clear when unpinning.
-    data.pinnedAt = updates.isPinned ? new Date() : null
+  if (updates.isPinned === true) {
+    // Pin = bump to top: refresh pinnedAt. There is no unpin operation —
+    // every word always has a pinnedAt (set at creation), the user just
+    // re-stamps it to surface the word back to the top.
+    data.isPinned = true
+    data.pinnedAt = new Date()
   }
 
   if (Object.keys(data).length === 0) {

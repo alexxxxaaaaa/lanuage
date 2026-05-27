@@ -70,7 +70,7 @@ function formatTime(ms: number) {
 
 export function PodcastDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { setTitle } = useTab()
+  const { setTitle, isActive } = useTab()
   const [podcast, setPodcast] = useState<Podcast | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -79,6 +79,8 @@ export function PodcastDetailPage() {
   const [playbackRate, setPlaybackRate] = useState(1)
   const [videoHidden, setVideoHidden] = useState(false)
   const [currentIdx, setCurrentIdx] = useState(-1)
+  const [currentSec, setCurrentSec] = useState(0)
+  const isScrubbingRef = useRef(false)
   // Per-line HTML with <ruby> furigana annotations. Built lazily for JP only.
   const [furiganaHtml, setFuriganaHtml] = useState<string[]>([])
   const [furiganaState, setFuriganaState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
@@ -167,6 +169,8 @@ export function PodcastDetailPage() {
             pollTimer = window.setInterval(() => {
               const sec = target.getCurrentTime()
               const ms = sec * 1000
+              // Don't fight the slider while the user is dragging it.
+              if (!isScrubbingRef.current) setCurrentSec(sec)
               const lines = linesRef.current
               // Find the last line whose start has been reached. Tracking by
               // [start, start+dur) misses inter-line gaps (the silence between
@@ -279,8 +283,13 @@ export function PodcastDetailPage() {
     const lines = podcast.transcript.lines
     if (idx < 0 || idx >= lines.length) return
     const startSec = lines[idx].start / 1000
-    playerRef.current?.seekTo(startSec, true)
-    playerRef.current?.playVideo()
+    const player = playerRef.current
+    if (!player) return
+    // Only seek — don't force playVideo(). YouTube IFrame preserves the
+    // current play/pause state across seekTo, which is what we want:
+    // clicking a line while paused stays paused at the new position;
+    // clicking while playing continues playing from there.
+    player.seekTo(startSec, true)
     setCurrentIdx(idx)
   }
 
@@ -323,12 +332,25 @@ export function PodcastDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [podcast?.youtubeId])
 
-  // Auto-scroll active line into view.
+  // Auto-scroll active line into view. Re-fires when the tab regains focus
+  // so the user lands back on the current line instead of "the top" — which
+  // is misleading because scroll position on this page is driven entirely by
+  // scrollIntoView (the user never actually scrolls window themselves).
+  // On re-activation we snap (instant) so there's no jarring smooth scroll
+  // from 0; during playback we keep smooth following.
+  const wasActiveRef = useRef(isActive)
   useEffect(() => {
+    if (!isActive) {
+      wasActiveRef.current = false
+      return
+    }
     if (currentIdx < 0) return
     const el = document.getElementById(`podcast-line-${currentIdx}`)
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [currentIdx])
+    if (!el) return
+    const behavior: ScrollBehavior = wasActiveRef.current ? 'smooth' : 'instant'
+    wasActiveRef.current = true
+    el.scrollIntoView({ behavior, block: 'center' })
+  }, [currentIdx, isActive])
 
   if (isLoading) {
     return <section className="page"><div className="card">加载中...</div></section>
@@ -409,6 +431,40 @@ export function PodcastDetailPage() {
         >
           <span aria-hidden>{isPlaying ? '❚❚' : '▶'}</span>
         </button>
+
+        <span className="podcast-time">{formatTime(currentSec * 1000)}</span>
+        <input
+          type="range"
+          className="podcast-progress"
+          min={0}
+          max={Math.max(1, podcast.durationSec)}
+          step={1}
+          value={Math.min(currentSec, podcast.durationSec)}
+          onPointerDown={() => {
+            isScrubbingRef.current = true
+          }}
+          onChange={(e) => {
+            // Track local state during drag so the thumb moves smoothly.
+            setCurrentSec(Number(e.target.value))
+          }}
+          onPointerUp={(e) => {
+            const target = e.currentTarget as HTMLInputElement
+            const sec = Number(target.value)
+            playerRef.current?.seekTo(sec, true)
+            // Update current line right away so transcript highlight follows.
+            const ms = sec * 1000
+            const lines = linesRef.current
+            let next = -1
+            for (let i = 0; i < lines.length; i++) {
+              if (lines[i].start <= ms) next = i
+              else break
+            }
+            if (next !== currentIdxRef.current) setCurrentIdx(next)
+            isScrubbingRef.current = false
+          }}
+          aria-label="进度"
+        />
+        <span className="podcast-time">{formatTime(podcast.durationSec * 1000)}</span>
 
         <select
           className="podcast-speed"

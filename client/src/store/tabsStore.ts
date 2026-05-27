@@ -39,9 +39,32 @@ function normPath(p: string): string {
   return result
 }
 
-// Identity key for tab dedup: same pathname+search → same tab regardless of
-// hash, because the hash usually points at content WITHIN the same page.
+// Paths where ANY query string / sub-context should collapse into one tab.
+// You only ever do one search / one learn session / one review session at a
+// time, so opening "查 foo" then "查 bar" should re-use the same tab instead
+// of spawning N tabs. Each navigation refreshes the tab's path so the page
+// sees the new query.
+const SINGLETON_PATHS = [
+  '/words/search',
+  '/learn',
+  '/review',
+  '/grammar/learn',
+  '/grammar/review',
+]
+
+function pathnameOf(p: string): string {
+  const hashIdx = p.indexOf('#')
+  const noHash = hashIdx >= 0 ? p.slice(0, hashIdx) : p
+  const qIdx = noHash.indexOf('?')
+  return qIdx >= 0 ? noHash.slice(0, qIdx) : noHash
+}
+
+// Identity key for tab dedup. Default: pathname + search (so different folders
+// are separate tabs). For singleton paths above: just pathname (so any query
+// for the same page collapses).
 function dedupKey(p: string): string {
+  const pathname = pathnameOf(p)
+  if (SINGLETON_PATHS.includes(pathname)) return pathname
   const hashIdx = p.indexOf('#')
   return hashIdx >= 0 ? p.slice(0, hashIdx) : p
 }
@@ -55,20 +78,24 @@ export const useTabsStore = create<TabsState>((set, get) => ({
     const key = dedupKey(normalized)
     const existing = get().tabs.find((t) => dedupKey(t.path) === key)
     if (existing) {
-      // Update path so the latest hash (e.g. #word-xyz) reaches the page —
-      // useRoutes uses tab.path as the synthetic location, so the page's
-      // useLocation().hash sees the new fragment and can scroll to it.
-      const pathChanged = existing.path !== normalized
+      // Update path so the latest hash (e.g. #word-xyz) or query (e.g. ?q=foo
+      // on the singleton search tab) reaches the page — useRoutes uses tab.path
+      // as the synthetic location.
+      // Also sweep up any *other* tabs that share this dedup key — happens
+      // when an old session left multiple /words/search?q=... tabs around
+      // before this dedup rule was introduced. Collapse them into one.
+      const duplicates = get().tabs.filter(
+        (t) => t.id !== existing.id && dedupKey(t.path) === key,
+      )
       set((s) => ({
         activeId: existing.id,
-        tabs:
-          pathChanged || (title && title !== existing.title)
-            ? s.tabs.map((t) =>
-                t.id === existing.id
-                  ? { ...t, path: normalized, title: title ?? t.title }
-                  : t,
-              )
-            : s.tabs,
+        tabs: s.tabs
+          .filter((t) => !duplicates.some((d) => d.id === t.id))
+          .map((t) =>
+            t.id === existing.id
+              ? { ...t, path: normalized, title: title ?? t.title }
+              : t,
+          ),
       }))
       return existing.id
     }

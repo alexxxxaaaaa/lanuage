@@ -176,6 +176,42 @@ export function stopSpeaking() {
   window.speechSynthesis.cancel()
 }
 
+let isPrimed = false
+
+/** Chrome's autoplay policy blocks the first speechSynthesis.speak() until
+ *  the document has received a user gesture. By the time the review page's
+ *  auto-speak effect fires (after route change + data fetch + render), that
+ *  gesture has "expired" and the speak is dropped silently. To work around
+ *  it, we attach a one-shot listener on app mount that fires a near-silent
+ *  utterance on the very first click/keydown anywhere — that counts as
+ *  consuming the gesture, leaving the engine unlocked for all subsequent
+ *  calls. Idempotent: once primed, this is a no-op. */
+export function primeSpeechOnFirstGesture() {
+  if (!isSpeechSupported() || isPrimed) return () => {}
+  const synth = window.speechSynthesis
+  const onGesture = () => {
+    if (isPrimed) return
+    isPrimed = true
+    const utterance = new SpeechSynthesisUtterance(' ')
+    utterance.volume = 0
+    try {
+      synth.speak(utterance)
+    } catch {
+      // ignore
+    }
+    cleanup()
+  }
+  const cleanup = () => {
+    window.removeEventListener('pointerdown', onGesture)
+    window.removeEventListener('keydown', onGesture)
+    window.removeEventListener('touchstart', onGesture)
+  }
+  window.addEventListener('pointerdown', onGesture, { once: true })
+  window.addEventListener('keydown', onGesture, { once: true })
+  window.addEventListener('touchstart', onGesture, { once: true })
+  return cleanup
+}
+
 type VoicesChangeCallback = () => void
 
 export function onVoicesChanged(callback: VoicesChangeCallback) {
