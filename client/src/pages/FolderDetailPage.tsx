@@ -3,13 +3,16 @@ import { Input, Tag } from 'antd'
 import { Modal } from 'antd'
 import { Pagination } from 'antd'
 import { Link, useLocation, useParams } from 'react-router-dom'
+import { fillWordByAi } from '../api/ai'
 import { isDuplicateWordError } from '../api/error'
 import { useI18n } from '../i18n'
 import { getNotes } from '../api/notes'
 import { SpeakButton } from '../components/SpeakButton'
 import { useTab } from '../components/TabContext'
 import { VoicePicker } from '../components/VoicePicker'
+import { getFolderById } from '../api/folders'
 import { useAppStore } from '../store/useAppStore'
+import type { FolderDetail } from '../types'
 import type { Word } from '../types'
 import {
   getMasteryColor,
@@ -83,10 +86,15 @@ export function FolderDetailPage() {
   const [highlightedWordId, setHighlightedWordId] = useState<string | null>(null)
   const folders = useAppStore((state) => state.folders)
   const isLoadingFolders = useAppStore((state) => state.isLoadingFolders)
-  const currentFolder = useAppStore((state) => state.currentFolder)
-  const isLoadingFolder = useAppStore((state) => state.isLoadingFolder)
   const isSubmitting = useAppStore((state) => state.isSubmitting)
   const error = useAppStore((state) => state.error)
+
+  // Per-tab folder snapshot. Used to live in useAppStore.currentFolder but
+  // that singleton is shared across tabs — opening a second folder in another
+  // tab would clobber this one and make the page display "0 words". Local
+  // state means each FolderDetailPage instance keeps its own copy.
+  const [folder, setFolder] = useState<FolderDetail | null>(null)
+  const [isLoadingFolder, setIsLoadingFolder] = useState(false)
 
   const [editingWordId, setEditingWordId] = useState<string | null>(null)
   const [form, setForm] = useState<WordFormState | null>(null)
@@ -94,26 +102,46 @@ export function FolderDetailPage() {
   const [searchKeyword, setSearchKeyword] = useState('')
   const [page, setPage] = useState(1)
   const [noteOptions, setNoteOptions] = useState<Array<{ id: string; title: string }>>([])
+  // Batch-add: paste many words, AI fills each, all go into this folder.
+  const [isBatchOpen, setIsBatchOpen] = useState(false)
+  const [batchInput, setBatchInput] = useState('')
+  const [batchRunning, setBatchRunning] = useState(false)
+  const [batchResults, setBatchResults] = useState<
+    Array<{
+      word: string
+      status: 'pending' | 'running' | 'success' | 'duplicate' | 'failed'
+      message?: string
+    }>
+  >([])
+
+  const reloadFolder = async () => {
+    if (!id) return
+    setIsLoadingFolder(true)
+    try {
+      const data = await getFolderById(id)
+      setFolder(data)
+    } finally {
+      setIsLoadingFolder(false)
+    }
+  }
 
   useEffect(() => {
     if (!id) return
     useAppStore.getState().clearError()
     void useAppStore.getState().fetchFolders()
-    void useAppStore.getState().fetchFolderById(id)
+    void reloadFolder()
     void getNotes().then((rows) =>
       setNoteOptions((rows ?? []).map((item) => ({ id: item.id, title: item.title })),
       ),
     )
-    return () => {
-      useAppStore.getState().clearCurrentFolder()
-    }
+    // reloadFolder is closure-stable for this id; safe to omit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   if (!id) {
     return null
   }
 
-  const folder = currentFolder && currentFolder.id === id ? currentFolder : null
   const folderList = Array.isArray(folders) ? folders : []
 
   useEffect(() => {
@@ -231,6 +259,7 @@ export function FolderDetailPage() {
         sourceNoteId: form.sourceNoteId || null,
         folderId: form.folderId,
       })
+      await reloadFolder()
 
       cancelEdit()
     } catch (error) {
@@ -248,6 +277,7 @@ export function FolderDetailPage() {
     const confirmed = window.confirm(t('folderDetail.deleteConfirm', { word: word.word }))
     if (!confirmed) return
     await useAppStore.getState().deleteWord(word.id)
+    await reloadFolder()
   }
 
   const pinToTop = async (word: Word) => {
@@ -255,11 +285,81 @@ export function FolderDetailPage() {
     // newly-added words also get pinnedAt = now at creation, so the list is a
     // unified "most recently surfaced first" timeline.
     await useAppStore.getState().updateWord(word.id, { isPinned: true })
-    if (id) {
-      await useAppStore.getState().fetchFolderById(id)
-    }
+    await reloadFolder()
     setPage(1)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const openBatchModal = () => {
+    setBatchInput('')
+    setBatchResults([])
+    setIsBatchOpen(true)
+  }
+
+  const runBatchAdd = async () => {
+    if (!folder) return
+    // Split on commas (Chinese or ASCII), spaces, newlines. Trim, dedupe.
+    // Split on commas / semicolons / dunhao / newlines ONLY — NOT spaces.
+    // Many English entries are multi-word phrases ("zebra crossing", "give
+    // up") and breaking on whitespace would shatter them. Internal spaces
+    // are preserved; trim only strips edge whitespace.
+    const raw = batchInput
+      .split(/[,，；;、\r\n]+/u)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+    const items = Array.from(new Set(raw))
+    if (items.length === 0) return
+
+    setBatchRunning(true)
+    setBatchResults(items.map((w) => ({ word: w, status: 'pending' as const })))
+
+    const updateOne = (
+      i: number,
+      patch: Partial<{ status: 'pending' | 'running' | 'success' | 'duplicate' | 'failed'; message: string }>,
+    ) => {
+      setBatchResults((prev) =>
+        prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)),
+      )
+    }
+
+    // Serial — keeps AI rate limits + budget happy; user sees one-by-one
+    // progress which feels honest about long runs.
+    for (let i = 0; i < items.length; i++) {
+      const word = items[i]
+      updateOne(i, { status: 'running' })
+      try {
+        const filled = await fillWordByAi({
+          word,
+          language: folder.language as 'en' | 'jp',
+          sourceLanguage: folder.language as 'en' | 'jp',
+          targetLanguage: folder.language as 'en' | 'jp',
+        })
+        try {
+          await useAppStore.getState().createWord({
+            word: filled.word || word,
+            reading: filled.reading || '',
+            meaning: filled.meaning || '',
+            example: filled.example || '',
+            note: filled.note || '',
+            partOfSpeech: filled.partOfSpeech || '',
+            language: folder.language,
+            folderId: folder.id,
+          })
+          updateOne(i, { status: 'success' })
+        } catch (err) {
+          if (isDuplicateWordError(err)) {
+            updateOne(i, { status: 'duplicate', message: '已存在' })
+          } else {
+            updateOne(i, { status: 'failed', message: '保存失败' })
+          }
+        }
+      } catch {
+        updateOne(i, { status: 'failed', message: 'AI 查询失败' })
+      }
+    }
+
+    setBatchRunning(false)
+    await reloadFolder()
   }
 
   return (
@@ -339,6 +439,15 @@ export function FolderDetailPage() {
           >
             {t('folderDetail.addWord')}
           </Link>
+          <button
+            type="button"
+            className="secondary-link"
+            disabled={!folder}
+            onClick={openBatchModal}
+            title="粘贴多个词,AI 自动查并加到本分类"
+          >
+            批量添加
+          </button>
           {folder && words.length > 0 ? (
             <a
               className="secondary-link"
@@ -641,6 +750,124 @@ export function FolderDetailPage() {
             </div>
           </form>
         ) : null}
+      </Modal>
+
+      <Modal
+        title="批量添加单词"
+        open={isBatchOpen}
+        onCancel={() => {
+          if (batchRunning) return
+          setIsBatchOpen(false)
+        }}
+        footer={null}
+        width={520}
+        maskClosable={!batchRunning}
+        closable={!batchRunning}
+      >
+        {batchResults.length === 0 ? (
+          <>
+            <p className="muted" style={{ marginTop: 0 }}>
+              用逗号、空格或换行分隔多个词。AI 会逐个查并加到当前分类。
+            </p>
+            <textarea
+              value={batchInput}
+              onChange={(e) => setBatchInput(e.target.value)}
+              placeholder={'例如:\n勉強\n頑張る、励まし'}
+              rows={8}
+              style={{
+                width: '100%',
+                padding: 10,
+                fontSize: 14,
+                fontFamily: 'inherit',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                resize: 'vertical',
+                boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => setIsBatchOpen(false)}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                disabled={!batchInput.trim()}
+                onClick={() => void runBatchAdd()}
+              >
+                开始添加
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="muted" style={{ marginTop: 0 }}>
+              {batchRunning
+                ? `处理中:${batchResults.filter((r) => r.status === 'success' || r.status === 'duplicate' || r.status === 'failed').length} / ${batchResults.length}`
+                : `完成。成功 ${batchResults.filter((r) => r.status === 'success').length} · 已存在 ${batchResults.filter((r) => r.status === 'duplicate').length} · 失败 ${batchResults.filter((r) => r.status === 'failed').length}`}
+            </p>
+            <ul
+              style={{
+                listStyle: 'none',
+                padding: 0,
+                margin: 0,
+                maxHeight: 360,
+                overflowY: 'auto',
+              }}
+            >
+              {batchResults.map((r, i) => (
+                <li
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '6px 0',
+                    borderBottom: '1px solid rgba(0,0,0,0.04)',
+                    fontSize: 14,
+                  }}
+                >
+                  <span style={{ width: 22, textAlign: 'center' }}>
+                    {r.status === 'pending'
+                      ? '⏳'
+                      : r.status === 'running'
+                        ? '🌀'
+                        : r.status === 'success'
+                          ? '✅'
+                          : r.status === 'duplicate'
+                            ? '⚠️'
+                            : '❌'}
+                  </span>
+                  <span style={{ flex: 1, fontFamily: 'inherit' }}>{r.word}</span>
+                  {r.message ? (
+                    <span className="muted" style={{ fontSize: 12 }}>
+                      {r.message}
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+            {!batchRunning ? (
+              <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => {
+                    setIsBatchOpen(false)
+                    setBatchInput('')
+                    setBatchResults([])
+                  }}
+                >
+                  完成
+                </button>
+              </div>
+            ) : null}
+          </>
+        )}
       </Modal>
     </section>
   )

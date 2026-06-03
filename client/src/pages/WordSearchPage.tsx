@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Modal, Progress, Spin } from 'antd'
 import { Link, useSearchParams } from 'react-router-dom'
 import { fillWordByAi } from '../api/ai'
@@ -52,6 +52,7 @@ export function WordSearchPage() {
   )
   const [isSearchingAi, setIsSearchingAi] = useState(false)
   const [aiProgress, setAiProgress] = useState(0)
+  const aiLookupTokenRef = useRef(0)
   const [isSavingWord, setIsSavingWord] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [wordResult, setWordResult] = useState<DictResult | null>(null)
@@ -104,7 +105,9 @@ export function WordSearchPage() {
         // AI fired before isSearchingLocal flipped to true on first render.
         if (list.length === 0 && autoAiFiredFor !== trimmed) {
           setAutoAiFiredFor(trimmed)
-          void runAiLookup()
+          // Pass `trimmed` (the URL q we just searched for) explicitly —
+          // can't rely on the `keyword` state, see runAiLookup comment.
+          void runAiLookup(trimmed)
         }
       } catch {
         if (!cancelled) setLocalMatches([])
@@ -167,15 +170,24 @@ export function WordSearchPage() {
     // we handle the re-search manually here. Skip AI when the library
     // already has the word; no point burning tokens on something we have.
     if (localMatches.length > 0 || isSearchingLocal) return
-    void runAiLookup()
+    void runAiLookup(text)
   }
 
-  const runAiLookup = async () => {
-    const text = keyword.trim()
+  // Takes the search text explicitly. Reading from `keyword` state via closure
+  // was buggy: when this is called from the q-change useEffect, setKeyword(q)
+  // and runAiLookup() fire in the same render cycle — the setState hasn't
+  // committed yet, so `keyword` is still the previous render's value (often
+  // empty on fresh mount), and the AI call ends up firing for the wrong text.
+  const runAiLookup = async (rawText?: string) => {
+    const text = (rawText ?? keyword).trim()
     if (!text) {
       setError(t('wordSearch.enterKeyword'))
       return
     }
+    // Cancellation token: when two AI lookups race (slow first, fast second),
+    // the late-resolving stale call would otherwise overwrite the newer result.
+    // We bump the ref and ignore results whose token no longer matches.
+    const token = ++aiLookupTokenRef.current
     setIsSearchingAi(true)
     setAiProgress(8)
     setError(null)
@@ -194,14 +206,18 @@ export function WordSearchPage() {
         // Legacy: kept so older code paths see a valid en/jp value.
         language: targetLanguage,
       })
+      if (token !== aiLookupTokenRef.current) return
       setWordResult({ ...word, language: word.language ?? targetLanguage })
     } catch (searchError) {
+      if (token !== aiLookupTokenRef.current) return
       setError(getErrorMessage(searchError, t('wordSearch.lookupFailed')))
     } finally {
       window.clearInterval(progressTimer)
-      setAiProgress(100)
-      window.setTimeout(() => setAiProgress(0), 400)
-      setIsSearchingAi(false)
+      if (token === aiLookupTokenRef.current) {
+        setAiProgress(100)
+        window.setTimeout(() => setAiProgress(0), 400)
+        setIsSearchingAi(false)
+      }
     }
   }
 
@@ -267,7 +283,7 @@ export function WordSearchPage() {
                 setSearchParams({ q: text })
               } else if (localMatches.length === 0 && !isSearchingLocal) {
                 // Same q, no local hit — fire AI manually.
-                void runAiLookup()
+                void runAiLookup(text)
               }
             }}
             placeholder={t('wordSearch.placeholder')}
@@ -358,7 +374,7 @@ export function WordSearchPage() {
           <button
             type="button"
             className="secondary-button"
-            onClick={() => void runAiLookup()}
+            onClick={() => void runAiLookup(keyword)}
             disabled={isSearchingAi || !keyword.trim()}
           >
             {isSearchingAi

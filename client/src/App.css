@@ -127,6 +127,103 @@ a {
   height: 100%;
 }
 
+.backstage-note {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 16px 8px 80px;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--text-h);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+}
+.backstage-note-header h1 {
+  font-size: 28px;
+  margin: 0 0 8px;
+}
+.backstage-note-meta {
+  margin: 0 0 16px;
+  color: rgba(0, 0, 0, 0.5);
+  font-size: 13px;
+}
+.backstage-note h2 {
+  margin: 32px 0 12px;
+  font-size: 22px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  padding-bottom: 4px;
+}
+.backstage-note h3 {
+  margin: 24px 0 8px;
+  font-size: 17px;
+}
+.backstage-note h4 {
+  margin: 16px 0 6px;
+  font-size: 15px;
+  color: rgba(0, 0, 0, 0.7);
+}
+.backstage-note p {
+  margin: 8px 0;
+}
+.backstage-note ul,
+.backstage-note ol {
+  padding-left: 24px;
+  margin: 8px 0;
+}
+.backstage-note li {
+  margin: 4px 0;
+}
+.backstage-note blockquote {
+  margin: 12px 0;
+  padding: 8px 14px;
+  border-left: 3px solid #1677ff;
+  background: rgba(22, 119, 255, 0.06);
+  color: rgba(0, 0, 0, 0.78);
+  border-radius: 0 6px 6px 0;
+}
+.backstage-note code {
+  background: rgba(15, 23, 42, 0.06);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+.backstage-note pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  overflow-x: auto;
+  margin: 12px 0;
+  line-height: 1.55;
+}
+.backstage-note pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font-size: 13px;
+}
+.backstage-note hr {
+  margin: 32px 0;
+  border: none;
+  border-top: 1px dashed rgba(0, 0, 0, 0.15);
+}
+.backstage-note-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0;
+  font-size: 14px;
+}
+.backstage-note-table th,
+.backstage-note-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+.backstage-note-table th {
+  background: rgba(15, 23, 42, 0.04);
+  font-weight: 600;
+}
+
 .full-screen-code-modal .ant-modal-content {
   height: 100vh;
   border-radius: 0;
@@ -629,6 +726,13 @@ button:disabled,
   border-color: rgba(239, 68, 68, 0.3);
 }
 
+.recall-feedback-meaning {
+  margin: 8px 0 4px;
+  font-size: 15px;
+  color: var(--text-h);
+  font-weight: 500;
+}
+
 .recall-reveal {
   display: flex;
   align-items: center;
@@ -854,10 +958,21 @@ button:disabled,
 }
 
 .dict-search-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+}
+.dict-search-row .dict-search-suggest {
+  flex: 1 1 240px;
+  min-width: 200px;
+}
+.dict-search-row .primary-button {
+  /* Stay compact even when wrapped to a new row in Chinese-input mode.
+     Without flex-shrink:0 + explicit padding the button would stretch with
+     the flex row width once it's the only item on its line. */
+  flex: 0 0 auto;
+  padding-inline: 24px;
 }
 
 .dict-search-input {
@@ -1044,8 +1159,8 @@ button:disabled,
 }
 
 @media (max-width: 720px) {
-  .dict-search-row {
-    grid-template-columns: 1fr;
+  .dict-search-row .dict-search-suggest {
+    flex-basis: 100%;
   }
   .lang-toggle {
     justify-self: start;
@@ -1208,6 +1323,105 @@ button:disabled,
   white-space: nowrap;
 }
 
+/* --- Review redesign: soft pastel rating buttons + cleaner flip card --- */
+
+.rating-btn {
+  border: 1px solid transparent;
+  padding: 10px 22px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.12s,
+    box-shadow 0.15s;
+  min-width: 92px;
+  letter-spacing: 0.02em;
+}
+.rating-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+}
+.rating-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+.rating-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.rating-btn-again {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: rgba(220, 38, 38, 0.2);
+}
+.rating-btn-again:hover:not(:disabled) {
+  background: #fecaca;
+}
+.rating-btn-hard {
+  background: #fef3c7;
+  color: #78350f;
+  border-color: rgba(234, 179, 8, 0.3);
+}
+.rating-btn-hard:hover:not(:disabled) {
+  background: #fde68a;
+}
+.rating-btn-easy {
+  background: #d1fae5;
+  color: #065f46;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+.rating-btn-easy:hover:not(:disabled) {
+  background: #a7f3d0;
+}
+.rating-btn-skip {
+  background: #f3f4f6;
+  color: #4b5563;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+.rating-btn-skip:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+/* Pronunciation-step front: large speaker as the primary action. */
+.review-listen-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
+}
+.review-big-play {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 38px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.32);
+  transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+}
+.review-big-play:hover {
+  transform: scale(1.04);
+  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.42);
+}
+.review-big-play:active {
+  transform: scale(0.97);
+}
+.review-listen-pos {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.55);
+  letter-spacing: 0.04em;
+}
+.review-listen-hint {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.4);
+  letter-spacing: 0.02em;
+}
+
 .review-progress-copy {
   display: grid;
   justify-items: start;
@@ -1273,9 +1487,24 @@ button:disabled,
 }
 
 .flip-card-front {
-  background: linear-gradient(135deg, #1d4ed8, #2563eb);
-  color: #fff;
+  background: #fff;
+  color: var(--text-h);
+  border: 1px solid var(--border);
   transform: rotateY(0deg);
+  position: relative;
+}
+/* Subtle accent strip at the top of the front face — keeps the visual
+   identity of "this is the question side" without flooding the card with
+   saturated color. */
+.flip-card-front::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #2563eb, #60a5fa);
+  border-radius: 24px 24px 0 0;
 }
 
 .flip-card-back {

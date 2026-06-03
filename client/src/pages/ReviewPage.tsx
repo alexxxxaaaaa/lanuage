@@ -107,6 +107,21 @@ export function ReviewPage() {
     useAppStore.getState().setReviewIndex(0)
   }
 
+  // Skip the ENTIRE current step (not just this word). Jumps stepIndex forward
+  // for the whole queue — any words that didn't get a rating in the skipped
+  // step fall back to 'easy' in the final FSRS fold (see handleStepRating's
+  // accumulation logic). Only meaningful on steps 1 and 2; on the last step
+  // we hide the button entirely because "skipping" recall would end the
+  // session prematurely, which the existing rating buttons already handle.
+  const handleSkipStep = () => {
+    if (isLastStep) return
+    setStepIndex(stepIndex + 1)
+    useAppStore.getState().setReviewIndex(0)
+    if (isCardFlipped) {
+      useAppStore.getState().toggleCard()
+    }
+  }
+
   const handleStepRating = async (rating: 'again' | 'hard' | 'easy') => {
     if (!currentReview) return
     const wordId = currentReview.wordId
@@ -209,7 +224,10 @@ export function ReviewPage() {
 
       if ((event.key === 'p' || event.key === 'P') && currentWord) {
         event.preventDefault()
-        speak(currentWord.word, currentWord.language)
+        speak(
+          pickSpeakableText(currentWord.word, currentWord.reading, currentWord.language),
+          currentWord.language,
+        )
       }
 
       if (event.key === 'Enter' && currentWord && !isSubmitting) {
@@ -302,7 +320,10 @@ export function ReviewPage() {
   const handleRecallHint = () => {
     if (!currentWord || recallStatus !== 'idle') return
     stopSpeaking()
-    speak(currentWord.word, currentWord.language)
+    speak(
+      pickSpeakableText(currentWord.word, currentWord.reading, currentWord.language),
+      currentWord.language,
+    )
     setRecallUsedHint(true)
   }
 
@@ -415,9 +436,6 @@ export function ReviewPage() {
           ))}
         </div>
         <p className="muted review-step-hint">{currentStep.hint}</p>
-        <p className="muted review-step-hint">
-          {t('review.difficultyTip', { score: debtByWord[currentReview.wordId] ?? 0 })}
-        </p>
 
         <VoicePicker
           lang={currentWord.language}
@@ -570,15 +588,24 @@ export function ReviewPage() {
               {currentWord.partOfSpeech ? t('review.partOfSpeech', { value: currentWord.partOfSpeech }) : '\u00A0'}
             </small>
             {currentStep.key === 'pronunciation' ? (
-              <>
-                <small>{t('review.cardListenFirst')}</small>
-                <SpeakButton
-                  text={currentWord.word} reading={currentWord.reading}
-                  lang={currentWord.language}
-                  size="md"
-                  label="朗读单词"
-                />
-              </>
+              <div className="review-listen-block">
+                <button
+                  type="button"
+                  className="review-big-play"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    speak(
+                      pickSpeakableText(currentWord.word, currentWord.reading, currentWord.language),
+                      currentWord.language,
+                    )
+                  }}
+                  aria-label="听音"
+                  title="听音 (P)"
+                >
+                  <SoundOutlined />
+                </button>
+                <small className="review-listen-hint">P 再听 · 空格翻卡看答案</small>
+              </div>
             ) : null}
           </span>
           <span className="flip-card-face flip-card-back">
@@ -620,7 +647,7 @@ export function ReviewPage() {
           <div className="rating-action">
             <button
               type="button"
-              className="danger-button"
+              className="rating-btn rating-btn-again"
               disabled={isSubmitting}
               onClick={() => void handleStepRating('again')}
             >
@@ -631,7 +658,7 @@ export function ReviewPage() {
           <div className="rating-action">
             <button
               type="button"
-              className="secondary-button"
+              className="rating-btn rating-btn-hard"
               disabled={isSubmitting}
               onClick={() => void handleStepRating('hard')}
             >
@@ -642,7 +669,7 @@ export function ReviewPage() {
           <div className="rating-action">
             <button
               type="button"
-              className="success-button"
+              className="rating-btn rating-btn-easy"
               disabled={isSubmitting}
               onClick={() => void handleStepRating('easy')}
             >
@@ -650,6 +677,20 @@ export function ReviewPage() {
             </button>
             <span className="rating-caption">{t('review.easyCaption')}</span>
           </div>
+          {!isLastStep ? (
+            <div className="rating-action">
+              <button
+                type="button"
+                className="rating-btn rating-btn-skip"
+                disabled={isSubmitting}
+                onClick={handleSkipStep}
+                title="跳过整个步骤,直接进入下一步"
+              >
+                跳过此步骤
+              </button>
+              <span className="rating-caption">直接进入下一步</span>
+            </div>
+          ) : null}
         </div>
         </>
         ) : null}
@@ -659,7 +700,7 @@ export function ReviewPage() {
             <div className="rating-action">
               <button
                 type="button"
-                className="secondary-button"
+                className="rating-btn rating-btn-hard"
                 disabled={isSubmitting}
                 onClick={() => void handleStepRating('hard')}
               >
@@ -675,7 +716,7 @@ export function ReviewPage() {
               <div className="rating-action">
                 <button
                   type="button"
-                  className="success-button"
+                  className="rating-btn rating-btn-easy"
                   disabled={isSubmitting}
                   onClick={() => void handleStepRating('easy')}
                 >
@@ -691,7 +732,7 @@ export function ReviewPage() {
           <div className="actions">
             <button
               type="button"
-              className="danger-button"
+              className="rating-btn rating-btn-again"
               disabled={isSubmitting}
               onClick={() => void handleStepRating('again')}
             >

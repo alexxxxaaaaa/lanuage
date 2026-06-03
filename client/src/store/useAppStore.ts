@@ -58,6 +58,7 @@ type AppState = {
   setReviewFolderId: (folderId: string | null) => void
   setSessionLimit: (limit: number | null) => void
   startReviewSession: (limit?: number | null) => void
+  shuffleTodayReviews: () => void
   createWord: (payload: CreateWordPayload) => Promise<void>
   updateWord: (id: string, payload: UpdateWordPayload) => Promise<void>
   deleteWord: (id: string) => Promise<void>
@@ -320,6 +321,28 @@ export const useAppStore = create<AppState>((set, get) => ({
       sessionLimit: nextLimit,
       todayReviews: session,
       totalReviewCount: session.length,
+      currentIndex: 0,
+      isCardFlipped: false,
+    })
+  },
+  shuffleTodayReviews: () => {
+    // Fisher–Yates on both pools so the next session (whether triggered from
+    // Home or the Review page) picks up the new order. Only persists until
+    // the next fetchTodayReviews() refetch — that's intentional: shuffle is
+    // a per-attempt mood-break, not a stored preference.
+    const shuffle = <T>(arr: T[]): T[] => {
+      const out = [...arr]
+      for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[out[i], out[j]] = [out[j], out[i]]
+      }
+      return out
+    }
+    const due = get().dueReviews
+    const today = get().todayReviews
+    set({
+      dueReviews: shuffle(due),
+      todayReviews: shuffle(today),
       currentIndex: 0,
       isCardFlipped: false,
     })

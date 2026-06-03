@@ -209,6 +209,17 @@ export function HomePage() {
           {dueListItems.length === 0 ? (
             <p className="muted">{t('home.dueListEmpty')}</p>
           ) : (
+            <>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+              <button
+                type="button"
+                className="ghost-button"
+                title="打乱今日复习顺序(下次刷新会重置)"
+                onClick={() => useAppStore.getState().shuffleTodayReviews()}
+              >
+                🔀 打乱顺序
+              </button>
+            </div>
             <Tabs
               items={dueGroups.map((group) => ({
                 key: group.folderId,
@@ -251,6 +262,7 @@ export function HomePage() {
                 ),
               }))}
             />
+            </>
           )}
         </Modal>
 

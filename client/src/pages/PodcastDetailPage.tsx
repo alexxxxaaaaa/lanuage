@@ -302,9 +302,12 @@ export function PodcastDetailPage() {
     else player.playVideo()
   }
 
-  // Keyboard: Space → play/pause, ← / → → prev/next sentence
+  // Keyboard: Space → play/pause, ← / → → prev/next sentence. Gated on
+  // isActive so hotkeys don't fire while the podcast tab is hidden — without
+  // this, pressing Space while viewing a folder/search tab toggles podcast
+  // play because the listener is on window.
   useEffect(() => {
-    if (!podcast) return
+    if (!podcast || !isActive) return
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null
       const tag = target?.tagName ?? ''
@@ -330,7 +333,7 @@ export function PodcastDetailPage() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [podcast?.youtubeId])
+  }, [podcast?.youtubeId, isActive])
 
   // Auto-scroll active line into view. Re-fires when the tab regains focus
   // so the user lands back on the current line instead of "the top" — which

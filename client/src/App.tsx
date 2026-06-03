@@ -14,7 +14,9 @@ import { fetchMe } from './api/auth'
 import { QuickSearchFloat } from './components/QuickSearchFloat'
 import { RequireAuth } from './components/RequireAuth'
 import { SearchSuggest } from './components/SearchSuggest'
+import { BackstageNote } from './components/BackstageNote'
 import { TabbedRoot } from './components/TabbedRoot'
+import { useAppStore } from './store/useAppStore'
 import { useAuthStore } from './store/authStore'
 import { useTabsStore } from './store/tabsStore'
 import { primeSpeechOnFirstGesture } from './utils/speech'
@@ -73,6 +75,46 @@ function AppShell() {
   // otherwise Chrome's autoplay policy silently drops the auto-speak when the
   // review page mounts before any gesture has been consumed.
   useEffect(() => primeSpeechOnFirstGesture(), [])
+
+  // Daily auto-refresh of today's review queue. With keep-alive tabs the page
+  // stays mounted across days, so the cached todayReviews can be 24h stale
+  // when the user returns the next morning. We refetch on multiple signals
+  // because no single one catches every "user came back" scenario:
+  //   - visibilitychange: switching tabs / minimize-restore
+  //   - focus: window regains focus (laptop wake without tab switch)
+  //   - pageshow: page restored from BFCache (hit Back after navigating away)
+  //   - online: network reconnects (typical after sleep)
+  //   - minute-by-minute setInterval: catches midnight while tab is foreground
+  useEffect(() => {
+    if (!token) return // logged out — nothing to refresh
+    const localDate = () => {
+      const d = new Date()
+      return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+    }
+    let lastDate = localDate()
+    const refreshIfRolled = () => {
+      const today = localDate()
+      if (today !== lastDate) {
+        lastDate = today
+        void useAppStore.getState().fetchTodayReviews()
+      }
+    }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refreshIfRolled()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', refreshIfRolled)
+    window.addEventListener('pageshow', refreshIfRolled)
+    window.addEventListener('online', refreshIfRolled)
+    const tick = window.setInterval(refreshIfRolled, 60_000)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', refreshIfRolled)
+      window.removeEventListener('pageshow', refreshIfRolled)
+      window.removeEventListener('online', refreshIfRolled)
+      window.clearInterval(tick)
+    }
+  }, [token])
 
   const handleLogout = () => {
     clearSession()
@@ -214,10 +256,10 @@ function AppShell() {
         width="100vw"
         style={{ top: 0, paddingBottom: 0, maxWidth: '100vw' }}
         styles={{
-          body: { height: 'calc(100vh - 56px)', display: 'grid', gridTemplateRows: 'auto 1fr' },
+          body: { height: 'calc(100vh - 56px)', overflowY: 'auto' },
         }}
       >
-        <p className="muted">{t('nav.codeHotkey')}</p>
+        <BackstageNote />
       </Modal>
       {location.pathname !== '/words/new' ? <QuickSearchFloat /> : null}
     </div>

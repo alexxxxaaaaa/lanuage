@@ -7,7 +7,7 @@ import { SpeakButton } from '../components/SpeakButton'
 import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
 import type { ReviewRating, Word } from '../types'
-import { speak, stopSpeaking } from '../utils/speech'
+import { pickSpeakableText, speak, stopSpeaking } from '../utils/speech'
 
 const BATCH_SIZE = 5
 const RECOVERY_MAX_ATTEMPTS = 3
@@ -272,14 +272,20 @@ export function LearnPage() {
     if (!currentWord) return
     if (phase === 'study') {
       stopSpeaking()
-      speak(currentWord.word, currentWord.language)
+      speak(
+        pickSpeakableText(currentWord.word, currentWord.reading, currentWord.language),
+        currentWord.language,
+      )
     }
   }, [phase, currentWord?.id])
 
   useEffect(() => {
     if (!currentWord) return
     if (status === 'correct' || status === 'wrong') {
-      speak(currentWord.word, currentWord.language)
+      speak(
+        pickSpeakableText(currentWord.word, currentWord.reading, currentWord.language),
+        currentWord.language,
+      )
     }
     // currentWord.id is intentionally excluded — when advancing to the next
     // recall item, status is still 'correct'/'wrong' from the previous answer
@@ -420,7 +426,10 @@ export function LearnPage() {
   const playHint = () => {
     if (!currentWord || status !== 'idle') return
     stopSpeaking()
-    speak(currentWord.word, currentWord.language)
+    speak(
+      pickSpeakableText(currentWord.word, currentWord.reading, currentWord.language),
+      currentWord.language,
+    )
     setUsedHintByWord((prev) => ({ ...prev, [currentWord.id]: true }))
   }
 
@@ -993,6 +1002,9 @@ function FeedbackBlock({
           label={t('learn.readWord')}
         />
       </div>
+      {word.meaning ? (
+        <p className="recall-feedback-meaning multiline-text">{word.meaning}</p>
+      ) : null}
       {word.example ? (
         <p className="muted multiline-text">{word.example}</p>
       ) : null}
