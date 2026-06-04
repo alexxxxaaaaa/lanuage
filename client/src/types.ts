@@ -186,6 +186,9 @@ export type PodcastSummary = {
   durationSec: number
   lastPositionSec?: number
   createdAt?: string
+  // Last time the row was touched. Since `lastPositionSec` is PATCHed during
+  // playback, this serves as a "last watched at" timestamp.
+  updatedAt?: string
 }
 
 export type TranscriptLine = {

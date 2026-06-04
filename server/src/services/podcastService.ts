@@ -183,7 +183,10 @@ export async function importPodcast(
 export async function listPodcasts(userId: string) {
   const rows = await prisma.podcast.findMany({
     where: { userId },
-    orderBy: { createdAt: 'desc' },
+    // updatedAt reflects the last touch — we PATCH lastPositionSec every few
+    // seconds during playback, so this doubles as a "lastViewedAt" without a
+    // separate column. Most-recently-watched lands at the top.
+    orderBy: { updatedAt: 'desc' },
     select: {
       id: true,
       youtubeId: true,
@@ -191,7 +194,9 @@ export async function listPodcasts(userId: string) {
       primaryLang: true,
       thumbnail: true,
       durationSec: true,
+      lastPositionSec: true,
       createdAt: true,
+      updatedAt: true,
     },
   })
   return rows

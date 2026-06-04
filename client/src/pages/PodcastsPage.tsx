@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { message, Modal } from 'antd'
 import {
@@ -17,6 +17,51 @@ function formatDuration(sec: number) {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
+// Group podcasts by relative date, YouTube-history-style. "今天" / "昨天" /
+// 周内显示星期几 / 更久显示完整日期。返回数组保序方便渲染。
+function groupByDate(items: PodcastSummary[]): Array<{
+  label: string
+  items: PodcastSummary[]
+}> {
+  if (items.length === 0) return []
+  const now = new Date()
+  const startOf = (d: Date) => {
+    const x = new Date(d)
+    x.setHours(0, 0, 0, 0)
+    return x.getTime()
+  }
+  const todayStart = startOf(now)
+  const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
+  const labelFor = (d: Date) => {
+    const dayStart = startOf(d)
+    const diffDays = Math.round((todayStart - dayStart) / 86_400_000)
+    if (diffDays === 0) return '今天'
+    if (diffDays === 1) return '昨天'
+    if (diffDays > 1 && diffDays < 7) return weekdays[d.getDay()]
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+      d.getDate(),
+    ).padStart(2, '0')}`
+  }
+  // Sort desc by "last touched" — updatedAt is bumped every time playback
+  // saves position, so this matches YouTube history's "what I last watched".
+  // Fall back to createdAt for older rows that predate updatedAt.
+  const pickStamp = (p: PodcastSummary) =>
+    new Date(p.updatedAt ?? p.createdAt ?? 0).getTime()
+  const sorted = [...items].sort((a, b) => pickStamp(b) - pickStamp(a))
+  const groups: Array<{ label: string; items: PodcastSummary[] }> = []
+  let current: { label: string; items: PodcastSummary[] } | null = null
+  for (const item of sorted) {
+    const d = new Date(item.updatedAt ?? item.createdAt ?? 0)
+    const label = labelFor(d)
+    if (!current || current.label !== label) {
+      current = { label, items: [] }
+      groups.push(current)
+    }
+    current.items.push(item)
+  }
+  return groups
+}
+
 export function PodcastsPage() {
   const navigate = useNavigate()
   const [list, setList] = useState<PodcastSummary[]>([])
@@ -29,6 +74,8 @@ export function PodcastsPage() {
   const [error, setError] = useState<string | null>(null)
   const [primarySrt, setPrimarySrt] = useState('')
   const [zhSrt, setZhSrt] = useState('')
+
+  const groups = useMemo(() => groupByDate(list), [list])
 
   const load = async () => {
     setIsLoading(true)
@@ -236,34 +283,65 @@ export function PodcastsPage() {
 
       {isLoading ? <div className="card">加载中...</div> : null}
 
-      <div className="folder-grid podcast-grid">
-        {list.map((p) => (
-          <article key={p.id} className="card folder-card">
-            <Link className="folder-card-link" to={`/podcasts/${p.id}`}>
-              {p.thumbnail ? (
-                <img
-                  src={p.thumbnail}
-                  alt=""
-                  style={{ width: '100%', borderRadius: 12, marginBottom: 10 }}
-                  loading="lazy"
-                />
-              ) : null}
-              <div className="folder-top">
-                <strong>{p.title}</strong>
-                <span className="folder-language">{p.primaryLang.toUpperCase()}</span>
-              </div>
-              <p className="muted">时长 {formatDuration(p.durationSec)}</p>
-            </Link>
-            <div className="folder-card-actions">
-              <button
-                type="button"
-                className="ghost-button danger"
-                onClick={() => void handleDelete(p.id, p.title)}
-              >
-                删除
-              </button>
-            </div>
-          </article>
+      <div className="podcast-history">
+        {groups.map((group) => (
+          <section key={group.label} className="podcast-history-group">
+            <h3 className="podcast-history-day">{group.label}</h3>
+            <ul className="podcast-history-list">
+              {group.items.map((p) => {
+                const progress =
+                  p.durationSec > 0 && (p.lastPositionSec ?? 0) > 0
+                    ? Math.min(100, ((p.lastPositionSec ?? 0) / p.durationSec) * 100)
+                    : 0
+                return (
+                  <li key={p.id} className="podcast-history-item">
+                    <Link className="podcast-history-thumb-link" to={`/podcasts/${p.id}`}>
+                      <div className="podcast-history-thumb">
+                        {p.thumbnail ? (
+                          <img src={p.thumbnail} alt="" loading="lazy" />
+                        ) : (
+                          <div className="podcast-history-thumb-empty" />
+                        )}
+                        <span className="podcast-history-duration">
+                          {formatDuration(p.durationSec)}
+                        </span>
+                        {progress > 0 ? (
+                          <span
+                            className="podcast-history-progress"
+                            style={{ width: `${progress}%` }}
+                          />
+                        ) : null}
+                      </div>
+                    </Link>
+                    <div className="podcast-history-meta">
+                      <Link
+                        className="podcast-history-title"
+                        to={`/podcasts/${p.id}`}
+                      >
+                        {p.title}
+                      </Link>
+                      <p className="podcast-history-sub muted">
+                        {p.primaryLang.toUpperCase()}
+                        {progress > 0 ? (
+                          <>
+                            <span className="podcast-history-dot">·</span>
+                            已看 {Math.round(progress)}%
+                          </>
+                        ) : null}
+                      </p>
+                      <button
+                        type="button"
+                        className="ghost-button podcast-history-delete"
+                        onClick={() => void handleDelete(p.id, p.title)}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
         ))}
       </div>
     </section>

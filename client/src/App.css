@@ -3083,6 +3083,129 @@ button:disabled,
 }
 
 /* Podcast detail layout */
+/* --- YouTube-style podcast history list --- */
+.podcast-history {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.podcast-history-day {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 8px 0 12px;
+  color: var(--text-h);
+}
+.podcast-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.podcast-history-item {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 16px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card-bg, #fff);
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+.podcast-history-item:hover {
+  border-color: rgba(37, 99, 235, 0.35);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+.podcast-history-thumb-link {
+  display: block;
+  text-decoration: none;
+}
+.podcast-history-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.06);
+}
+.podcast-history-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.podcast-history-thumb-empty {
+  width: 100%;
+  height: 100%;
+}
+.podcast-history-duration {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+}
+.podcast-history-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: #ef4444;
+}
+.podcast-history-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.podcast-history-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-h);
+  text-decoration: none;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.podcast-history-title:hover {
+  color: var(--accent);
+}
+.podcast-history-sub {
+  margin: 0;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.podcast-history-dot {
+  opacity: 0.6;
+}
+.podcast-history-delete {
+  align-self: flex-start;
+  margin-top: 4px;
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+@media (max-width: 640px) {
+  .podcast-history-item {
+    grid-template-columns: 160px 1fr;
+    gap: 12px;
+  }
+  .podcast-history-title {
+    font-size: 15px;
+  }
+}
+
 .podcast-detail {
   padding-bottom: 96px; /* room for the bottom toolbar */
 }
