@@ -5,7 +5,6 @@
       "Read",
       "Glob",
       "Grep",
-
       "Edit(client/src/**)",
       "Edit(server/src/**)",
       "Edit(subtitle-proxy/**)",
@@ -14,7 +13,6 @@
       "Write(server/src/**)",
       "Write(subtitle-proxy/**)",
       "Write(.claude/**)",
-
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
@@ -22,7 +20,6 @@
       "Bash(git show:*)",
       "Bash(git branch:*)",
       "Bash(git add:*)",
-
       "Bash(ls:*)",
       "Bash(cat:*)",
       "Bash(grep:*)",
@@ -33,7 +30,6 @@
       "Bash(echo:*)",
       "Bash(pwd:*)",
       "Bash(which:*)",
-
       "Bash(npx tsc:*)",
       "Bash(npm run:*)",
       "Bash(npm test:*)",
@@ -41,22 +37,18 @@
       "Bash(pnpm:*)",
       "Bash(python3:*)",
       "Bash(node:*)",
-
       "Bash(curl https://lanuage-brhb.onrender.com/*)",
       "Bash(curl http://localhost:*)",
       "Bash(curl -s*localhost:*)",
-
       "Bash(pkill:*)",
       "Bash(lsof:*)",
       "Bash(ps:*)",
-
       "Bash(mkdir:*)",
       "Bash(touch:*)",
       "Bash(cp:*)",
       "Bash(mv:*)",
       "Bash(cd:*)",
       "Bash(sleep:*)",
-
       "Bash(cd /Users/zhuyandi/Desktop/language/client && npx tsc:*)",
       "Bash(cd /Users/zhuyandi/Desktop/language/server && npx tsc:*)",
       "Bash(cd /Users/zhuyandi/Desktop/language/client && npm run:*)",
@@ -64,7 +56,9 @@
       "Bash(cd /Users/zhuyandi/Desktop/language/server && npx prisma:*)",
       "Bash(cd /Users/zhuyandi/Desktop/language/subtitle-proxy && PROXY_TOKEN=*)",
       "Bash(curl -sf https://lanuage-brhb.onrender.com/*)",
-      "Bash(curl -sS https://lanuage-brhb.onrender.com/*)"
+      "Bash(curl -sS https://lanuage-brhb.onrender.com/*)",
+      "Bash(npx prisma *)",
+      "Bash(git commit -m ' *)"
     ],
     "deny": [
       "Bash(git push:*)",
@@ -74,21 +68,17 @@
       "Bash(git checkout --:*)",
       "Bash(git restore:*)",
       "Bash(git branch -D:*)",
-
       "Bash(rm -rf:*)",
       "Bash(rm -fr:*)",
       "Bash(sudo:*)",
-
       "Bash(wrangler deploy:*)",
       "Bash(wrangler pages deploy:*)",
       "Bash(wrangler d1 execute*--remote*)",
       "Bash(wrangler secret put:*)",
       "Bash(wrangler secret delete:*)",
-
       "Bash(npm publish:*)",
       "Bash(gh pr merge:*)",
       "Bash(gh release create:*)",
-
       "Edit(.env*)",
       "Write(.env*)",
       "Edit(**/.env*)",

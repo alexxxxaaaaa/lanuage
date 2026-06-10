@@ -324,6 +324,96 @@ a {
   display: contents;
 }
 
+/* Grammar list — card-style with pin action */
+.grammar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.grammar-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 20px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.grammar-card:hover {
+  border-color: rgba(37, 99, 235, 0.35);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+.grammar-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.grammar-card-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.grammar-card-pattern {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-h);
+  text-decoration: none;
+  word-break: keep-all;
+}
+.grammar-card-pattern:hover {
+  color: var(--accent);
+}
+.grammar-card-level {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.grammar-card-pin {
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+.grammar-card-line {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.grammar-card-label {
+  flex-shrink: 0;
+  width: 36px;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+  padding-top: 2px;
+}
+.grammar-card-meaning {
+  color: var(--text-h);
+  font-weight: 500;
+}
+.grammar-card-example {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
 /* Grammar learn / review */
 .grammar-learn-card {
   display: flex;

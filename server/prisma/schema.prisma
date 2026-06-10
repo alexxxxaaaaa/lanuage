@@ -135,6 +135,8 @@ model Grammar {
   exampleZh   String   @default("")
   note        String   @default("")
   level       String   @default("N1")
+  isPinned    Boolean  @default(false)
+  pinnedAt    DateTime?
   userId      String
   user        User     @relation(fields: [userId], references: [id])
   review      GrammarReview?
@@ -144,6 +146,7 @@ model Grammar {
   @@unique([userId, pattern])
   @@index([userId])
   @@index([level])
+  @@index([userId, pinnedAt])
 }
 
 model GrammarReview {

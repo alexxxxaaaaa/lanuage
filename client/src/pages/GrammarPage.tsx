@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { fillGrammarByAi } from '../api/ai'
-import { createGrammar, getGrammars } from '../api/grammar'
+import { createGrammar, getGrammars, updateGrammar } from '../api/grammar'
 import { getGrammarReviewCounts } from '../api/grammarReview'
 import { getErrorMessage } from '../api/error'
 import type { CreateGrammarPayload, Grammar } from '../types'
@@ -32,6 +32,16 @@ export function GrammarPage() {
     unlearned: 0,
   })
   const [learnCount, setLearnCount] = useState<number | null>(10)
+
+  const pinToTop = async (g: Grammar) => {
+    try {
+      await updateGrammar(g.id, { isPinned: true })
+      await load()
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } catch (err) {
+      setError(getErrorMessage(err, '置顶失败'))
+    }
+  }
 
   const load = async () => {
     setIsLoading(true)
@@ -285,41 +295,54 @@ export function GrammarPage() {
       {error ? <p className="error-text">{error}</p> : null}
       {isLoading ? <div className="card">加载中...</div> : null}
 
-      <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
-        <table className="grammar-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: '#f6f6f6', textAlign: 'left' }}>
-              <th style={{ padding: '8px 12px', width: 60 }}>#</th>
-              <th style={{ padding: '8px 12px', width: 200 }}>语法</th>
-              <th style={{ padding: '8px 12px', width: 200 }}>接续</th>
-              <th style={{ padding: '8px 12px' }}>意思</th>
-              <th style={{ padding: '8px 12px', width: 80 }}>级别</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((g, idx) => (
-              <tr key={g.id} style={{ borderTop: '1px solid #eee' }}>
-                <td style={{ padding: '8px 12px', color: '#999' }}>{idx + 1}</td>
-                <td style={{ padding: '8px 12px', fontWeight: 600 }}>
-                  <Link to={`/grammar/${g.id}`}>{g.pattern}</Link>
-                </td>
-                <td style={{ padding: '8px 12px', color: '#666', whiteSpace: 'pre-line' }}>
-                  {g.connection}
-                </td>
-                <td style={{ padding: '8px 12px' }}>{g.meaning}</td>
-                <td style={{ padding: '8px 12px', color: '#999' }}>{g.level}</td>
-              </tr>
-            ))}
-            {!isLoading && filtered.length === 0 ? (
-              <tr>
-                <td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#999' }}>
-                  没有匹配的语法条目
-                </td>
-              </tr>
+      {!isLoading && filtered.length === 0 ? (
+        <div className="card state-card" style={{ textAlign: 'center' }}>
+          <p className="muted">没有匹配的语法条目</p>
+        </div>
+      ) : null}
+
+      <ul className="grammar-list">
+        {filtered.map((g) => (
+          <li key={g.id} className="grammar-card">
+            <header className="grammar-card-head">
+              <div className="grammar-card-title-row">
+                <Link to={`/grammar/${g.id}`} className="grammar-card-pattern">
+                  {g.pattern}
+                </Link>
+                <span className="grammar-card-level">{g.level}</span>
+              </div>
+              <button
+                type="button"
+                className="ghost-button grammar-card-pin"
+                onClick={() => void pinToTop(g)}
+                title="置顶到第一个"
+              >
+                置顶
+              </button>
+            </header>
+            {g.connection ? (
+              <p className="grammar-card-line">
+                <span className="grammar-card-label">接续</span>
+                <span className="multiline-text">{g.connection}</span>
+              </p>
             ) : null}
-          </tbody>
-        </table>
-      </div>
+            {g.meaning ? (
+              <p className="grammar-card-line">
+                <span className="grammar-card-label">意思</span>
+                <span className="grammar-card-meaning">{g.meaning}</span>
+              </p>
+            ) : null}
+            {g.example ? (
+              <div className="grammar-card-example">
+                <p className="multiline-text">{g.example}</p>
+                {g.exampleZh ? (
+                  <p className="muted multiline-text">{g.exampleZh}</p>
+                ) : null}
+              </div>
+            ) : null}
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }

@@ -142,6 +142,8 @@ export type Grammar = {
   exampleZh: string
   note: string
   level: string
+  isPinned?: boolean
+  pinnedAt?: string | null
   createdAt?: string
   updatedAt?: string
   review?: GrammarReview | null
@@ -175,7 +177,9 @@ export type CreateGrammarPayload = {
   level?: string
 }
 
-export type UpdateGrammarPayload = Partial<CreateGrammarPayload>
+export type UpdateGrammarPayload = Partial<CreateGrammarPayload> & {
+  isPinned?: boolean
+}
 
 export type PodcastSummary = {
   id: string

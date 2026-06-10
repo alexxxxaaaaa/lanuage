@@ -11,7 +11,9 @@ type CreateGrammarInput = {
   level?: string
 }
 
-type UpdateGrammarInput = Partial<CreateGrammarInput>
+type UpdateGrammarInput = Partial<CreateGrammarInput> & {
+  isPinned?: boolean
+}
 
 function sanitizeUnicode(input: string) {
   return input.replace(
@@ -50,6 +52,9 @@ export async function createGrammar(userId: string, input: CreateGrammarInput) {
         note: normalize(input.note),
         level: normalize(input.level) || 'N1',
         userId,
+        // New rows get pinnedAt = now so they surface at the top of the
+        // unified pinnedAt-desc timeline (same semantics as Word).
+        pinnedAt: new Date(),
       },
     })
   } catch (error) {
@@ -78,7 +83,9 @@ export async function getGrammars(
           }
         : {}),
     },
-    orderBy: { createdAt: 'asc' },
+    // Unified pinnedAt-desc timeline — same as Word. Most-recently created
+    // or user-pinned items surface to the top.
+    orderBy: [{ pinnedAt: 'desc' }, { createdAt: 'desc' }],
   })
 }
 
@@ -96,7 +103,7 @@ export async function updateGrammar(
   const existing = await prisma.grammar.findFirst({ where: { id, userId } })
   if (!existing) throw new AppError('grammar not found', 404)
 
-  const data: Record<string, string> = {}
+  const data: Record<string, string | boolean | Date> = {}
   const allowed: Array<keyof CreateGrammarInput> = [
     'pattern',
     'connection',
@@ -114,6 +121,14 @@ export async function updateGrammar(
       throw new AppError('pattern cannot be empty', 400)
     }
     data[field] = normalized
+  }
+
+  // Pin = bump to top. Re-stamp pinnedAt on every isPinned:true call (no unpin
+  // operation — mirrors Word). Frontend's "置顶" button just calls this with
+  // isPinned:true and the row jumps to position #1.
+  if (updates.isPinned === true) {
+    data.isPinned = true
+    data.pinnedAt = new Date()
   }
 
   if (Object.keys(data).length === 0) return existing

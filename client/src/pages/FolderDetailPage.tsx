@@ -111,6 +111,9 @@ export function FolderDetailPage() {
       word: string
       status: 'pending' | 'running' | 'success' | 'duplicate' | 'failed'
       message?: string
+      // For duplicates: id of the already-present word, so the result row
+      // can offer a "置顶" button to bump that existing entry instead.
+      existingWordId?: string
     }>
   >([])
 
@@ -296,6 +299,25 @@ export function FolderDetailPage() {
     setIsBatchOpen(true)
   }
 
+  const pinExistingFromBatch = async (rowIdx: number, wordId: string) => {
+    try {
+      await useAppStore.getState().updateWord(wordId, { isPinned: true })
+      await reloadFolder()
+      // Mark this row done so the user sees feedback without closing the modal.
+      setBatchResults((prev) =>
+        prev.map((r, idx) =>
+          idx === rowIdx ? { ...r, status: 'success', message: '已置顶' } : r,
+        ),
+      )
+    } catch {
+      setBatchResults((prev) =>
+        prev.map((r, idx) =>
+          idx === rowIdx ? { ...r, message: '置顶失败' } : r,
+        ),
+      )
+    }
+  }
+
   const runBatchAdd = async () => {
     if (!folder) return
     // Split on commas (Chinese or ASCII), spaces, newlines. Trim, dedupe.
@@ -315,7 +337,11 @@ export function FolderDetailPage() {
 
     const updateOne = (
       i: number,
-      patch: Partial<{ status: 'pending' | 'running' | 'success' | 'duplicate' | 'failed'; message: string }>,
+      patch: Partial<{
+        status: 'pending' | 'running' | 'success' | 'duplicate' | 'failed'
+        message: string
+        existingWordId: string
+      }>,
     ) => {
       setBatchResults((prev) =>
         prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)),
@@ -348,7 +374,19 @@ export function FolderDetailPage() {
           updateOne(i, { status: 'success' })
         } catch (err) {
           if (isDuplicateWordError(err)) {
-            updateOne(i, { status: 'duplicate', message: '已存在' })
+            // Find the already-present row so the result list can offer a
+            // pin-to-top shortcut. Match either the raw user input OR the
+            // AI-normalized form, since either could be what's in the DB.
+            const existing = folder.words.find(
+              (w) =>
+                w.word === word ||
+                (filled.word && w.word === filled.word),
+            )
+            updateOne(i, {
+              status: 'duplicate',
+              message: '已存在',
+              existingWordId: existing?.id,
+            })
           } else {
             updateOne(i, { status: 'failed', message: '保存失败' })
           }
@@ -847,6 +885,17 @@ export function FolderDetailPage() {
                     <span className="muted" style={{ fontSize: 12 }}>
                       {r.message}
                     </span>
+                  ) : null}
+                  {r.status === 'duplicate' && r.existingWordId ? (
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      style={{ fontSize: 12, padding: '2px 10px', borderRadius: 999 }}
+                      onClick={() => void pinExistingFromBatch(i, r.existingWordId!)}
+                      title="把这个已存在的词置顶到分类第一个"
+                    >
+                      置顶
+                    </button>
                   ) : null}
                 </li>
               ))}
