@@ -240,4 +240,63 @@ export async function updatePodcastPosition(
   return { ok: true, sec: clean }
 }
 
+/**
+ * Edit one transcript line in place. Lets the user fix wrong auto-captions
+ * (YouTube ASR mishears, missing kanji, mangled 敬語) without re-importing —
+ * which would lose playback position and word-link history.
+ *
+ * Line is addressed by its array index (lineIndex). The line's start/dur
+ * timestamps stay untouched; only `text` and optionally `zh` are replaced.
+ */
+export async function updatePodcastLine(
+  userId: string,
+  id: string,
+  lineIndex: number,
+  patch: { text?: string; zh?: string | null },
+) {
+  if (!Number.isInteger(lineIndex) || lineIndex < 0) {
+    throw new AppError('lineIndex must be a non-negative integer', 400)
+  }
+
+  const row = await prisma.podcast.findFirst({ where: { id, userId } })
+  if (!row) throw new AppError('podcast not found', 404)
+
+  let parsed: TranscriptBlob
+  try {
+    parsed = JSON.parse(row.transcript) as TranscriptBlob
+  } catch {
+    throw new AppError('transcript is malformed', 500)
+  }
+  if (!Array.isArray(parsed.lines) || lineIndex >= parsed.lines.length) {
+    throw new AppError('line not found', 404)
+  }
+
+  const current = parsed.lines[lineIndex]
+  const nextText = patch.text !== undefined ? patch.text : current.text
+  // zh: undefined → leave alone; null or '' → clear it; string → set it.
+  let nextZh: string | undefined = current.zh
+  if (patch.zh === null || patch.zh === '') {
+    nextZh = undefined
+  } else if (typeof patch.zh === 'string') {
+    nextZh = patch.zh
+  }
+
+  parsed.lines[lineIndex] = {
+    ...current,
+    text: nextText,
+    ...(nextZh !== undefined ? { zh: nextZh } : { zh: undefined }),
+  }
+  // Strip undefined zh so the JSON stays compact (matches importPodcast shape).
+  if (parsed.lines[lineIndex].zh === undefined) {
+    delete parsed.lines[lineIndex].zh
+  }
+
+  await prisma.podcast.update({
+    where: { id },
+    data: { transcript: JSON.stringify(parsed) },
+  })
+
+  return parsed.lines[lineIndex]
+}
+
 export type { CaptionTrack }

@@ -197,6 +197,85 @@ export async function updateReview(userId: string, wordId: string, rating: strin
   })
 }
 
+/**
+ * Re-rate a word as if the user had originally picked `newRating` instead of
+ * whatever they actually picked. Used by the "misclick rescue" panel that
+ * appears at session-done — the client sends back a snapshot of the Review
+ * state *before* the (presumed wrong) rating was applied, and we recompute
+ * the FSRS state on top of that snapshot using the corrected rating.
+ *
+ * Equivalent to: rewind Review to `snapshot`, then run `updateReview(newRating)`
+ * against that pristine state. Implemented inline to keep it one write.
+ *
+ * Disallows newRating === 'again' — the UX only lets users move toward
+ * "easier", since a misclick can't downgrade you (the misclick *is* the again).
+ */
+export async function correctReview(
+  userId: string,
+  wordId: string,
+  snapshot: {
+    interval: number
+    repetition: number
+    easeFactor: number
+    difficultyScore: number
+    recentRatings: string
+    firstLearnedAt: Date | null
+    lastReviewedAt: Date | null
+  },
+  newRating: string,
+) {
+  if (!wordId.trim()) {
+    throw new AppError('wordId is required', 400)
+  }
+  assertRating(newRating)
+  if (newRating === 'again') {
+    throw new AppError('correction cannot set rating to again', 400)
+  }
+
+  const word = await prisma.word.findFirst({
+    where: { id: wordId, folder: { userId } },
+    include: { review: true },
+  })
+  if (!word) {
+    throw new AppError('word not found', 404)
+  }
+  if (!word.review) {
+    throw new AppError('word has no review to correct', 400)
+  }
+
+  const reviewedAt = new Date()
+  const nextState = calculateNextReview({
+    interval: snapshot.interval,
+    repetition: snapshot.repetition,
+    easeFactor: snapshot.easeFactor,
+    rating: newRating,
+    reviewedAt,
+  })
+  const previousRecentRatings = parseRecentRatings(snapshot.recentRatings)
+  const nextRecentRatings = [...previousRecentRatings, newRating].slice(-3)
+  const nextDifficultyScore = Math.max(
+    0,
+    snapshot.difficultyScore + getDifficultyDelta(newRating),
+  )
+  const firstLearnedAt = snapshot.lastReviewedAt
+    ? snapshot.firstLearnedAt
+    : reviewedAt
+
+  return prisma.review.update({
+    where: { wordId: word.id },
+    data: {
+      ...nextState,
+      difficultyScore: nextDifficultyScore,
+      lastRating: newRating,
+      recentRatings: nextRecentRatings.join(','),
+      firstLearnedAt,
+    },
+    include: {
+      word: { include: { folder: true } },
+    },
+  })
+}
+
 export async function markWordMastered(userId: string, wordId: string) {
   if (!wordId.trim()) {
     throw new AppError('wordId is required', 400)

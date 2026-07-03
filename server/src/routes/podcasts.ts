@@ -5,6 +5,7 @@ import {
   importPodcast,
   inspectYoutubeUrl,
   listPodcasts,
+  updatePodcastLine,
   updatePodcastPosition,
 } from '../services/podcastService'
 import { getUserId, type AppEnv } from '../middleware/requireAuth'
@@ -53,6 +54,19 @@ podcastsRouter.get('/:id', async (c) => {
 podcastsRouter.delete('/:id', async (c) => {
   const result = await deletePodcast(getUserId(c), c.req.param('id'))
   return c.json(result)
+})
+
+/** Edit a single transcript line. Used by the inline fixer when imported
+ *  captions have wrong text. Identified by array index (lineIndex). */
+podcastsRouter.patch('/:id/lines/:lineIndex', async (c) => {
+  const body = await c.req.json<{ text?: string; zh?: string | null }>()
+  const line = await updatePodcastLine(
+    getUserId(c),
+    c.req.param('id'),
+    Number.parseInt(c.req.param('lineIndex'), 10),
+    { text: body.text, zh: body.zh },
+  )
+  return c.json(line)
 })
 
 /** Frequent write — called every ~5s during playback, on pause, and on

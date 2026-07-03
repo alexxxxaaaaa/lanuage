@@ -4,6 +4,7 @@ import {
   getPodcast,
   savePodcastPosition,
   savePodcastPositionBeacon,
+  updatePodcastLine,
 } from '../api/podcasts'
 import { getErrorMessage } from '../api/error'
 import { useTab } from '../components/TabContext'
@@ -85,6 +86,12 @@ export function PodcastDetailPage() {
   const [furiganaHtml, setFuriganaHtml] = useState<string[]>([])
   const [furiganaState, setFuriganaState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [showFurigana, setShowFurigana] = useState(true)
+  // Inline-edit state for fixing wrong auto-captions. Only one line can be
+  // edited at a time — entering edit mode cancels any other in-progress edit.
+  const [editingIdx, setEditingIdx] = useState<number | null>(null)
+  const [editText, setEditText] = useState('')
+  const [editZh, setEditZh] = useState('')
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
 
   const playerRef = useRef<YTPlayer | null>(null)
   const playerHostRef = useRef<HTMLDivElement | null>(null)
@@ -278,6 +285,70 @@ export function PodcastDetailPage() {
     }
   }, [playbackRate])
 
+  const beginEditLine = (idx: number) => {
+    if (!podcast) return
+    const ln = podcast.transcript.lines[idx]
+    if (!ln) return
+    setEditingIdx(idx)
+    setEditText(ln.text ?? '')
+    setEditZh(ln.zh ?? '')
+  }
+
+  const cancelEditLine = () => {
+    setEditingIdx(null)
+    setEditText('')
+    setEditZh('')
+  }
+
+  const saveEditLine = async () => {
+    if (editingIdx === null || !podcast || !id) return
+    const original = podcast.transcript.lines[editingIdx]
+    if (!original) return
+    const nextText = editText
+    const nextZh = editZh.trim() === '' ? null : editZh
+    // Nothing actually changed → just close.
+    if (nextText === original.text && (nextZh ?? null) === (original.zh ?? null)) {
+      cancelEditLine()
+      return
+    }
+
+    setIsSavingEdit(true)
+    try {
+      const updated = await updatePodcastLine(id, editingIdx, {
+        text: nextText,
+        zh: nextZh,
+      })
+      // Patch the local podcast object so the rendered list updates without
+      // a full refetch. Keep all other lines intact.
+      setPodcast((prev) => {
+        if (!prev) return prev
+        const nextLines = prev.transcript.lines.map((ln, i) =>
+          i === editingIdx ? { ...ln, text: updated.text, zh: updated.zh } : ln,
+        )
+        return { ...prev, transcript: { ...prev.transcript, lines: nextLines } }
+      })
+      // If this is a JP podcast and furigana is already loaded, recompute
+      // furigana HTML for just this line so the ruby annotations don't go
+      // stale. Fire and forget — failure just means this one line falls back
+      // to plain text on next render.
+      if (podcast.primaryLang === 'jp' && furiganaState === 'ready') {
+        void getTokenizer().then((tk) => {
+          const html = renderFuriganaHtml(tk, updated.text)
+          setFuriganaHtml((prev) => {
+            const next = prev.slice()
+            next[editingIdx] = html
+            return next
+          })
+        })
+      }
+      cancelEditLine()
+    } catch {
+      // Leave the edit panel open so the user can retry. Don't trash their text.
+    } finally {
+      setIsSavingEdit(false)
+    }
+  }
+
   const seekToLine = (idx: number) => {
     if (!podcast) return
     const lines = podcast.transcript.lines
@@ -396,29 +467,92 @@ export function PodcastDetailPage() {
       <div className="card podcast-transcript">
         {lines.map((ln, idx) => {
           const isActive = idx === currentIdx
+          const isEditing = editingIdx === idx
           return (
             <div
               key={idx}
               id={`podcast-line-${idx}`}
-              className={`podcast-line${isActive ? ' is-active' : ''}`}
-              onClick={() => seekToLine(idx)}
+              className={`podcast-line${isActive ? ' is-active' : ''}${isEditing ? ' is-editing' : ''}`}
+              onClick={() => {
+                // Don't seek while editing — the user is trying to interact
+                // with the form, not jump elsewhere.
+                if (isEditing) return
+                seekToLine(idx)
+              }}
               role="button"
               tabIndex={0}
             >
               <div className="podcast-line-time">{formatTime(ln.start)}</div>
               <div className="podcast-line-body">
-                {showFurigana && furiganaHtml[idx] ? (
+                {isEditing ? (
                   <div
-                    className="podcast-line-text"
-                    dangerouslySetInnerHTML={{ __html: furiganaHtml[idx] }}
-                  />
+                    className="podcast-line-edit"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <textarea
+                      className="podcast-line-edit-text"
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      rows={2}
+                      autoFocus
+                      placeholder="字幕原文"
+                    />
+                    <textarea
+                      className="podcast-line-edit-zh"
+                      value={editZh}
+                      onChange={(e) => setEditZh(e.target.value)}
+                      rows={2}
+                      placeholder="中文翻译（可留空）"
+                    />
+                    <div className="podcast-line-edit-actions">
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={() => void saveEditLine()}
+                        disabled={isSavingEdit}
+                      >
+                        {isSavingEdit ? '保存中…' : '保存'}
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost-button"
+                        onClick={cancelEditLine}
+                        disabled={isSavingEdit}
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </div>
                 ) : (
-                  <div className="podcast-line-text">{ln.text}</div>
+                  <>
+                    {showFurigana && furiganaHtml[idx] ? (
+                      <div
+                        className="podcast-line-text"
+                        dangerouslySetInnerHTML={{ __html: furiganaHtml[idx] }}
+                      />
+                    ) : (
+                      <div className="podcast-line-text">{ln.text}</div>
+                    )}
+                    {ln.zh ? (
+                      <div className="podcast-line-zh muted">{ln.zh}</div>
+                    ) : null}
+                  </>
                 )}
-                {ln.zh ? (
-                  <div className="podcast-line-zh muted">{ln.zh}</div>
-                ) : null}
               </div>
+              {!isEditing ? (
+                <button
+                  type="button"
+                  className="podcast-line-edit-btn"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    beginEditLine(idx)
+                  }}
+                  title="修改这一句"
+                  aria-label="修改这一句"
+                >
+                  ✎
+                </button>
+              ) : null}
             </div>
           )
         })}

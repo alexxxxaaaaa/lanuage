@@ -5,7 +5,11 @@ import type {
   UpdateGrammarPayload,
 } from '../types'
 
-export async function getGrammars(params?: { q?: string; level?: string }) {
+export async function getGrammars(params?: {
+  q?: string
+  level?: string
+  learned?: 'learned' | 'unlearned'
+}) {
   const response = await apiClient.get<Grammar[]>('/api/grammar', { params })
   return response.data
 }

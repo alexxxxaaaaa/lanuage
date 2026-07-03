@@ -35,7 +35,10 @@ grammarRouter.post('/', async (c) => {
 grammarRouter.get('/', async (c) => {
   const query = c.req.query('q')
   const level = c.req.query('level')
-  const grammars = await getGrammars(getUserId(c), query, level)
+  const learnedRaw = c.req.query('learned')
+  const learned =
+    learnedRaw === 'learned' || learnedRaw === 'unlearned' ? learnedRaw : undefined
+  const grammars = await getGrammars(getUserId(c), query, level, learned)
   return c.json(grammars)
 })
 

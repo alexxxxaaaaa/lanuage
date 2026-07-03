@@ -109,18 +109,30 @@ export function HomePage() {
   const handleMarkMastered = async (wordId: string, wordLabel: string) => {
     if (masteringWordId) return
     setMasteringWordId(wordId)
+    // Optimistic local removal: mark-mastered ONLY affects membership in the
+    // today-new / today-review pools (the server pushes nextReviewDate 10 yrs
+    // out). Everything else stays put — no folder counts move, no other
+    // words change. So we splice locally and skip the 3× refetches the old
+    // flow did on every click. Rapid marks used to fire 3 parallel Worker
+    // requests each — 5 clicks = 15 concurrent D1 hits = 503s. Now: 1 mark
+    // request, no refetch. If the mark itself fails, we reconcile.
+    setTodayNewWords((prev) => prev.filter((w) => w.id !== wordId))
+    useAppStore.setState((state) => ({
+      todayReviews: state.todayReviews.filter((r) => r.wordId !== wordId),
+      dueReviews: state.dueReviews.filter((r) => r.wordId !== wordId),
+    }))
     try {
       await markWordMastered(wordId)
       message.success(t('home.markedMastered', { word: wordLabel }))
-      // Pull both due-pool and new-pool back so the modals reflect the change.
-      const [, , list] = await Promise.all([
+    } catch {
+      message.error(t('home.markMasteredFailed'))
+      // Server rejected — reload authoritative state so local optimistic
+      // removal doesn't outlive reality.
+      const [, list] = await Promise.all([
         useAppStore.getState().fetchTodayReviews(),
-        useAppStore.getState().fetchFolders(),
         getTodayNewWords(),
       ])
       setTodayNewWords(Array.isArray(list) ? list : [])
-    } catch {
-      message.error(t('home.markMasteredFailed'))
     } finally {
       setMasteringWordId(null)
     }

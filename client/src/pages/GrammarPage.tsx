@@ -4,6 +4,7 @@ import { fillGrammarByAi } from '../api/ai'
 import { createGrammar, getGrammars, updateGrammar } from '../api/grammar'
 import { getGrammarReviewCounts } from '../api/grammarReview'
 import { getErrorMessage } from '../api/error'
+import { useI18n } from '../i18n'
 import type { CreateGrammarPayload, Grammar } from '../types'
 
 const EMPTY_FORM: CreateGrammarPayload = {
@@ -18,6 +19,7 @@ const EMPTY_FORM: CreateGrammarPayload = {
 
 export function GrammarPage() {
   const navigate = useNavigate()
+  const { t } = useI18n()
   const [grammars, setGrammars] = useState<Grammar[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -32,6 +34,7 @@ export function GrammarPage() {
     unlearned: 0,
   })
   const [learnCount, setLearnCount] = useState<number | null>(10)
+  const [learnedFilter, setLearnedFilter] = useState<'all' | 'learned' | 'unlearned'>('all')
 
   const pinToTop = async (g: Grammar) => {
     try {
@@ -68,6 +71,8 @@ export function GrammarPage() {
     const kw = keyword.trim().toLowerCase()
     return grammars.filter((g) => {
       if (level && g.level !== level) return false
+      if (learnedFilter === 'learned' && !g.isLearned) return false
+      if (learnedFilter === 'unlearned' && g.isLearned) return false
       if (!kw) return true
       return (
         g.pattern.toLowerCase().includes(kw) ||
@@ -76,7 +81,21 @@ export function GrammarPage() {
         g.exampleZh.toLowerCase().includes(kw)
       )
     })
-  }, [grammars, keyword, level])
+  }, [grammars, keyword, level, learnedFilter])
+
+  const learnedCount = useMemo(
+    () => grammars.filter((g) => g.isLearned).length,
+    [grammars],
+  )
+
+  const toggleLearned = async (g: Grammar) => {
+    try {
+      await updateGrammar(g.id, { isLearned: !g.isLearned })
+      await load()
+    } catch (err) {
+      setError(getErrorMessage(err, '更新失败'))
+    }
+  }
 
   const levels = useMemo(() => {
     const s = new Set<string>()
@@ -134,17 +153,19 @@ export function GrammarPage() {
     <section className="page">
       <div className="section-header">
         <div>
-          <p className="eyebrow">Grammar</p>
-          <h2>语法</h2>
+          <p className="eyebrow">{t('grammar.eyebrow')}</p>
+          <h2>{t('grammar.title')}</h2>
           <p className="muted">
-            N1 句型表 · 当前 {grammars.length} 条 · 今日到期{' '}
-            <strong>{counts.due}</strong> · 新语法{' '}
-            <strong>{counts.unlearned}</strong>
+            {t('grammar.summary', {
+              total: grammars.length,
+              due: counts.due,
+              unlearned: counts.unlearned,
+            })}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <label className="session-inline" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span className="muted">每次学</span>
+            <span className="muted">{t('grammar.learnCountLabel')}</span>
             <select
               value={learnCount === null ? 'all' : String(learnCount)}
               onChange={(e) => {
@@ -156,7 +177,7 @@ export function GrammarPage() {
               <option value="10">10</option>
               <option value="20">20</option>
               <option value="30">30</option>
-              <option value="all">全部</option>
+              <option value="all">{t('grammar.learnCountAll')}</option>
             </select>
           </label>
           <button
@@ -170,7 +191,7 @@ export function GrammarPage() {
               )
             }
           >
-            学习新语法
+            {t('grammar.learnNewBtn')}
             {counts.unlearned > 0 ? <span className="btn-badge">{counts.unlearned}</span> : null}
           </button>
           <button
@@ -178,7 +199,7 @@ export function GrammarPage() {
             className="secondary-button"
             onClick={() => navigate('/grammar/review')}
           >
-            复习
+            {t('grammar.reviewBtn')}
             {counts.due > 0 ? <span className="btn-badge">{counts.due}</span> : null}
           </button>
           <button
@@ -186,27 +207,50 @@ export function GrammarPage() {
             className="ghost-button"
             onClick={() => setIsCreating((prev) => !prev)}
           >
-            {isCreating ? '收起' : '新建句型'}
+            {isCreating ? t('grammar.collapseBtn') : t('grammar.newPatternBtn')}
           </button>
         </div>
       </div>
 
-      <div className="card" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <div className="card" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           type="search"
           value={keyword}
           onChange={(event) => setKeyword(event.target.value)}
-          placeholder="按句型 / 意思 / 例句搜索"
+          placeholder={t('grammar.searchPlaceholder')}
           style={{ flex: '1 1 240px' }}
         />
         <select value={level} onChange={(event) => setLevel(event.target.value)}>
-          <option value="">全部级别</option>
+          <option value="">{t('grammar.levelAll')}</option>
           {levels.map((lv) => (
             <option key={lv} value={lv}>
               {lv}
             </option>
           ))}
         </select>
+        <div className="grammar-learned-filter">
+          <button
+            type="button"
+            className={learnedFilter === 'all' ? 'primary-button' : 'ghost-button'}
+            onClick={() => setLearnedFilter('all')}
+          >
+            {t('grammar.filterAll')} ({grammars.length})
+          </button>
+          <button
+            type="button"
+            className={learnedFilter === 'learned' ? 'primary-button' : 'ghost-button'}
+            onClick={() => setLearnedFilter('learned')}
+          >
+            {t('grammar.filterLearned')} ({learnedCount})
+          </button>
+          <button
+            type="button"
+            className={learnedFilter === 'unlearned' ? 'primary-button' : 'ghost-button'}
+            onClick={() => setLearnedFilter('unlearned')}
+          >
+            {t('grammar.filterUnlearned')} ({grammars.length - learnedCount})
+          </button>
+        </div>
       </div>
 
       {isCreating ? (
@@ -297,7 +341,7 @@ export function GrammarPage() {
 
       {!isLoading && filtered.length === 0 ? (
         <div className="card state-card" style={{ textAlign: 'center' }}>
-          <p className="muted">没有匹配的语法条目</p>
+          <p className="muted">{t('grammar.emptyList')}</p>
         </div>
       ) : null}
 
@@ -310,25 +354,42 @@ export function GrammarPage() {
                   {g.pattern}
                 </Link>
                 <span className="grammar-card-level">{g.level}</span>
+                {g.isLearned ? (
+                  <span className="grammar-card-learned">{t('grammar.learnedPill')}</span>
+                ) : null}
               </div>
-              <button
-                type="button"
-                className="ghost-button grammar-card-pin"
-                onClick={() => void pinToTop(g)}
-                title="置顶到第一个"
-              >
-                置顶
-              </button>
+              <div className="grammar-card-actions">
+                <button
+                  type="button"
+                  className={`ghost-button grammar-card-pin ${g.isLearned ? 'is-learned' : ''}`}
+                  onClick={() => void toggleLearned(g)}
+                  title={
+                    g.isLearned
+                      ? t('grammar.learnedTitleOn')
+                      : t('grammar.learnedTitleOff')
+                  }
+                >
+                  {g.isLearned ? t('grammar.unmarkLearned') : t('grammar.markLearned')}
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button grammar-card-pin"
+                  onClick={() => void pinToTop(g)}
+                  title={t('grammar.pinTitle')}
+                >
+                  {t('grammar.pin')}
+                </button>
+              </div>
             </header>
             {g.connection ? (
               <p className="grammar-card-line">
-                <span className="grammar-card-label">接续</span>
+                <span className="grammar-card-label">{t('grammar.labelConnection')}</span>
                 <span className="multiline-text">{g.connection}</span>
               </p>
             ) : null}
             {g.meaning ? (
               <p className="grammar-card-line">
-                <span className="grammar-card-label">意思</span>
+                <span className="grammar-card-label">{t('grammar.labelMeaning')}</span>
                 <span className="grammar-card-meaning">{g.meaning}</span>
               </p>
             ) : null}

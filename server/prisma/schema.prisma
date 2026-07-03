@@ -137,6 +137,7 @@ model Grammar {
   level       String   @default("N1")
   isPinned    Boolean  @default(false)
   pinnedAt    DateTime?
+  isLearned   Boolean  @default(false)
   userId      String
   user        User     @relation(fields: [userId], references: [id])
   review      GrammarReview?

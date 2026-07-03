@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../errors/AppError'
 
@@ -240,25 +241,57 @@ export async function suggestWords(userId: string, query: string, limit = 10) {
 }
 
 export async function getTodayNewWords(userId: string, folderId?: string) {
-  return prisma.word.findMany({
-    where: {
-      folder: { userId },
-      ...(folderId ? { folderId } : {}),
-      OR: [
-        { review: { is: null } },
-        { review: { is: { lastReviewedAt: null } } },
-      ],
-    },
-    // Same unified pinnedAt-desc timeline used elsewhere.
-    orderBy: [
-      { pinnedAt: 'desc' },
-      { createdAt: 'desc' },
-    ],
-    include: {
-      folder: true,
-      review: true,
-    },
+  // Learn queue = "unreviewed words". A word counts as unreviewed when:
+  //   - its Review row has lastReviewedAt = NULL, OR
+  //   - it has no Review row at all (legacy / orphan).
+  //
+  // History of approaches that didn't quite work:
+  //   1. Prisma `OR: [{review: {is: null}}, {review: {is: {lastReviewedAt: null}}}]`
+  //      generated two correlated EXISTS subqueries OR'd together — choked D1.
+  //   2. Single Prisma `where review.is.lastReviewedAt = null` silently dropped
+  //      the no-Review-row case (the relation must exist), so 8-9 orphan words
+  //      went missing from Learn even though folder UI counted them as unlearned.
+  //   3. "Fetch all, JS-filter" with take:500 pre-filter broke the global
+  //      no-folder call: recently-learned words crowded out older unlearned ones.
+  //   4. Two parallel Prisma queries + JS merge looked clean but Prisma's
+  //      `review: { is: null }` on D1 (1-to-1 optional relation) appeared to
+  //      generate SQL that didn't match the orphans we expected.
+  //
+  // Raw SQL LEFT JOIN is the unambiguous answer. One query, one subquery for
+  // the user-scope, post-filter LIMIT — no Prisma semantics to second-guess.
+  // We then re-load full Word objects (with folder/review includes) keyed by
+  // the IDs the raw query returned, so the caller gets the same shape as
+  // before.
+  // No LIMIT on the raw scan — the WHERE clause already restricts to
+  // unreviewed-only, so the result is bounded by the user's actual unlearned
+  // count, not by their full word inventory. Previously LIMIT 500 was
+  // cutting off folders whose unlearned words had older pinnedAt when the
+  // user had > 500 total unlearned across all folders.
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT w.id
+    FROM Word w
+    LEFT JOIN Review r ON r.wordId = w.id
+    WHERE w.folderId IN (SELECT id FROM Folder WHERE userId = ${userId})
+      ${folderId ? Prisma.sql`AND w.folderId = ${folderId}` : Prisma.empty}
+      AND (r.id IS NULL OR r.lastReviewedAt IS NULL)
+    ORDER BY
+      CASE WHEN w.pinnedAt IS NULL THEN 1 ELSE 0 END,
+      w.pinnedAt DESC,
+      w.createdAt DESC
+  `
+  if (rows.length === 0) return []
+
+  const ids = rows.map((r) => r.id)
+  const words = await prisma.word.findMany({
+    where: { id: { in: ids } },
+    include: { folder: true, review: true },
   })
+
+  // Re-sort by the original raw-query order (Prisma's findMany doesn't
+  // preserve `in:` ordering).
+  const order = new Map(ids.map((id, idx) => [id, idx] as const))
+  words.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
+  return words
 }
 
 export async function updateWord(

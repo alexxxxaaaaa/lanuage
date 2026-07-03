@@ -13,7 +13,10 @@ type CreateGrammarInput = {
 
 type UpdateGrammarInput = Partial<CreateGrammarInput> & {
   isPinned?: boolean
+  isLearned?: boolean
 }
+
+export type GrammarLearnedFilter = 'learned' | 'unlearned' | undefined
 
 function sanitizeUnicode(input: string) {
   return input.replace(
@@ -66,12 +69,15 @@ export async function getGrammars(
   userId: string,
   query?: string,
   level?: string,
+  learned?: GrammarLearnedFilter,
 ) {
   const normalized = query?.trim()
   return prisma.grammar.findMany({
     where: {
       userId,
       ...(level ? { level } : {}),
+      ...(learned === 'learned' ? { isLearned: true } : {}),
+      ...(learned === 'unlearned' ? { isLearned: false } : {}),
       ...(normalized
         ? {
             OR: [
@@ -129,6 +135,13 @@ export async function updateGrammar(
   if (updates.isPinned === true) {
     data.isPinned = true
     data.pinnedAt = new Date()
+  }
+
+  // Manual learn-state toggle: true / false both accepted (this one IS a
+  // toggle, unlike pin). Used by the list-page "已学/未学" buttons and
+  // automatically set to true when LearnGrammarPage records first review.
+  if (updates.isLearned !== undefined) {
+    data.isLearned = updates.isLearned
   }
 
   if (Object.keys(data).length === 0) return existing

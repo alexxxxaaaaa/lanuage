@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import {
+  correctReview,
   getTomorrowReviewStats,
   getTodayLearnedStats,
   getTodayReviews,
@@ -32,6 +33,38 @@ reviewRouter.post('/update', async (c) => {
     rating?: string
   }>()
   const review = await updateReview(getUserId(c), wordId ?? '', rating ?? '')
+  return c.json(review)
+})
+
+reviewRouter.post('/correct', async (c) => {
+  const body = await c.req.json<{
+    wordId?: string
+    snapshot?: {
+      interval?: number
+      repetition?: number
+      easeFactor?: number
+      difficultyScore?: number
+      recentRatings?: string
+      firstLearnedAt?: string | null
+      lastReviewedAt?: string | null
+    }
+    newRating?: string
+  }>()
+  const snap = body.snapshot ?? {}
+  const review = await correctReview(
+    getUserId(c),
+    body.wordId ?? '',
+    {
+      interval: snap.interval ?? 1,
+      repetition: snap.repetition ?? 0,
+      easeFactor: snap.easeFactor ?? 2.5,
+      difficultyScore: snap.difficultyScore ?? 0,
+      recentRatings: snap.recentRatings ?? '',
+      firstLearnedAt: snap.firstLearnedAt ? new Date(snap.firstLearnedAt) : null,
+      lastReviewedAt: snap.lastReviewedAt ? new Date(snap.lastReviewedAt) : null,
+    },
+    body.newRating ?? '',
+  )
   return c.json(review)
 })
 

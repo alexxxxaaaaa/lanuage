@@ -11,6 +11,7 @@ import { SpeakButton } from '../components/SpeakButton'
 import { useTab } from '../components/TabContext'
 import { VoicePicker } from '../components/VoicePicker'
 import { getFolderById } from '../api/folders'
+import { updateWord as updateWordApi } from '../api/words'
 import { useAppStore } from '../store/useAppStore'
 import type { FolderDetail } from '../types'
 import type { Word } from '../types'
@@ -95,6 +96,11 @@ export function FolderDetailPage() {
   // state means each FolderDetailPage instance keeps its own copy.
   const [folder, setFolder] = useState<FolderDetail | null>(null)
   const [isLoadingFolder, setIsLoadingFolder] = useState(false)
+  // Tracks the word id currently being pinned, so we can disable the button
+  // and reject duplicate clicks. Pre-fix, spamming 置顶 fired N parallel
+  // updateWord calls — each one (via the store) refetched the whole folder,
+  // and that blew past D1's row-read / Worker CPU budget => 503/500.
+  const [pinningId, setPinningId] = useState<string | null>(null)
 
   const [editingWordId, setEditingWordId] = useState<string | null>(null)
   const [form, setForm] = useState<WordFormState | null>(null)
@@ -114,6 +120,18 @@ export function FolderDetailPage() {
       // For duplicates: id of the already-present word, so the result row
       // can offer a "置顶" button to bump that existing entry instead.
       existingWordId?: string
+    }>
+  >([])
+  // Retry panel — auto-opens after a batch that had failures. Lets the user
+  // one-click retry only the words that didn't make it in, instead of
+  // re-pasting them.
+  const [isRetryOpen, setIsRetryOpen] = useState(false)
+  const [retryRunning, setRetryRunning] = useState(false)
+  const [retryItems, setRetryItems] = useState<
+    Array<{
+      word: string
+      message: string
+      status: 'idle' | 'running' | 'success' | 'failed'
     }>
   >([])
 
@@ -283,14 +301,37 @@ export function FolderDetailPage() {
     await reloadFolder()
   }
 
+  // Sort comparator matching the server's orderBy on /api/folders/:id —
+  // pinnedAt desc, then createdAt desc. Used to re-position the word locally
+  // after a pin so we don't have to refetch the whole folder.
+  const sortByPinThenCreated = (a: Word, b: Word) => {
+    const ap = a.pinnedAt ? new Date(a.pinnedAt).getTime() : 0
+    const bp = b.pinnedAt ? new Date(b.pinnedAt).getTime() : 0
+    if (ap !== bp) return bp - ap
+    const ac = a.createdAt ? new Date(a.createdAt).getTime() : 0
+    const bc = b.createdAt ? new Date(b.createdAt).getTime() : 0
+    return bc - ac
+  }
+
   const pinToTop = async (word: Word) => {
-    // Re-stamps the word's pinnedAt to "now" server-side. There is no unpin —
-    // newly-added words also get pinnedAt = now at creation, so the list is a
-    // unified "most recently surfaced first" timeline.
-    await useAppStore.getState().updateWord(word.id, { isPinned: true })
-    await reloadFolder()
-    setPage(1)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    // Bypass the store's updateWord — that path auto-refetches the whole
+    // folder. We patch local state from the PATCH response instead, so
+    // spamming 置顶 only fires one small request per click instead of two
+    // full-folder GETs. In-flight guard rejects re-clicks on the same row.
+    if (pinningId === word.id) return
+    setPinningId(word.id)
+    try {
+      const updated = await updateWordApi(word.id, { isPinned: true })
+      setFolder((prev) => {
+        if (!prev) return prev
+        const nextWords = prev.words
+          .map((w) => (w.id === updated.id ? updated : w))
+          .sort(sortByPinThenCreated)
+        return { ...prev, words: nextWords }
+      })
+    } finally {
+      setPinningId(null)
+    }
   }
 
   const openBatchModal = () => {
@@ -300,10 +341,18 @@ export function FolderDetailPage() {
   }
 
   const pinExistingFromBatch = async (rowIdx: number, wordId: string) => {
+    // Same path as pinToTop — direct API + local patch, no folder refetch.
+    if (pinningId === wordId) return
+    setPinningId(wordId)
     try {
-      await useAppStore.getState().updateWord(wordId, { isPinned: true })
-      await reloadFolder()
-      // Mark this row done so the user sees feedback without closing the modal.
+      const updated = await updateWordApi(wordId, { isPinned: true })
+      setFolder((prev) => {
+        if (!prev) return prev
+        const nextWords = prev.words
+          .map((w) => (w.id === updated.id ? updated : w))
+          .sort(sortByPinThenCreated)
+        return { ...prev, words: nextWords }
+      })
       setBatchResults((prev) =>
         prev.map((r, idx) =>
           idx === rowIdx ? { ...r, status: 'success', message: '已置顶' } : r,
@@ -315,12 +364,64 @@ export function FolderDetailPage() {
           idx === rowIdx ? { ...r, message: '置顶失败' } : r,
         ),
       )
+    } finally {
+      setPinningId(null)
+    }
+  }
+
+  // Try to add one word: AI-fill → create. Returns the outcome as a discriminated
+  // union so callers (batch, retry, single-add) can uniformly branch on status.
+  // Shared to avoid drift between the batch loop and the retry loop.
+  const addOneWord = async (
+    word: string,
+  ): Promise<
+    | { status: 'success' }
+    | { status: 'duplicate'; message: string; existingWordId?: string }
+    | { status: 'failed'; message: string }
+  > => {
+    if (!folder) return { status: 'failed', message: 'folder not ready' }
+    let filled: Awaited<ReturnType<typeof fillWordByAi>>
+    try {
+      filled = await fillWordByAi({
+        word,
+        language: folder.language as 'en' | 'jp',
+        sourceLanguage: folder.language as 'en' | 'jp',
+        targetLanguage: folder.language as 'en' | 'jp',
+      })
+    } catch {
+      return { status: 'failed', message: 'AI 查询失败' }
+    }
+    try {
+      await useAppStore.getState().createWord({
+        word: filled.word || word,
+        reading: filled.reading || '',
+        meaning: filled.meaning || '',
+        example: filled.example || '',
+        note: filled.note || '',
+        partOfSpeech: filled.partOfSpeech || '',
+        language: folder.language,
+        folderId: folder.id,
+      })
+      return { status: 'success' }
+    } catch (err) {
+      if (isDuplicateWordError(err)) {
+        // Match either the raw user input OR the AI-normalized form, since
+        // either could be what's in the DB.
+        const existing = folder.words.find(
+          (w) => w.word === word || (filled.word && w.word === filled.word),
+        )
+        return {
+          status: 'duplicate',
+          message: '已存在',
+          existingWordId: existing?.id,
+        }
+      }
+      return { status: 'failed', message: '保存失败' }
     }
   }
 
   const runBatchAdd = async () => {
     if (!folder) return
-    // Split on commas (Chinese or ASCII), spaces, newlines. Trim, dedupe.
     // Split on commas / semicolons / dunhao / newlines ONLY — NOT spaces.
     // Many English entries are multi-word phrases ("zebra crossing", "give
     // up") and breaking on whitespace would shatter them. Internal spaces
@@ -350,53 +451,64 @@ export function FolderDetailPage() {
 
     // Serial — keeps AI rate limits + budget happy; user sees one-by-one
     // progress which feels honest about long runs.
+    const failedThisRun: Array<{ word: string; message: string }> = []
     for (let i = 0; i < items.length; i++) {
       const word = items[i]
       updateOne(i, { status: 'running' })
-      try {
-        const filled = await fillWordByAi({
-          word,
-          language: folder.language as 'en' | 'jp',
-          sourceLanguage: folder.language as 'en' | 'jp',
-          targetLanguage: folder.language as 'en' | 'jp',
-        })
-        try {
-          await useAppStore.getState().createWord({
-            word: filled.word || word,
-            reading: filled.reading || '',
-            meaning: filled.meaning || '',
-            example: filled.example || '',
-            note: filled.note || '',
-            partOfSpeech: filled.partOfSpeech || '',
-            language: folder.language,
-            folderId: folder.id,
-          })
-          updateOne(i, { status: 'success' })
-        } catch (err) {
-          if (isDuplicateWordError(err)) {
-            // Find the already-present row so the result list can offer a
-            // pin-to-top shortcut. Match either the raw user input OR the
-            // AI-normalized form, since either could be what's in the DB.
-            const existing = folder.words.find(
-              (w) =>
-                w.word === word ||
-                (filled.word && w.word === filled.word),
-            )
-            updateOne(i, {
-              status: 'duplicate',
-              message: '已存在',
-              existingWordId: existing?.id,
-            })
-          } else {
-            updateOne(i, { status: 'failed', message: '保存失败' })
-          }
-        }
-      } catch {
-        updateOne(i, { status: 'failed', message: 'AI 查询失败' })
+      const outcome = await addOneWord(word)
+      updateOne(i, outcome)
+      if (outcome.status === 'failed') {
+        failedThisRun.push({ word, message: outcome.message })
       }
     }
 
     setBatchRunning(false)
+    await reloadFolder()
+
+    // Auto-open the retry panel if any words failed. The user asked for this
+    // to appear right after batch completion — one-click retry saves them
+    // from re-typing / re-pasting the failed words.
+    if (failedThisRun.length > 0) {
+      setRetryItems(
+        failedThisRun.map((f) => ({
+          word: f.word,
+          message: f.message,
+          status: 'idle',
+        })),
+      )
+      setIsRetryOpen(true)
+    }
+  }
+
+  const runRetry = async () => {
+    if (!folder) return
+    setRetryRunning(true)
+    // Snapshot the current pending indexes so index shifts (removals) don't
+    // break the loop — we iterate over word text, updating by index each turn.
+    const targets = retryItems
+      .map((item, idx) => ({ ...item, idx }))
+      .filter((it) => it.status === 'idle' || it.status === 'failed')
+
+    for (const t of targets) {
+      setRetryItems((prev) =>
+        prev.map((r, idx) => (idx === t.idx ? { ...r, status: 'running' } : r)),
+      )
+      const outcome = await addOneWord(t.word)
+      setRetryItems((prev) =>
+        prev.map((r, idx) => {
+          if (idx !== t.idx) return r
+          if (outcome.status === 'success') {
+            return { ...r, status: 'success', message: '' }
+          }
+          if (outcome.status === 'duplicate') {
+            return { ...r, status: 'success', message: '已存在' }
+          }
+          return { ...r, status: 'failed', message: outcome.message }
+        }),
+      )
+    }
+
+    setRetryRunning(false)
     await reloadFolder()
   }
 
@@ -548,6 +660,7 @@ export function FolderDetailPage() {
                     type="button"
                     className="ghost-button"
                     onClick={() => void pinToTop(word)}
+                    disabled={pinningId === word.id}
                     title="把这个词放到第一个"
                   >
                     置顶
@@ -892,6 +1005,7 @@ export function FolderDetailPage() {
                       className="ghost-button"
                       style={{ fontSize: 12, padding: '2px 10px', borderRadius: 999 }}
                       onClick={() => void pinExistingFromBatch(i, r.existingWordId!)}
+                      disabled={pinningId === r.existingWordId}
                       title="把这个已存在的词置顶到分类第一个"
                     >
                       置顶
@@ -917,6 +1031,68 @@ export function FolderDetailPage() {
             ) : null}
           </>
         )}
+      </Modal>
+
+      <Modal
+        open={isRetryOpen}
+        onCancel={() => {
+          if (retryRunning) return
+          setIsRetryOpen(false)
+        }}
+        title={`添加失败 ${retryItems.filter((r) => r.status === 'failed' || r.status === 'idle').length} 个`}
+        maskClosable={!retryRunning}
+        closable={!retryRunning}
+        footer={null}
+      >
+        <p className="muted" style={{ marginTop: 0 }}>
+          这些词在批量添加时失败(通常是 AI 网络抖动或临时错误),点"一键重试"重新查询 + 保存。
+        </p>
+        <ul className="retry-list">
+          {retryItems.map((r, i) => (
+            <li key={`${r.word}-${i}`} className="retry-list-item">
+              <span className="retry-list-icon" aria-hidden>
+                {r.status === 'running'
+                  ? '⏳'
+                  : r.status === 'success'
+                    ? '✅'
+                    : r.status === 'failed'
+                      ? '❌'
+                      : '·'}
+              </span>
+              <span className="retry-list-word">{r.word}</span>
+              {r.message ? (
+                <span className="muted retry-list-msg">{r.message}</span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+        <div className="retry-list-actions">
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => void runRetry()}
+            disabled={
+              retryRunning ||
+              retryItems.filter((r) => r.status === 'idle' || r.status === 'failed')
+                .length === 0
+            }
+          >
+            {retryRunning
+              ? '重试中…'
+              : `一键重试 (${retryItems.filter((r) => r.status === 'idle' || r.status === 'failed').length})`}
+          </button>
+          <button
+            type="button"
+            className="ghost-button"
+            onClick={() => {
+              if (retryRunning) return
+              setIsRetryOpen(false)
+            }}
+            disabled={retryRunning}
+          >
+            关闭
+          </button>
+        </div>
       </Modal>
     </section>
   )

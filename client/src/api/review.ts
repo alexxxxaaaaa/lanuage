@@ -33,6 +33,28 @@ export async function submitReviewResult(payload: {
   return response.data
 }
 
+// Snapshot captured right BEFORE a rating is submitted, so the server can
+// rewind FSRS state to this point and re-apply a corrected rating when the
+// user fixes a misclick at session-done.
+export type ReviewSnapshot = {
+  interval: number
+  repetition: number
+  easeFactor: number
+  difficultyScore: number
+  recentRatings: string
+  firstLearnedAt: string | null
+  lastReviewedAt: string | null
+}
+
+export async function correctReviewResult(payload: {
+  wordId: string
+  snapshot: ReviewSnapshot
+  newRating: 'hard' | 'easy'
+}) {
+  const response = await apiClient.post<ReviewItem>('/api/review/correct', payload)
+  return response.data
+}
+
 export async function markWordMastered(wordId: string) {
   const response = await apiClient.post<ReviewItem>('/api/review/mark-mastered', {
     wordId,

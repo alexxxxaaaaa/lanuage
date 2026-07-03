@@ -1,11 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { SoundOutlined } from '@ant-design/icons'
 import { Link } from 'react-router-dom'
+import { correctReviewResult } from '../api/review'
+import type { ReviewSnapshot } from '../api/review'
 import { SpeakButton } from '../components/SpeakButton'
 import { VoicePicker } from '../components/VoicePicker'
 import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
 import { pickSpeakableText, speak, stopSpeaking } from '../utils/speech'
+
+type AgainEntry = {
+  wordId: string
+  word: string
+  meaning: string
+  snapshot: ReviewSnapshot
+}
 
 type ReviewStepKey = 'recognition' | 'recall' | 'pronunciation'
 
@@ -53,6 +62,13 @@ export function ReviewPage() {
   const [recallUsedHint, setRecallUsedHint] = useState(false)
   const recallInputRef = useRef<HTMLInputElement | null>(null)
 
+  // Words that ended up rated `again` this session, with their pre-rating
+  // FSRS snapshots, so the rescue panel can re-submit a corrected rating.
+  const [againEntries, setAgainEntries] = useState<AgainEntry[]>([])
+  const [correctionDraft, setCorrectionDraft] = useState<Record<string, 'hard' | 'easy'>>({})
+  const [isApplyingCorrection, setIsApplyingCorrection] = useState(false)
+  const [correctionApplied, setCorrectionApplied] = useState(false)
+
   const folderList = Array.isArray(folders) ? folders : []
 
   useEffect(() => {
@@ -67,6 +83,9 @@ export function ReviewPage() {
     setStepRatings({})
     setDebtByWord({})
     setRepeatCountByWord({})
+    setAgainEntries([])
+    setCorrectionDraft({})
+    setCorrectionApplied(false)
     useAppStore.getState().resetReviewSession()
   }, [reviewFolderId])
 
@@ -189,6 +208,29 @@ export function ReviewPage() {
       finalRating = 'again'
     } else if (repeatPenalty >= 1 && finalRating === 'easy') {
       finalRating = 'hard'
+    }
+    // Snapshot the pre-submission FSRS state if this word is about to be
+    // submitted as `again`. Used by the rescue panel at session-done to let
+    // the user fix a misclick.
+    if (finalRating === 'again' && currentReview) {
+      const snapshot: ReviewSnapshot = {
+        interval: currentReview.interval ?? 1,
+        repetition: currentReview.repetition ?? 0,
+        easeFactor: currentReview.easeFactor ?? 2.5,
+        difficultyScore: currentReview.difficultyScore ?? 0,
+        recentRatings: currentReview.recentRatings ?? '',
+        firstLearnedAt: currentReview.firstLearnedAt ?? null,
+        lastReviewedAt: currentReview.lastReviewedAt ?? null,
+      }
+      setAgainEntries((prev) => [
+        ...prev,
+        {
+          wordId,
+          word: currentWord?.word ?? '',
+          meaning: currentWord?.meaning ?? '',
+          snapshot,
+        },
+      ])
     }
     await useAppStore.getState().submitReview(finalRating)
     setDebtByWord((prev) => {
@@ -360,6 +402,37 @@ export function ReviewPage() {
     const folderFilterLabel = reviewFolderId
       ? folderList.find((f) => f.id === reviewFolderId)?.name ?? ''
       : null
+    const pendingFixes = Object.entries(correctionDraft)
+    const applyCorrections = async () => {
+      if (pendingFixes.length === 0) return
+      setIsApplyingCorrection(true)
+      try {
+        for (const [wordId, newRating] of pendingFixes) {
+          const entry = againEntries.find((e) => e.wordId === wordId)
+          if (!entry) continue
+          try {
+            await correctReviewResult({
+              wordId,
+              snapshot: entry.snapshot,
+              newRating,
+            })
+          } catch {
+            // skip; remaining fixes still apply
+          }
+        }
+        // Remove fixed entries from the rescue list so the panel hides when
+        // all are handled. We DON'T remove "keep again" entries — those are
+        // explicit user decisions, but the unchanged entry is fine to leave
+        // visible until the user navigates away.
+        setAgainEntries((prev) =>
+          prev.filter((entry) => !(entry.wordId in correctionDraft)),
+        )
+        setCorrectionDraft({})
+        setCorrectionApplied(true)
+      } finally {
+        setIsApplyingCorrection(false)
+      }
+    }
 
     return (
       <section className="page">
@@ -373,6 +446,88 @@ export function ReviewPage() {
               ? t('review.sessionDoneWithFolder', { name: folderFilterLabel ?? '' })
               : t('review.sessionDoneNoFolder')}
           </p>
+
+          {againEntries.length > 0 ? (
+            <div className="again-rescue">
+              <div className="again-rescue-header">
+                <strong>{t('review.againRescueTitle', { count: againEntries.length })}</strong>
+                <span className="muted">{t('review.againRescueHint')}</span>
+              </div>
+              <ul className="again-rescue-list">
+                {againEntries.map((entry) => {
+                  const draft = correctionDraft[entry.wordId]
+                  return (
+                    <li key={entry.wordId} className="again-rescue-item">
+                      <div className="again-rescue-word">
+                        <strong>{entry.word}</strong>
+                        {entry.meaning ? (
+                          <span className="muted">· {entry.meaning}</span>
+                        ) : null}
+                      </div>
+                      <div className="again-rescue-actions">
+                        <button
+                          type="button"
+                          className={'pill-btn' + (!draft ? ' is-active' : '')}
+                          onClick={() =>
+                            setCorrectionDraft((prev) => {
+                              const next = { ...prev }
+                              delete next[entry.wordId]
+                              return next
+                            })
+                          }
+                          disabled={isApplyingCorrection}
+                        >
+                          {t('review.againRescueKeep')}
+                        </button>
+                        <button
+                          type="button"
+                          className={'pill-btn' + (draft === 'hard' ? ' is-active' : '')}
+                          onClick={() =>
+                            setCorrectionDraft((prev) => ({
+                              ...prev,
+                              [entry.wordId]: 'hard',
+                            }))
+                          }
+                          disabled={isApplyingCorrection}
+                        >
+                          {t('review.againRescueToHard')}
+                        </button>
+                        <button
+                          type="button"
+                          className={'pill-btn' + (draft === 'easy' ? ' is-active' : '')}
+                          onClick={() =>
+                            setCorrectionDraft((prev) => ({
+                              ...prev,
+                              [entry.wordId]: 'easy',
+                            }))
+                          }
+                          disabled={isApplyingCorrection}
+                        >
+                          {t('review.againRescueToEasy')}
+                        </button>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+              <div className="again-rescue-footer">
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => void applyCorrections()}
+                  disabled={pendingFixes.length === 0 || isApplyingCorrection}
+                >
+                  {isApplyingCorrection
+                    ? t('review.againRescueApplying')
+                    : t('review.againRescueApply', { count: pendingFixes.length })}
+                </button>
+                {correctionApplied ? (
+                  <span className="muted">{t('review.againRescueApplied')}</span>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
           <div className="actions">
             <Link className="primary-link" to="/learn">
               {t('review.goLearn')}
@@ -469,7 +624,15 @@ export function ReviewPage() {
                 value={typedRecall}
                 onChange={(event) => setTypedRecall(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
+                  // Skip Enter fired while an IME composition is still open
+                  // (e.g. Japanese IME confirming a kanji candidate) — those
+                  // shouldn't submit the answer. `keyCode === 229` is the
+                  // legacy signal for "IME is handling this key".
+                  if (
+                    event.key === 'Enter' &&
+                    !event.nativeEvent.isComposing &&
+                    event.keyCode !== 229
+                  ) {
                     event.preventDefault()
                     event.stopPropagation()
                     handleRecallSubmit()

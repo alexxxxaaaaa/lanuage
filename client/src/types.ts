@@ -112,6 +112,10 @@ export type ReviewItem = {
   interval: number
   repetition: number
   easeFactor: number
+  difficultyScore?: number
+  lastRating?: string
+  recentRatings?: string
+  firstLearnedAt?: string | null
   nextReviewDate: string
   lastReviewedAt: string | null
   word: Word & {
@@ -144,6 +148,7 @@ export type Grammar = {
   level: string
   isPinned?: boolean
   pinnedAt?: string | null
+  isLearned?: boolean
   createdAt?: string
   updatedAt?: string
   review?: GrammarReview | null
@@ -179,6 +184,7 @@ export type CreateGrammarPayload = {
 
 export type UpdateGrammarPayload = Partial<CreateGrammarPayload> & {
   isPinned?: boolean
+  isLearned?: boolean
 }
 
 export type PodcastSummary = {

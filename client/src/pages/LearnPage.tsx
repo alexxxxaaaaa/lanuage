@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { SoundOutlined } from '@ant-design/icons'
 import { Link, useNavigate } from 'react-router-dom'
-import { submitReviewResult } from '../api/review'
+import { correctReviewResult, submitReviewResult } from '../api/review'
+import type { ReviewSnapshot } from '../api/review'
 import { getTodayNewWords } from '../api/words'
 import { SpeakButton } from '../components/SpeakButton'
 import { useI18n } from '../i18n'
@@ -16,9 +17,15 @@ type Phase = 'study' | 'cloze' | 'recall' | 'recovery' | 'session-done'
 type Status = 'idle' | 'correct' | 'wrong'
 
 type BatchSummary = {
+  wordId: string
   word: string
+  meaning: string
   errors: number
   rating: ReviewRating
+  // FSRS state right BEFORE this rating was submitted. Used by the misclick
+  // rescue panel at session-done to let the user re-rate without piling a
+  // second mutation on top of the (possibly wrong) first one.
+  snapshot: ReviewSnapshot
 }
 
 function katakanaToHiragana(value: string) {
@@ -183,6 +190,11 @@ export function LearnPage() {
   const [status, setStatus] = useState<Status>('idle')
   const [usedHintByWord, setUsedHintByWord] = useState<Record<string, boolean>>({})
   const [sessionSummary, setSessionSummary] = useState<BatchSummary[]>([])
+  // wordId → "what the user changed Again to" at session-done. Local-only;
+  // posted to the server when the user clicks 应用修正.
+  const [correctionDraft, setCorrectionDraft] = useState<Record<string, 'hard' | 'easy'>>({})
+  const [isApplyingCorrection, setIsApplyingCorrection] = useState(false)
+  const [correctionApplied, setCorrectionApplied] = useState(false)
   const recallInputRef = useRef<HTMLInputElement | null>(null)
 
   // Append a "final review" batch containing every word in the session, so
@@ -237,6 +249,8 @@ export function LearnPage() {
         setStatus('idle')
         setUsedHintByWord({})
         setSessionSummary([])
+        setCorrectionDraft({})
+        setCorrectionApplied(false)
       } catch {
         setError(t('learn.loadFailed'))
       } finally {
@@ -366,12 +380,31 @@ export function LearnPage() {
           const hinted = usedHintByWord[w.id] ?? false
           let rating = computeRating(errs)
           if (rating === 'easy' && hinted) rating = 'hard'
+          // Snapshot the pre-rating FSRS state. Each word in a Learn session
+          // submits exactly once (final round doesn't submit), so word.review
+          // is still the pre-submission state here.
+          const snapshot: ReviewSnapshot = {
+            interval: w.review?.interval ?? 1,
+            repetition: w.review?.repetition ?? 0,
+            easeFactor: w.review?.easeFactor ?? 2.5,
+            difficultyScore: w.review?.difficultyScore ?? 0,
+            recentRatings: w.review?.recentRatings ?? '',
+            firstLearnedAt: w.review?.firstLearnedAt ?? null,
+            lastReviewedAt: w.review?.lastReviewedAt ?? null,
+          }
           try {
             await submitReviewResult({ wordId: w.id, rating })
           } catch {
             // continue with other words even if one fails
           }
-          summaries.push({ word: w.word, errors: errs, rating })
+          summaries.push({
+            wordId: w.id,
+            word: w.word,
+            meaning: w.meaning,
+            errors: errs,
+            rating,
+            snapshot,
+          })
         }
         setSessionSummary((prev) => [...prev, ...summaries])
       }
@@ -537,6 +570,37 @@ export function LearnPage() {
     const total = sessionSummary.length
     const perfect = sessionSummary.filter((s) => s.errors === 0).length
     const slipped = total - perfect
+    const againItems = sessionSummary.filter((s) => s.rating === 'again')
+    const pendingFixes = Object.entries(correctionDraft)
+    const applyCorrections = async () => {
+      if (pendingFixes.length === 0) return
+      setIsApplyingCorrection(true)
+      try {
+        for (const [wordId, newRating] of pendingFixes) {
+          const item = sessionSummary.find((s) => s.wordId === wordId)
+          if (!item) continue
+          try {
+            await correctReviewResult({
+              wordId,
+              snapshot: item.snapshot,
+              newRating,
+            })
+          } catch {
+            // skip failed corrections; the rest still apply
+          }
+        }
+        setSessionSummary((prev) =>
+          prev.map((item) => {
+            const fix = correctionDraft[item.wordId]
+            return fix ? { ...item, rating: fix } : item
+          }),
+        )
+        setCorrectionDraft({})
+        setCorrectionApplied(true)
+      } finally {
+        setIsApplyingCorrection(false)
+      }
+    }
     return (
       <section className="page">
         <div className="card learn-card state-card">
@@ -544,6 +608,94 @@ export function LearnPage() {
           <p className="muted">
             {t('learn.sessionDoneSummary', { total, perfect, slipped })}
           </p>
+
+          {againItems.length > 0 ? (
+            <div className="again-rescue">
+              <div className="again-rescue-header">
+                <strong>{t('learn.againRescueTitle', { count: againItems.length })}</strong>
+                <span className="muted">{t('learn.againRescueHint')}</span>
+              </div>
+              <ul className="again-rescue-list">
+                {againItems.map((item) => {
+                  const draft = correctionDraft[item.wordId]
+                  return (
+                    <li key={item.wordId} className="again-rescue-item">
+                      <div className="again-rescue-word">
+                        <strong>{item.word}</strong>
+                        {item.meaning ? (
+                          <span className="muted">· {item.meaning}</span>
+                        ) : null}
+                      </div>
+                      <div className="again-rescue-actions">
+                        <button
+                          type="button"
+                          className={
+                            'pill-btn' + (!draft ? ' is-active' : '')
+                          }
+                          onClick={() =>
+                            setCorrectionDraft((prev) => {
+                              const next = { ...prev }
+                              delete next[item.wordId]
+                              return next
+                            })
+                          }
+                          disabled={isApplyingCorrection}
+                        >
+                          {t('learn.againRescueKeep')}
+                        </button>
+                        <button
+                          type="button"
+                          className={
+                            'pill-btn' + (draft === 'hard' ? ' is-active' : '')
+                          }
+                          onClick={() =>
+                            setCorrectionDraft((prev) => ({
+                              ...prev,
+                              [item.wordId]: 'hard',
+                            }))
+                          }
+                          disabled={isApplyingCorrection}
+                        >
+                          {t('learn.againRescueToHard')}
+                        </button>
+                        <button
+                          type="button"
+                          className={
+                            'pill-btn' + (draft === 'easy' ? ' is-active' : '')
+                          }
+                          onClick={() =>
+                            setCorrectionDraft((prev) => ({
+                              ...prev,
+                              [item.wordId]: 'easy',
+                            }))
+                          }
+                          disabled={isApplyingCorrection}
+                        >
+                          {t('learn.againRescueToEasy')}
+                        </button>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+              <div className="again-rescue-footer">
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => void applyCorrections()}
+                  disabled={pendingFixes.length === 0 || isApplyingCorrection}
+                >
+                  {isApplyingCorrection
+                    ? t('learn.againRescueApplying')
+                    : t('learn.againRescueApply', { count: pendingFixes.length })}
+                </button>
+                {correctionApplied ? (
+                  <span className="muted">{t('learn.againRescueApplied')}</span>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
           <ul className="learn-summary-list">
             {sessionSummary.map((item, idx) => (
               <li key={`${item.word}-${idx}`} className="learn-summary-item">
@@ -717,7 +869,15 @@ export function LearnPage() {
                 value={typedAnswer}
                 onChange={(event) => setTypedAnswer(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
+                  // Skip Enter while IME composition is still open (Japanese
+                  // IME confirming a kanji candidate presses Enter too) —
+                  // those aren't the user submitting their answer.
+                  // keyCode === 229 is the legacy IME signal.
+                  if (
+                    event.key === 'Enter' &&
+                    !event.nativeEvent.isComposing &&
+                    event.keyCode !== 229
+                  ) {
                     // Always stop propagation so window-level Enter doesn't
                     // also advance in the same keystroke.
                     event.preventDefault()
@@ -793,7 +953,15 @@ export function LearnPage() {
                 value={typedAnswer}
                 onChange={(event) => setTypedAnswer(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
+                  // Skip Enter while IME composition is still open (Japanese
+                  // IME confirming a kanji candidate presses Enter too) —
+                  // those aren't the user submitting their answer.
+                  // keyCode === 229 is the legacy IME signal.
+                  if (
+                    event.key === 'Enter' &&
+                    !event.nativeEvent.isComposing &&
+                    event.keyCode !== 229
+                  ) {
                     // Always stop propagation so window-level Enter doesn't
                     // also advance in the same keystroke.
                     event.preventDefault()
@@ -867,7 +1035,15 @@ export function LearnPage() {
                 value={typedAnswer}
                 onChange={(event) => setTypedAnswer(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
+                  // Skip Enter while IME composition is still open (Japanese
+                  // IME confirming a kanji candidate presses Enter too) —
+                  // those aren't the user submitting their answer.
+                  // keyCode === 229 is the legacy IME signal.
+                  if (
+                    event.key === 'Enter' &&
+                    !event.nativeEvent.isComposing &&
+                    event.keyCode !== 229
+                  ) {
                     // Always stop propagation so window-level Enter doesn't
                     // also advance in the same keystroke.
                     event.preventDefault()

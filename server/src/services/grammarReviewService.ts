@@ -217,7 +217,7 @@ export async function initGrammarReview(
     return submitGrammarReview(userId, grammarId, rating)
   }
 
-  return prisma.grammarReview.create({
+  const review = await prisma.grammarReview.create({
     data: {
       grammarId: grammar.id,
       ...nextState,
@@ -228,6 +228,13 @@ export async function initGrammarReview(
     },
     include: { grammar: true },
   })
+  // Auto-mark learned on first review so the list filter picks it up without
+  // the user needing a second click.
+  await prisma.grammar.update({
+    where: { id: grammar.id },
+    data: { isLearned: true },
+  })
+  return review
 }
 
 export async function getUnlearnedGrammars(userId: string) {

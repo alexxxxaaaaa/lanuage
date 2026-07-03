@@ -379,6 +379,37 @@ a {
   font-weight: 600;
   letter-spacing: 0.04em;
 }
+.grammar-card-learned {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #065f46;
+  font-size: 12px;
+  font-weight: 600;
+}
+.grammar-card-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.grammar-card-pin.is-learned {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #065f46;
+}
+.grammar-learned-filter {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.grammar-learned-filter .ghost-button,
+.grammar-learned-filter .primary-button {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 999px;
+}
 .grammar-card-pin {
   flex-shrink: 0;
   font-size: 12px;
@@ -480,6 +511,48 @@ a {
   background: rgba(0, 0, 0, 0.08);
   color: inherit;
 }
+
+.retry-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+  display: grid;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.retry-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.03);
+  font-size: 14px;
+}
+.retry-list-icon {
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.retry-list-word {
+  flex: 1;
+  color: var(--text-h);
+  font-family: inherit;
+  min-width: 0;
+  word-break: break-word;
+}
+.retry-list-msg {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.retry-list-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .tab-page {
   display: flex;
   flex-direction: column;
@@ -844,6 +917,103 @@ button:disabled,
   display: grid;
   gap: 6px;
   max-width: 420px;
+}
+
+.again-rescue {
+  margin: 16px auto 0;
+  max-width: 520px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(220, 38, 38, 0.06);
+  border: 1px solid rgba(220, 38, 38, 0.18);
+  text-align: left;
+}
+
+.again-rescue-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.again-rescue-header strong {
+  color: rgb(185, 28, 28);
+  font-size: 14px;
+}
+
+.again-rescue-header .muted {
+  font-size: 12px;
+}
+
+.again-rescue-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.again-rescue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.again-rescue-word {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 160px;
+}
+
+.again-rescue-word strong {
+  color: var(--text-h);
+  font-size: 15px;
+}
+
+.again-rescue-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.again-rescue-footer {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pill-btn {
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text-h);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.pill-btn:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.pill-btn.is-active {
+  background: rgb(37, 99, 235);
+  border-color: rgb(37, 99, 235);
+  color: white;
+}
+
+.pill-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .learn-summary-item {
@@ -3327,9 +3497,11 @@ button:disabled,
   gap: 4px;
 }
 .podcast-line {
+  position: relative;
   display: flex;
+  align-items: flex-start;
   gap: 12px;
-  padding: 8px 10px;
+  padding: 8px 38px 8px 10px;
   border-radius: 10px;
   cursor: pointer;
   transition: background 0.15s ease;
@@ -3340,13 +3512,85 @@ button:disabled,
 .podcast-line.is-active {
   background: rgba(99, 102, 241, 0.1);
 }
+.podcast-line.is-editing {
+  background: rgba(99, 102, 241, 0.06);
+  cursor: default;
+}
+
+.podcast-line-edit-btn {
+  position: absolute;
+  /* Match the line's padding-top so the button's center aligns with the
+   * first text line, not the row top. */
+  top: 0px;
+  right: 8px;
+  width: 22px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--muted, #6b7280);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.podcast-line:hover .podcast-line-edit-btn,
+.podcast-line:focus-within .podcast-line-edit-btn {
+  opacity: 1;
+}
+.podcast-line-edit-btn:hover {
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--text-h);
+}
+
+.podcast-line-edit {
+  display: grid;
+  gap: 8px;
+}
+.podcast-line-edit-text,
+.podcast-line-edit-zh {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  background: white;
+}
+.podcast-line-edit-text:focus,
+.podcast-line-edit-zh:focus {
+  outline: none;
+  border-color: rgb(99, 102, 241);
+}
+.podcast-line-edit-zh {
+  font-size: 13px;
+  color: var(--muted, #6b7280);
+}
+.podcast-line-edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+.podcast-line-edit-actions .primary-button,
+.podcast-line-edit-actions .ghost-button {
+  padding: 4px 14px;
+  font-size: 13px;
+}
 .podcast-line-time {
   font-variant-numeric: tabular-nums;
   color: var(--muted, #6b7280);
   font-size: 12px;
   width: 48px;
   flex-shrink: 0;
-  padding-top: 2px;
+  /* Line-height matches the body text's first line so 7:59 sits on the same
+   * baseline as 復旧に, even though the time font is 3px smaller. */
+  line-height: 24px;
 }
 .podcast-line-body {
   flex: 1;
