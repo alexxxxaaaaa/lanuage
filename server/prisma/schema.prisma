@@ -199,6 +199,53 @@ model GrammarReview {
   lastReviewedAt  DateTime?
 }
 
+// ===== 真题题库（JLPT past-exam question bank）=====
+
+model ExamPaper {
+  id        String         @id @default(uuid())
+  level     String         @default("N1")
+  year      Int
+  month     Int
+  title     String         @default("")
+  createdAt DateTime       @default(now())
+  passages  ExamPassage[]
+  questions ExamQuestion[]
+
+  @@unique([level, year, month])
+}
+
+model ExamPassage {
+  id      String    @id @default(uuid())
+  paperId String
+  paper   ExamPaper @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  code    String // 如 "P10"、"P11-A"
+  type    String    @default("")
+  content String
+
+  @@unique([paperId, code])
+  @@index([paperId])
+}
+
+model ExamQuestion {
+  id          String    @id @default(uuid())
+  paperId     String
+  paper       ExamPaper @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  seq         String // 展示题号，如 "Q1"、"聴解1-1"
+  orderNo     Int // 排序用数字
+  section     String // 文字·語彙 / 文法 / 読解 / 聴解
+  mondai      String    @default("") // 問題号或听力小节
+  type        String    @default("")
+  stemJp      String    @default("")
+  stemZh      String    @default("")
+  options     String    @default("[]") // JSON 数组字符串
+  answer      Int
+  explain     String    @default("")
+  passageCode String    @default("") // 引用 ExamPassage.code（读解题）
+
+  @@unique([paperId, seq])
+  @@index([paperId])
+}
+
 model Podcast {
   id          String   @id @default(uuid())
   userId      String

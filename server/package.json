@@ -15,6 +15,7 @@
     "migrate:mysql-to-sqlite": "node --import tsx scripts/migrateMysqlToSqlite.ts",
     "export:sqlite-to-d1-sql": "node --import tsx scripts/exportSqliteToD1Sql.ts",
     "import:words": "node --import tsx scripts/importWordsToCloud.ts",
+    "import:exam": "node --experimental-strip-types scripts/importExam.ts",
     "extract:n1-pdf": "python3 scripts/extractN1Pdf.py",
     "wrangler:dev": "wrangler dev",
     "wrangler:deploy": "wrangler deploy",
