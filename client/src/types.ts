@@ -230,3 +230,50 @@ export type YoutubeInspectResult = {
   thumbnail: string
   captionTracks: YoutubeCaptionTrack[]
 }
+
+// Real-exam (真题) types. Section categories mirror the JLPT question
+// families so the UI can render each with appropriate layout.
+export type ExamSectionType =
+  | 'vocabulary_reading'
+  | 'vocabulary_kanji'
+  | 'vocabulary_context'
+  | 'vocabulary_paraphrase'
+  | 'vocabulary_usage'
+  | 'grammar_choose'
+  | 'grammar_arrange'
+  | 'reading_comprehension'
+  | 'listening'
+  | 'other'
+
+export type ExamQuestion = {
+  id: number
+  stem: string
+  target?: string
+  choices: string[]
+  passage?: string
+  answer: number | null
+  explanation?: string
+}
+
+export type ExamSection = {
+  type: ExamSectionType
+  instruction: string
+  passage?: string
+  questions: ExamQuestion[]
+}
+
+export type ExamListItem = {
+  id: string
+  title: string
+  year: string
+  level: string
+  questionPdfUrl: string
+  solutionPdfUrl: string
+  audioUrl: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type ExamDetail = ExamListItem & {
+  parsedData: { sections: ExamSection[] }
+}

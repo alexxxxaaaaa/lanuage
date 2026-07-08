@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Input, Select } from 'antd'
 import { Link } from 'react-router-dom'
 import { createExpressionFolder, getExpressionFolders } from '../api/expressions'
 import { getErrorMessage } from '../api/error'
@@ -75,24 +76,22 @@ export function ExpressionsPage() {
         <form className="card word-form" onSubmit={(event) => void handleCreateFolder(event)}>
           <label>
             {t('expression.folderName')}
-            <input
+            <Input
               value={form.name}
               onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
               placeholder={t('expression.folderNamePlaceholder')}
-              required
             />
           </label>
           <label>
             {t('expression.language')}
-            <select
+            <Select
               value={form.language}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, language: event.target.value as 'en' | 'jp' }))
-              }
-            >
-              <option value="en">{t('expression.english')}</option>
-              <option value="jp">{t('expression.japanese')}</option>
-            </select>
+              onChange={(v) => setForm((prev) => ({ ...prev, language: v }))}
+              options={[
+                { value: 'en', label: t('expression.english') },
+                { value: 'jp', label: t('expression.japanese') },
+              ]}
+            />
           </label>
           <div className="form-actions">
             <button type="submit" className="primary-button" disabled={isSubmitting}>

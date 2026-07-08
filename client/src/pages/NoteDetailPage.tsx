@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Input } from 'antd'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getNoteById, type NoteDetail, updateNote } from '../api/notes'
 import { RichTextEditor } from '../components/RichTextEditor'
@@ -113,22 +114,21 @@ export function NoteDetailPage() {
             <form className="card word-form" onSubmit={(event) => void handleUpdate(event)}>
               <label>
                 标题
-                <input
+                <Input
                   value={form.title}
                   onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-                  required
                 />
               </label>
               <label>
                 课程
-                <input
+                <Input
                   value={form.course}
                   onChange={(event) => setForm((prev) => ({ ...prev, course: event.target.value }))}
                 />
               </label>
               <label>
                 课次
-                <input
+                <Input
                   value={form.lesson}
                   onChange={(event) => setForm((prev) => ({ ...prev, lesson: event.target.value }))}
                   placeholder="例如：L23"

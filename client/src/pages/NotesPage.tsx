@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Input, Select } from 'antd'
 import { Link } from 'react-router-dom'
 import { createNote, getNotes } from '../api/notes'
 import { RichTextEditor } from '../components/RichTextEditor'
@@ -95,22 +96,21 @@ export function NotesPage() {
         <form className="card word-form" onSubmit={(event) => void handleCreate(event)}>
           <label>
             标题
-            <input
+            <Input
               value={form.title}
               onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-              required
             />
           </label>
           <label>
             课程
-            <input
+            <Input
               value={form.course}
               onChange={(event) => setForm((prev) => ({ ...prev, course: event.target.value }))}
             />
           </label>
           <label>
             课次
-            <input
+            <Input
               value={form.lesson}
               onChange={(event) => setForm((prev) => ({ ...prev, lesson: event.target.value }))}
               placeholder="例如：L23"
@@ -135,17 +135,17 @@ export function NotesPage() {
 
       {courseOptions.length > 0 ? (
         <div className="card expression-filter-row expression-filter-row-single">
-          <select
-            value={courseFilter}
-            onChange={(event) => setCourseFilter(event.target.value)}
-          >
-            <option value="">全部课程</option>
-            {courseOptions.map((course) => (
-              <option key={course} value={course}>
-                {course}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={courseFilter || undefined}
+            onChange={(v) => setCourseFilter(v ?? '')}
+            placeholder="全部课程"
+            allowClear
+            style={{ minWidth: 180 }}
+            options={courseOptions.map((course) => ({
+              value: course,
+              label: course,
+            }))}
+          />
         </div>
       ) : null}
 

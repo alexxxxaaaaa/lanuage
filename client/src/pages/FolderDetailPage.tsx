@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Input, Tag } from 'antd'
-import { Modal } from 'antd'
-import { Pagination } from 'antd'
+import { Input, Modal, Pagination, Select, Tag } from 'antd'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { fillWordByAi } from '../api/ai'
 import { isDuplicateWordError } from '../api/error'
@@ -774,69 +772,63 @@ export function FolderDetailPage() {
             <div className="word-grid">
               <label className="form-field">
                 <span>{t('folderDetail.formWord')}</span>
-                <input
+                <Input
                   value={form.word}
                   onChange={(event) =>
                     setForm((prev) =>
                       prev ? { ...prev, word: event.target.value } : prev,
                     )
                   }
-                  required
                 />
               </label>
               <label className="form-field">
                 <span>{t('folderDetail.formReading')}</span>
-                <input
+                <Input
                   value={form.reading}
                   onChange={(event) =>
                     setForm((prev) =>
                       prev ? { ...prev, reading: event.target.value } : prev,
                     )
                   }
-                  required
                 />
               </label>
               <label className="form-field form-field-full">
                 <span>{t('folderDetail.formFolder')}</span>
-                <select
-                  value={form.folderId}
+                <Select
+                  value={form.folderId || undefined}
                   disabled={isLoadingFolders}
-                  onChange={(event) =>
+                  onChange={(v) =>
                     setForm((prev) =>
-                      prev ? { ...prev, folderId: event.target.value } : prev,
+                      prev ? { ...prev, folderId: v ?? '' } : prev,
                     )
                   }
-                  required
-                >
-                  <option value="">{t('folderDetail.formChooseFolder')}</option>
-                  {folderList.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name} ({item.language})
-                    </option>
-                  ))}
-                </select>
+                  placeholder={t('folderDetail.formChooseFolder')}
+                  options={folderList.map((item) => ({
+                    value: item.id,
+                    label: `${item.name} (${item.language})`,
+                  }))}
+                />
               </label>
               <label className="form-field form-field-full">
                 <span>{t('folderDetail.formSourceNote')}</span>
-                <select
-                  value={form.sourceNoteId}
-                  onChange={(event) =>
+                <Select
+                  value={form.sourceNoteId || undefined}
+                  onChange={(v) =>
                     setForm((prev) =>
-                      prev ? { ...prev, sourceNoteId: event.target.value } : prev,
+                      prev ? { ...prev, sourceNoteId: v ?? '' } : prev,
                     )
                   }
-                >
-                  <option value="">{t('folderDetail.formNoSource')}</option>
-                  {noteOptions.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.title}
-                    </option>
-                  ))}
-                </select>
+                  placeholder={t('folderDetail.formNoSource')}
+                  allowClear
+                  options={noteOptions.map((item) => ({
+                    value: item.id,
+                    label: item.title,
+                  }))}
+                />
               </label>
               <label className="form-field form-field-full">
                 <span>{t('folderDetail.formPartOfSpeech')}</span>
-                <input
+                <Input
                   value={form.partOfSpeech}
                   onChange={(event) =>
                     setForm((prev) =>
@@ -848,7 +840,7 @@ export function FolderDetailPage() {
               </label>
               <label className="form-field form-field-full">
                 <span>{t('folderDetail.formMeaning')}</span>
-                <textarea
+                <Input.TextArea
                   rows={3}
                   value={form.meaning}
                   onChange={(event) =>
@@ -860,7 +852,7 @@ export function FolderDetailPage() {
               </label>
               <label className="form-field form-field-full">
                 <span>{t('folderDetail.formExample')}</span>
-                <textarea
+                <Input.TextArea
                   rows={2}
                   value={form.example}
                   onChange={(event) =>
@@ -872,7 +864,7 @@ export function FolderDetailPage() {
               </label>
               <label className="form-field form-field-full">
                 <span>{t('folderDetail.formNote')}</span>
-                <textarea
+                <Input.TextArea
                   rows={2}
                   value={form.note}
                   onChange={(event) =>
@@ -920,21 +912,12 @@ export function FolderDetailPage() {
             <p className="muted" style={{ marginTop: 0 }}>
               用逗号、空格或换行分隔多个词。AI 会逐个查并加到当前分类。
             </p>
-            <textarea
+            <Input.TextArea
               value={batchInput}
               onChange={(e) => setBatchInput(e.target.value)}
               placeholder={'例如:\n勉強\n頑張る、励まし'}
               rows={8}
-              style={{
-                width: '100%',
-                padding: 10,
-                fontSize: 14,
-                fontFamily: 'inherit',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                resize: 'vertical',
-                boxSizing: 'border-box',
-              }}
+              autoSize={{ minRows: 6, maxRows: 20 }}
             />
             <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button

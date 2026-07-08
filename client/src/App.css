@@ -3470,10 +3470,60 @@ button:disabled,
   padding-bottom: 96px; /* room for the bottom toolbar */
 }
 .podcast-player-card {
+  position: sticky;
+  top: 12px;
+  z-index: 20;
   padding: 12px;
   overflow: hidden;
   display: flex;
   justify-content: center;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+.podcast-player-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(15, 23, 42, 0.6);
+  color: white;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+.podcast-player-close:hover {
+  background: rgba(15, 23, 42, 0.85);
+}
+
+/* Floating "show video" button — appears when the player is hidden so users
+ * can bring it back without hunting for the toolbar chip. Sits pinned to the
+ * top-right corner of the viewport. */
+.podcast-video-show-btn {
+  position: fixed;
+  top: 72px;
+  right: 20px;
+  z-index: 15;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: none;
+  background: rgb(79, 70, 229);
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+  transition: background 0.15s, transform 0.15s;
+}
+.podcast-video-show-btn:hover {
+  background: rgb(67, 56, 202);
+  transform: translateY(-1px);
 }
 .podcast-player-frame {
   position: relative;
@@ -3836,3 +3886,486 @@ button:disabled,
   color: var(--muted, #6b7280);
 }
 .recall-length-secondary { opacity: 0.75; }
+
+/* Exams (真题) — list, upload modal, detail viewer. */
+.exam-list {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0 0;
+  display: grid;
+  gap: 12px;
+}
+.exam-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+}
+.exam-card-body {
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.exam-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+}
+.exam-card-title strong {
+  color: var(--text-h);
+}
+.exam-card-meta {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+.exam-card-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.exam-upload-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+}
+.exam-upload-field {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted, #6b7280);
+}
+.exam-upload-field > span {
+  font-weight: 500;
+}
+.exam-upload-field input[type="text"],
+.exam-upload-field input[type="file"],
+.exam-upload-field select {
+  padding: 8px 10px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text-h);
+  background: white;
+}
+.exam-upload-field input:focus,
+.exam-upload-field select:focus {
+  outline: none;
+  border-color: rgb(99, 102, 241);
+}
+.exam-upload-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.exam-upload-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.exam-detail {
+  padding-bottom: 60px;
+}
+.exam-detail-body {
+  display: grid;
+  gap: 28px;
+  margin-top: 20px;
+}
+.exam-section {
+  display: grid;
+  gap: 12px;
+}
+.exam-section-header {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.08);
+}
+.exam-section-header .eyebrow {
+  color: rgb(79, 70, 229);
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+.exam-section-instruction {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-h);
+  line-height: 1.6;
+}
+.exam-section-passage {
+  padding: 14px 16px;
+  background: rgba(15, 23, 42, 0.02);
+  border-left: 3px solid rgba(99, 102, 241, 0.4);
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text-h);
+  white-space: pre-wrap;
+}
+.exam-question-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+.exam-question-card {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: white;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+.exam-question-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.exam-question-id {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.12);
+  color: rgb(79, 70, 229);
+  font-weight: 600;
+  font-size: 13px;
+}
+.exam-question-stem {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text-h);
+}
+.exam-question-stem p {
+  margin: 0;
+}
+.exam-question-target {
+  margin: 0 0 4px !important;
+  font-size: 12px;
+  color: rgb(79, 70, 229);
+  font-weight: 500;
+}
+.exam-question-choices {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0 38px;
+  display: grid;
+  gap: 6px;
+}
+.exam-question-choice {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.03);
+  font-size: 14px;
+  color: var(--text-h);
+}
+.exam-question-choice-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: white;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* Interactive choice on the take page. */
+.exam-question-choice.is-clickable {
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  border: 1px solid transparent;
+}
+.exam-question-choice.is-clickable:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+.exam-question-choice.is-picked {
+  background: rgba(99, 102, 241, 0.16);
+  border-color: rgb(99, 102, 241);
+}
+.exam-question-choice.is-picked .exam-question-choice-num {
+  background: rgb(99, 102, 241);
+  color: white;
+  border-color: rgb(99, 102, 241);
+}
+
+/* Answer/review view (result page): choice highlights. */
+.exam-question-choice.is-answer {
+  background: rgba(34, 197, 94, 0.14);
+}
+.exam-question-choice.is-answer .exam-question-choice-num {
+  background: rgb(34, 197, 94);
+  color: white;
+  border-color: rgb(34, 197, 94);
+}
+.exam-question-choice.is-picked-wrong {
+  background: rgba(239, 68, 68, 0.12);
+}
+.exam-question-choice.is-picked-wrong .exam-question-choice-num {
+  background: rgb(239, 68, 68);
+  color: white;
+  border-color: rgb(239, 68, 68);
+}
+.exam-question-choice.is-picked-correct {
+  background: rgba(34, 197, 94, 0.24);
+}
+.exam-question-tag {
+  margin-left: 8px;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--muted, #6b7280);
+}
+.exam-question-card.is-correct {
+  border-color: rgba(34, 197, 94, 0.5);
+}
+.exam-question-card.is-wrong {
+  border-color: rgba(239, 68, 68, 0.5);
+}
+.exam-question-card.is-skipped {
+  border-color: rgba(15, 23, 42, 0.2);
+}
+.exam-question-badge {
+  margin-left: auto;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--text-h);
+  align-self: flex-start;
+}
+.exam-question-card.is-correct .exam-question-badge {
+  background: rgba(34, 197, 94, 0.16);
+  color: rgb(21, 128, 61);
+}
+.exam-question-card.is-wrong .exam-question-badge {
+  background: rgba(239, 68, 68, 0.16);
+  color: rgb(153, 27, 27);
+}
+.exam-question-explanation {
+  margin: 12px 0 0 38px;
+  padding: 10px 12px;
+  background: rgba(99, 102, 241, 0.06);
+  border-left: 3px solid rgba(99, 102, 241, 0.4);
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-h);
+  white-space: pre-wrap;
+}
+
+/* Take page: sticky top bar with countdown, question navigation. */
+.exam-take-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+.exam-take-header-info h2 {
+  margin: 4px 0;
+  font-size: 18px;
+}
+.exam-take-timer {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 28px;
+  font-weight: 600;
+  color: rgb(79, 70, 229);
+  padding: 6px 14px;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.1);
+  min-width: 130px;
+  text-align: center;
+}
+.exam-take-timer.is-overtime {
+  color: rgb(220, 38, 38);
+  background: rgba(239, 68, 68, 0.12);
+}
+.exam-take-body {
+  display: grid;
+  gap: 28px;
+}
+.exam-section.is-listening .exam-section-header {
+  background: rgba(245, 158, 11, 0.1);
+}
+.exam-section.is-listening .exam-section-header .eyebrow {
+  color: rgb(180, 83, 9);
+}
+.exam-take-footer {
+  position: sticky;
+  bottom: 12px;
+  margin-top: 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
+}
+
+/* Detail-page attempt history + start button. */
+.exam-detail-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.exam-attempts-card {
+  margin-top: 20px;
+  padding: 16px;
+}
+.exam-attempts-card h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: var(--muted, #6b7280);
+}
+.exam-attempt-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+.exam-attempt-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.03);
+}
+.exam-attempt-main {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+}
+.exam-attempt-main strong {
+  color: var(--text-h);
+}
+.exam-attempt-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.exam-attempt-actions .ghost-button {
+  font-size: 12px;
+  padding: 4px 12px;
+}
+
+/* Score card on result page. */
+.exam-score-card {
+  margin: 20px 0;
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+}
+.exam-score-headline {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.exam-score-num {
+  font-size: 48px;
+  font-weight: 700;
+  color: rgb(79, 70, 229);
+  line-height: 1;
+}
+.exam-score-breakdown {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.exam-score-breakdown li {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.03);
+  font-size: 14px;
+}
+
+.exam-upload-hint {
+  font-size: 11px;
+  color: var(--muted, #6b7280);
+  font-weight: normal;
+}
+
+/* Session-done rating tally on ReviewPage. */
+.review-session-stats {
+  margin: 16px auto 0;
+  max-width: 420px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(99, 102, 241, 0.06);
+  text-align: left;
+}
+.review-session-stats-headline {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.review-session-stats-rate {
+  font-size: 32px;
+  font-weight: 700;
+  color: rgb(79, 70, 229);
+  line-height: 1;
+}
+.review-session-stats-breakdown {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--text-h);
+}
+.review-session-stats-breakdown li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.review-session-stats-breakdown strong {
+  color: var(--text-h);
+  font-weight: 600;
+}
+.review-session-stats-breakdown .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.review-session-stats-breakdown .dot-easy { background: rgb(34, 197, 94); }
+.review-session-stats-breakdown .dot-hard { background: rgb(245, 158, 11); }
+.review-session-stats-breakdown .dot-again { background: rgb(239, 68, 68); }

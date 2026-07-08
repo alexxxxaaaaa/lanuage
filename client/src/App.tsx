@@ -152,6 +152,9 @@ function AppShell() {
       <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/grammar">
         {t('nav.grammar')}
       </NavLink>
+      <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/exams">
+        真题
+      </NavLink>
       {user?.canSeePodcast ? (
         <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/podcasts">
           {t('nav.podcasts')}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { message, Modal } from 'antd'
+import { Input, message, Modal, Select } from 'antd'
 import {
   deletePodcast,
   importPodcast,
@@ -179,24 +179,24 @@ export function PodcastsPage() {
       <div className="card">
         <label style={{ display: 'block' }}>
           <span className="muted">YouTube 链接</span>
-          <input
-            type="url"
+          <Input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://www.youtube.com/watch?v=..."
-            style={{ width: '100%' }}
           />
         </label>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
           <label className="lang-picker">
             <span className="muted">主要语言</span>
-            <select
+            <Select
               value={primaryLang}
-              onChange={(e) => setPrimaryLang(e.target.value as 'jp' | 'en')}
-            >
-              <option value="jp">日语</option>
-              <option value="en">英语</option>
-            </select>
+              onChange={(v) => setPrimaryLang(v)}
+              style={{ minWidth: 90 }}
+              options={[
+                { value: 'jp', label: '日语' },
+                { value: 'en', label: '英语' },
+              ]}
+            />
           </label>
           <button
             type="button"
@@ -230,7 +230,7 @@ export function PodcastsPage() {
                   style={{ marginLeft: 8 }}
                 />
               </span>
-              <textarea
+              <Input.TextArea
                 rows={4}
                 value={primarySrt}
                 onChange={(e) => setPrimarySrt(e.target.value)}
@@ -248,7 +248,7 @@ export function PodcastsPage() {
                   style={{ marginLeft: 8 }}
                 />
               </span>
-              <textarea
+              <Input.TextArea
                 rows={4}
                 value={zhSrt}
                 onChange={(e) => setZhSrt(e.target.value)}

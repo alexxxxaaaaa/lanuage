@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Modal } from 'antd'
+import { Input, Modal } from 'antd'
 import { Link, useParams } from 'react-router-dom'
 import { generateExpressionCasual, translateExpressionToZh } from '../api/ai'
 import {
@@ -278,7 +278,7 @@ export function ExpressionFolderDetailPage() {
         <form className="card word-form" onSubmit={(event) => void handleCreate(event)}>
           <label>
             {t('expression.zhText')} <span className="required-mark">*</span>
-            <textarea
+            <Input.TextArea
               rows={3}
               value={form.zhText}
               onChange={(event) => setForm((prev) => ({ ...prev, zhText: event.target.value }))}
@@ -286,7 +286,7 @@ export function ExpressionFolderDetailPage() {
           </label>
           <label>
             {t('expression.sceneTag')} <span className="optional-mark">(可选)</span>
-            <input
+            <Input
               value={form.sceneTag}
               onChange={(event) => setForm((prev) => ({ ...prev, sceneTag: event.target.value }))}
               placeholder={t('expression.scenePlaceholder')}
@@ -304,7 +304,7 @@ export function ExpressionFolderDetailPage() {
           </div>
           <label>
             {folderLanguage === 'jp' ? t('expression.japanese') : t('expression.english')}
-            <textarea
+            <Input.TextArea
               rows={3}
               value={folderLanguage === 'jp' ? form.jpCasual : form.enCasual}
               onChange={(event) =>
@@ -330,7 +330,7 @@ export function ExpressionFolderDetailPage() {
           </div>
           <label>
             {t('expression.note')}
-            <textarea
+            <Input.TextArea
               rows={3}
               value={form.note}
               onChange={(event) => setForm((prev) => ({ ...prev, note: event.target.value }))}
@@ -345,10 +345,11 @@ export function ExpressionFolderDetailPage() {
       ) : null}
 
       <div className="card expression-filter-row expression-filter-row-single">
-        <input
+        <Input.Search
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={t('expression.searchPlaceholder')}
+          allowClear
         />
       </div>
 
@@ -364,7 +365,7 @@ export function ExpressionFolderDetailPage() {
                 <div className="word-form">
                   <label>
                     {t('expression.zhText')}
-                    <textarea
+                    <Input.TextArea
                       rows={2}
                       value={editingForm.zhText}
                       onChange={(event) =>
@@ -374,7 +375,7 @@ export function ExpressionFolderDetailPage() {
                   </label>
                   <label>
                     {folderLanguage === 'jp' ? t('expression.japanese') : t('expression.english')}
-                    <textarea
+                    <Input.TextArea
                       rows={2}
                       value={
                         folderLanguage === 'jp'
@@ -392,7 +393,7 @@ export function ExpressionFolderDetailPage() {
                   </label>
                   <label>
                     {t('expression.sceneTag')}
-                    <input
+                    <Input
                       value={editingForm.sceneTag}
                       onChange={(event) =>
                         setEditingForm((prev) => ({ ...prev, sceneTag: event.target.value }))
@@ -401,7 +402,7 @@ export function ExpressionFolderDetailPage() {
                   </label>
                   <label>
                     {t('expression.note')}
-                    <textarea
+                    <Input.TextArea
                       rows={2}
                       value={editingForm.note}
                       onChange={(event) =>

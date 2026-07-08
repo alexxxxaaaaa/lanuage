@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Select } from 'antd'
 import {
   getPreferredVoiceName,
   getVoicesForLang,
@@ -51,18 +52,19 @@ export function VoicePicker({ lang, sampleText }: VoicePickerProps) {
       <label className="voice-picker-label" htmlFor={`voice-${lang}`}>
         朗读音色
       </label>
-      <select
+      <Select
         id={`voice-${lang}`}
         value={selected}
-        onChange={(event) => handleChange(event.target.value)}
-      >
-        <option value="">自动（推荐）</option>
-        {voices.map((voice) => (
-          <option key={`${voice.name}-${voice.lang}`} value={voice.name}>
-            {voice.name} · {voice.lang}
-          </option>
-        ))}
-      </select>
+        onChange={handleChange}
+        style={{ minWidth: 220 }}
+        options={[
+          { value: '', label: '自动(推荐)' },
+          ...voices.map((voice) => ({
+            value: voice.name,
+            label: `${voice.name} · ${voice.lang}`,
+          })),
+        ]}
+      />
       <button
         type="button"
         className="ghost-button"

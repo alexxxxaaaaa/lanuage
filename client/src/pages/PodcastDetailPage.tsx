@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Select } from 'antd'
 import { Link, useParams } from 'react-router-dom'
 import {
   getPodcast,
@@ -79,6 +80,9 @@ export function PodcastDetailPage() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [playbackRate, setPlaybackRate] = useState(1)
   const [videoHidden, setVideoHidden] = useState(false)
+  // Was-hidden tracking so we only re-seek on the hidden→shown transition,
+  // not on every render.
+  const wasHiddenRef = useRef(false)
   const [currentIdx, setCurrentIdx] = useState(-1)
   const [currentSec, setCurrentSec] = useState(0)
   const isScrubbingRef = useRef(false)
@@ -285,6 +289,28 @@ export function PodcastDetailPage() {
     }
   }, [playbackRate])
 
+  // Fix "black screen with 更多视频 overlay after re-showing" — YouTube iframe
+  // enters a stale state when its container was `display: none`. Re-seeking
+  // to the last known playhead forces YouTube to re-render the video frame
+  // and drops the "related videos" overlay. Only fire on hidden→shown edge.
+  useEffect(() => {
+    if (wasHiddenRef.current && !videoHidden) {
+      const player = playerRef.current
+      if (player) {
+        try {
+          const sec = player.getCurrentTime()
+          // seekTo with allowSeekAhead=true forces a network reload of that
+          // segment; the small +0.001 is a nudge that some browsers need
+          // (identical seekTo can be no-op'd by YouTube).
+          player.seekTo(sec + 0.001, true)
+        } catch {
+          // ignore
+        }
+      }
+    }
+    wasHiddenRef.current = videoHidden
+  }, [videoHidden])
+
   const beginEditLine = (idx: number) => {
     if (!podcast) return
     const ln = podcast.transcript.lines[idx]
@@ -455,14 +481,50 @@ export function PodcastDetailPage() {
         </div>
       </div>
 
+      {/* Keep the iframe MOUNTED even when "hidden" — display:none causes
+        * YouTube to freeze the iframe and it wakes up in a stale "ended"
+        * state (with 更多视频 overlay). Instead we zero out the visual
+        * footprint so the iframe stays alive in the background. */}
       <div
         className="card podcast-player-card"
-        style={{ display: videoHidden ? 'none' : undefined }}
+        style={
+          videoHidden
+            ? {
+                position: 'absolute',
+                visibility: 'hidden',
+                pointerEvents: 'none',
+                width: 1,
+                height: 1,
+                overflow: 'hidden',
+                boxShadow: 'none',
+              }
+            : undefined
+        }
+        aria-hidden={videoHidden}
       >
+        <button
+          type="button"
+          className="podcast-player-close"
+          onClick={() => setVideoHidden(true)}
+          aria-label="收起视频"
+          title="收起视频"
+        >
+          ✕
+        </button>
         <div className="podcast-player-frame">
           <div ref={playerHostRef} />
         </div>
       </div>
+      {videoHidden ? (
+        <button
+          type="button"
+          className="podcast-video-show-btn"
+          onClick={() => setVideoHidden(false)}
+          title="显示视频"
+        >
+          ▶ 视频
+        </button>
+      ) : null}
 
       <div className="card podcast-transcript">
         {lines.map((ln, idx) => {
@@ -603,17 +665,15 @@ export function PodcastDetailPage() {
         />
         <span className="podcast-time">{formatTime(podcast.durationSec * 1000)}</span>
 
-        <select
+        <Select
           className="podcast-speed"
           value={playbackRate}
-          onChange={(e) => setPlaybackRate(Number(e.target.value))}
+          onChange={(v) => setPlaybackRate(Number(v))}
           aria-label="播放速度"
           title="播放速度"
-        >
-          {SPEEDS.map((s) => (
-            <option key={s} value={s}>{s}x</option>
-          ))}
-        </select>
+          style={{ minWidth: 80 }}
+          options={SPEEDS.map((s) => ({ value: s, label: `${s}x` }))}
+        />
 
         <button
           type="button"

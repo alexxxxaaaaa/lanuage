@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Input } from 'antd'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { login } from '../api/auth'
 import { useAuthStore } from '../store/authStore'
@@ -37,10 +38,9 @@ export function LoginPage() {
         <form className="auth-form" onSubmit={handleSubmit}>
           <label className="auth-field">
             <span>用户名</span>
-            <input
+            <Input
               autoFocus
-              required
-              type="text"
+              size="large"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
               autoComplete="username"
@@ -48,9 +48,8 @@ export function LoginPage() {
           </label>
           <label className="auth-field">
             <span>密码</span>
-            <input
-              required
-              type="password"
+            <Input.Password
+              size="large"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete="current-password"

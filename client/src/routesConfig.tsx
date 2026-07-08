@@ -1,6 +1,10 @@
 import { Navigate, type RouteObject } from 'react-router-dom'
 import { AiUsagePage } from './pages/AiUsagePage'
 import { AddWordPage } from './pages/AddWordPage'
+import { ExamDetailPage } from './pages/ExamDetailPage'
+import { ExamResultPage } from './pages/ExamResultPage'
+import { ExamTakePage } from './pages/ExamTakePage'
+import { ExamsPage } from './pages/ExamsPage'
 import { ExpressionFolderDetailPage } from './pages/ExpressionFolderDetailPage'
 import { ExpressionsPage } from './pages/ExpressionsPage'
 import { FolderDetailPage } from './pages/FolderDetailPage'
@@ -39,6 +43,10 @@ export function buildRoutes(opts: { canSeePodcast: boolean }): RouteObject[] {
     { path: '/grammar/learn', element: <LearnGrammarPage /> },
     { path: '/grammar/review', element: <ReviewGrammarPage /> },
     { path: '/grammar/:id', element: <GrammarDetailPage /> },
+    { path: '/exams', element: <ExamsPage /> },
+    { path: '/exams/:id', element: <ExamDetailPage /> },
+    { path: '/exams/:id/attempts/:attemptId', element: <ExamTakePage /> },
+    { path: '/exams/:id/attempts/:attemptId/result', element: <ExamResultPage /> },
     {
       path: '/podcasts',
       element: opts.canSeePodcast ? <PodcastsPage /> : <Navigate to="/" replace />,

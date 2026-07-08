@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Input, Select } from 'antd'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { fillGrammarByAi } from '../api/ai'
 import { deleteGrammar, getGrammar, updateGrammar } from '../api/grammar'
@@ -149,10 +150,9 @@ export function GrammarDetailPage() {
         <form className="card word-form" onSubmit={(event) => void handleSave(event)}>
           <label>句型 *
             <div style={{ display: 'flex', gap: 8 }}>
-              <input
+              <Input
                 value={form.pattern ?? ''}
                 onChange={(e) => setForm((p) => ({ ...p, pattern: e.target.value }))}
-                required
                 style={{ flex: 1 }}
               />
               <button
@@ -166,50 +166,48 @@ export function GrammarDetailPage() {
             </div>
           </label>
           <label>接续
-            <textarea
+            <Input.TextArea
               rows={2}
               value={form.connection ?? ''}
               onChange={(e) => setForm((p) => ({ ...p, connection: e.target.value }))}
             />
           </label>
           <label>意思
-            <input
+            <Input
               value={form.meaning ?? ''}
               onChange={(e) => setForm((p) => ({ ...p, meaning: e.target.value }))}
             />
           </label>
           <label>例句(日文)
-            <textarea
+            <Input.TextArea
               rows={4}
               value={form.example ?? ''}
               onChange={(e) => setForm((p) => ({ ...p, example: e.target.value }))}
             />
           </label>
           <label>例句翻译(中文)
-            <textarea
+            <Input.TextArea
               rows={4}
               value={form.exampleZh ?? ''}
               onChange={(e) => setForm((p) => ({ ...p, exampleZh: e.target.value }))}
             />
           </label>
           <label>注意点
-            <textarea
+            <Input.TextArea
               rows={2}
               value={form.note ?? ''}
               onChange={(e) => setForm((p) => ({ ...p, note: e.target.value }))}
             />
           </label>
           <label>级别
-            <select
+            <Select
               value={form.level ?? 'N1'}
-              onChange={(e) => setForm((p) => ({ ...p, level: e.target.value }))}
-            >
-              <option value="N1">N1</option>
-              <option value="N2">N2</option>
-              <option value="N3">N3</option>
-              <option value="N4">N4</option>
-              <option value="N5">N5</option>
-            </select>
+              onChange={(v) => setForm((p) => ({ ...p, level: v }))}
+              options={['N1', 'N2', 'N3', 'N4', 'N5'].map((lv) => ({
+                value: lv,
+                label: lv,
+              }))}
+            />
           </label>
           <div className="form-actions">
             <button type="submit" className="primary-button" disabled={isSubmitting}>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Input, Select } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
 import { fillGrammarByAi } from '../api/ai'
 import { createGrammar, getGrammars, updateGrammar } from '../api/grammar'
@@ -166,19 +167,18 @@ export function GrammarPage() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <label className="session-inline" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span className="muted">{t('grammar.learnCountLabel')}</span>
-            <select
+            <Select
               value={learnCount === null ? 'all' : String(learnCount)}
-              onChange={(e) => {
-                const v = e.target.value
-                setLearnCount(v === 'all' ? null : Number(v))
-              }}
-            >
-              <option value="5">5</option>
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="30">30</option>
-              <option value="all">{t('grammar.learnCountAll')}</option>
-            </select>
+              onChange={(v) => setLearnCount(v === 'all' ? null : Number(v))}
+              style={{ minWidth: 100 }}
+              options={[
+                { value: '5', label: '5' },
+                { value: '10', label: '10' },
+                { value: '20', label: '20' },
+                { value: '30', label: '30' },
+                { value: 'all', label: t('grammar.learnCountAll') },
+              ]}
+            />
           </label>
           <button
             type="button"
@@ -213,21 +213,21 @@ export function GrammarPage() {
       </div>
 
       <div className="card" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input
-          type="search"
+        <Input.Search
           value={keyword}
           onChange={(event) => setKeyword(event.target.value)}
           placeholder={t('grammar.searchPlaceholder')}
           style={{ flex: '1 1 240px' }}
+          allowClear
         />
-        <select value={level} onChange={(event) => setLevel(event.target.value)}>
-          <option value="">{t('grammar.levelAll')}</option>
-          {levels.map((lv) => (
-            <option key={lv} value={lv}>
-              {lv}
-            </option>
-          ))}
-        </select>
+        <Select
+          value={level || undefined}
+          onChange={(v) => setLevel(v ?? '')}
+          placeholder={t('grammar.levelAll')}
+          allowClear
+          style={{ minWidth: 120 }}
+          options={levels.map((lv) => ({ value: lv, label: lv }))}
+        />
         <div className="grammar-learned-filter">
           <button
             type="button"
@@ -258,11 +258,10 @@ export function GrammarPage() {
           <label>
             句型 *
             <div style={{ display: 'flex', gap: 8 }}>
-              <input
+              <Input
                 value={form.pattern}
                 onChange={(event) => setForm((p) => ({ ...p, pattern: event.target.value }))}
                 placeholder="〜にあたって"
-                required
                 style={{ flex: 1 }}
               />
               <button
@@ -277,7 +276,7 @@ export function GrammarPage() {
           </label>
           <label>
             接续
-            <input
+            <Input
               value={form.connection ?? ''}
               onChange={(event) => setForm((p) => ({ ...p, connection: event.target.value }))}
               placeholder="名词 / 动词辞书形 + にあたって"
@@ -285,7 +284,7 @@ export function GrammarPage() {
           </label>
           <label>
             意思
-            <input
+            <Input
               value={form.meaning ?? ''}
               onChange={(event) => setForm((p) => ({ ...p, meaning: event.target.value }))}
               placeholder="在…之际、当…的时候"
@@ -293,7 +292,7 @@ export function GrammarPage() {
           </label>
           <label>
             例句(日文,多句用换行)
-            <textarea
+            <Input.TextArea
               rows={3}
               value={form.example ?? ''}
               onChange={(event) => setForm((p) => ({ ...p, example: event.target.value }))}
@@ -301,7 +300,7 @@ export function GrammarPage() {
           </label>
           <label>
             例句翻译(中文)
-            <textarea
+            <Input.TextArea
               rows={3}
               value={form.exampleZh ?? ''}
               onChange={(event) => setForm((p) => ({ ...p, exampleZh: event.target.value }))}
@@ -309,7 +308,7 @@ export function GrammarPage() {
           </label>
           <label>
             注意点
-            <textarea
+            <Input.TextArea
               rows={2}
               value={form.note ?? ''}
               onChange={(event) => setForm((p) => ({ ...p, note: event.target.value }))}
@@ -317,16 +316,14 @@ export function GrammarPage() {
           </label>
           <label>
             级别
-            <select
+            <Select
               value={form.level ?? 'N1'}
-              onChange={(event) => setForm((p) => ({ ...p, level: event.target.value }))}
-            >
-              <option value="N1">N1</option>
-              <option value="N2">N2</option>
-              <option value="N3">N3</option>
-              <option value="N4">N4</option>
-              <option value="N5">N5</option>
-            </select>
+              onChange={(v) => setForm((p) => ({ ...p, level: v }))}
+              options={['N1', 'N2', 'N3', 'N4', 'N5'].map((lv) => ({
+                value: lv,
+                label: lv,
+              }))}
+            />
           </label>
           <div className="form-actions">
             <button type="submit" className="primary-button" disabled={isSubmitting}>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Input, Select } from 'antd'
 import { Link } from 'react-router-dom'
 import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
@@ -114,30 +115,26 @@ export function FoldersPage() {
         <form className="card folder-form" onSubmit={handleCreate}>
           <label className="form-field">
             <span>{t('folders.folderName')}</span>
-            <input
-              type="text"
+            <Input
               value={form.name}
               onChange={(event) =>
                 setForm((prev) => ({ ...prev, name: event.target.value }))
               }
               placeholder={t('folders.folderNamePlaceholder')}
-              required
             />
           </label>
           <label className="form-field">
             <span>{t('folders.language')}</span>
-            <select
+            <Select
               value={form.language}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  language: event.target.value as 'en' | 'jp',
-                }))
+              onChange={(v) =>
+                setForm((prev) => ({ ...prev, language: v }))
               }
-            >
-              <option value="en">{t('folders.englishOption')}</option>
-              <option value="jp">{t('folders.japaneseOption')}</option>
-            </select>
+              options={[
+                { value: 'en', label: t('folders.englishOption') },
+                { value: 'jp', label: t('folders.japaneseOption') },
+              ]}
+            />
           </label>
           <div className="form-actions">
             <button type="submit" className="primary-button" disabled={isSubmitting}>
@@ -176,29 +173,25 @@ export function FoldersPage() {
             >
               <label className="form-field">
                 <span>{t('folders.folderName')}</span>
-                <input
-                  type="text"
+                <Input
                   value={editForm.name}
                   onChange={(event) =>
                     setEditForm((prev) => ({ ...prev, name: event.target.value }))
                   }
-                  required
                 />
               </label>
               <label className="form-field">
                 <span>{t('folders.language')}</span>
-                <select
+                <Select
                   value={editForm.language}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      language: event.target.value as 'en' | 'jp',
-                    }))
+                  onChange={(v) =>
+                    setEditForm((prev) => ({ ...prev, language: v }))
                   }
-                >
-                  <option value="en">{t('folders.englishOption')}</option>
-                  <option value="jp">{t('folders.japaneseOption')}</option>
-                </select>
+                  options={[
+                    { value: 'en', label: t('folders.englishOption') },
+                    { value: 'jp', label: t('folders.japaneseOption') },
+                  ]}
+                />
               </label>
               <div className="form-actions">
                 <button

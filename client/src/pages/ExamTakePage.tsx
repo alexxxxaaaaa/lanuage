@@ -1,0 +1,329 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { message, Modal } from 'antd'
+import {
+  getAttempt,
+  getExam,
+  patchAttempt,
+  submitAttempt,
+} from '../api/exams'
+import { getErrorMessage } from '../api/error'
+import type { ExamDetail, ExamQuestion, ExamSection } from '../types'
+
+// N1 real-exam durations. Reading portion covers vocab + grammar + reading;
+// listening is a separate 60-min block. Both count down from startedAt but we
+// treat the listening timer as beginning when the user reaches it (opt-in).
+const READING_MINUTES = 110
+const LISTENING_MINUTES = 60
+const AUTO_SAVE_INTERVAL_MS = 10_000
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return '00:00'
+  const total = Math.floor(ms / 1000)
+  const m = Math.floor(total / 60)
+  const s = total % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+/** Flatten sections in order, tagging each question with its parent section
+ *  so the take-page can render questions inline with their section headers
+ *  but still index them all by a single flat array for progress + jump. */
+type FlatQuestion = {
+  section: ExamSection
+  sectionIdx: number
+  question: ExamQuestion
+}
+
+function flattenSections(sections: ExamSection[]): FlatQuestion[] {
+  const flat: FlatQuestion[] = []
+  sections.forEach((section, sectionIdx) => {
+    for (const q of section.questions) {
+      flat.push({ section, sectionIdx, question: q })
+    }
+  })
+  return flat
+}
+
+export function ExamTakePage() {
+  const navigate = useNavigate()
+  const { id, attemptId } = useParams<{ id: string; attemptId: string }>()
+  const [exam, setExam] = useState<ExamDetail | null>(null)
+  const [answers, setAnswers] = useState<Record<string, number>>({})
+  const [startedAt, setStartedAt] = useState<number | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [now, setNow] = useState(Date.now())
+  // Track whether the user has been notified the reading timer ran out — we
+  // don't force-submit at zero (users may not have started the listening
+  // portion yet), just show the timer in red.
+  const answersRef = useRef(answers)
+  answersRef.current = answers
+
+  useEffect(() => {
+    if (!id || !attemptId) return
+    setIsLoading(true)
+    Promise.all([getExam(id), getAttempt(id, attemptId)])
+      .then(([exRow, attRow]) => {
+        setExam(exRow)
+        try {
+          setAnswers(JSON.parse(attRow.answers || '{}') as Record<string, number>)
+        } catch {
+          setAnswers({})
+        }
+        setStartedAt(new Date(attRow.startedAt).getTime())
+        if (attRow.finishedAt) {
+          // Already finalized; bounce to result page.
+          navigate(`/exams/${id}/attempts/${attemptId}/result`, { replace: true })
+        }
+      })
+      .catch((e) => message.error(getErrorMessage(e, '加载考试失败')))
+      .finally(() => setIsLoading(false))
+  }, [id, attemptId, navigate])
+
+  // 1-second tick for the countdown display. Cheap — we're comparing to
+  // `startedAt` fetched once from the server, so nothing recomputes but the
+  // rendered clock string.
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(t)
+  }, [])
+
+  // Autosave: every N seconds if we have a dirty state. We debounce by only
+  // sending if answers changed since last save (tracked via ref of last-sent).
+  const lastSentRef = useRef<string>('{}')
+  useEffect(() => {
+    if (!id || !attemptId) return
+    const t = window.setInterval(() => {
+      const serialized = JSON.stringify(answersRef.current)
+      if (serialized === lastSentRef.current) return
+      lastSentRef.current = serialized
+      void patchAttempt(id, attemptId, answersRef.current).catch(() => {
+        // best-effort; try again next tick
+        lastSentRef.current = '__failed__'
+      })
+    }, AUTO_SAVE_INTERVAL_MS)
+    return () => window.clearInterval(t)
+  }, [id, attemptId])
+
+  // Fire a final save via keepalive fetch on page unload / tab close.
+  useEffect(() => {
+    const handler = () => {
+      if (!id || !attemptId) return
+      const serialized = JSON.stringify(answersRef.current)
+      if (serialized === lastSentRef.current) return
+      // Best-effort keepalive; axios doesn't do keepalive so use fetch.
+      const base = import.meta.env.VITE_API_BASE_URL ?? ''
+      const token = window.localStorage.getItem('word-sprint-token') ?? ''
+      try {
+        void fetch(`${base}/api/exams/${id}/attempts/${attemptId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ answers: answersRef.current }),
+          keepalive: true,
+        })
+      } catch {
+        // ignore — we're leaving anyway
+      }
+    }
+    window.addEventListener('pagehide', handler)
+    window.addEventListener('beforeunload', handler)
+    return () => {
+      window.removeEventListener('pagehide', handler)
+      window.removeEventListener('beforeunload', handler)
+    }
+  }, [id, attemptId])
+
+  const sections = exam?.parsedData?.sections ?? []
+  const flat = useMemo(() => flattenSections(sections), [sections])
+
+  const listeningStartIdx = useMemo(
+    () => flat.findIndex((f) => f.section.type === 'listening'),
+    [flat],
+  )
+  const hasListening = listeningStartIdx >= 0
+  const readingCount =
+    listeningStartIdx >= 0 ? listeningStartIdx : flat.length
+  const listeningCount = hasListening ? flat.length - listeningStartIdx : 0
+
+  // Timer math. We keep a SINGLE 170-min budget bounded by (reading +
+  // listening) — the server just stores startedAt, and elapsed = now - startedAt.
+  // Displayed countdown flips to the listening budget once the user actually
+  // scrolls into the listening section (heuristic: their latest answer is in
+  // a listening question).
+  const isInListeningPhase = useMemo(() => {
+    if (!hasListening) return false
+    // If any listening question is answered, treat as in listening phase.
+    for (let i = listeningStartIdx; i < flat.length; i++) {
+      if (answers[String(flat[i].question.id)] !== undefined) return true
+    }
+    return false
+  }, [answers, flat, hasListening, listeningStartIdx])
+
+  const elapsedMs = startedAt !== null ? now - startedAt : 0
+  const readingMs = READING_MINUTES * 60_000
+  const listeningMs = LISTENING_MINUTES * 60_000
+  const remaining = isInListeningPhase
+    ? readingMs + listeningMs - elapsedMs
+    : readingMs - elapsedMs
+
+  const answeredCount = Object.keys(answers).length
+
+  const pickChoice = (qId: number, choice: number) => {
+    setAnswers((prev) => ({ ...prev, [String(qId)]: choice }))
+  }
+
+  const handleSubmit = async () => {
+    if (!id || !attemptId) return
+    const unanswered = flat.length - answeredCount
+    if (unanswered > 0) {
+      const ok = await new Promise<boolean>((resolve) => {
+        Modal.confirm({
+          title: '还有未作答的题',
+          content: `你还有 ${unanswered} 题没做,确定交卷吗?`,
+          okText: '仍然交卷',
+          cancelText: '继续答题',
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false),
+        })
+      })
+      if (!ok) return
+    }
+    setIsSubmitting(true)
+    try {
+      await submitAttempt(id, attemptId, answers)
+      navigate(`/exams/${id}/attempts/${attemptId}/result`, { replace: true })
+    } catch (err) {
+      message.error(getErrorMessage(err, '交卷失败'))
+      setIsSubmitting(false)
+    }
+  }
+
+  if (!id || !attemptId) return null
+
+  if (isLoading) {
+    return (
+      <section className="page">
+        <div className="card state-card">
+          <p className="muted">加载中…</p>
+        </div>
+      </section>
+    )
+  }
+
+  if (!exam) {
+    return (
+      <section className="page">
+        <div className="card state-card">
+          <p className="muted">未找到这份考试。</p>
+          <Link className="primary-link" to="/exams">
+            回列表
+          </Link>
+        </div>
+      </section>
+    )
+  }
+
+  const isOvertime = remaining <= 0
+
+  return (
+    <section className="page exam-take">
+      <header className="exam-take-header">
+        <div className="exam-take-header-info">
+          <p className="eyebrow">
+            <Link to={`/exams/${id}`}>← 返回详情</Link>
+          </p>
+          <h2>{exam.title}</h2>
+          <p className="muted">
+            {isInListeningPhase ? '聴解 阶段' : '语言知识 · 読解 阶段'} · 已作答 {answeredCount} / {flat.length}
+          </p>
+        </div>
+        <div className={'exam-take-timer' + (isOvertime ? ' is-overtime' : '')}>
+          {formatCountdown(remaining)}
+        </div>
+      </header>
+
+      <div className="exam-take-body">
+        {sections.map((section, sectionIdx) => {
+          const isListening = section.type === 'listening'
+          return (
+            <section
+              key={sectionIdx}
+              className={'exam-section' + (isListening ? ' is-listening' : '')}
+            >
+              <header className="exam-section-header">
+                <p className="eyebrow">問題 {sectionIdx + 1}</p>
+                <p className="exam-section-instruction">{section.instruction}</p>
+              </header>
+              {section.passage ? (
+                <div className="exam-section-passage">
+                  <p>{section.passage}</p>
+                </div>
+              ) : null}
+              <ol className="exam-question-list">
+                {section.questions.map((q) => {
+                  const picked = answers[String(q.id)]
+                  return (
+                    <li
+                      key={q.id}
+                      className="exam-question-card is-interactive"
+                    >
+                      <div className="exam-question-head">
+                        <span className="exam-question-id">{q.id}</span>
+                        <div className="exam-question-stem">
+                          {q.target ? (
+                            <p className="exam-question-target">目标词:{q.target}</p>
+                          ) : null}
+                          <p>{q.stem}</p>
+                        </div>
+                      </div>
+                      <ol className="exam-question-choices">
+                        {q.choices.map((c, idx) => {
+                          const choiceNum = idx + 1
+                          const isPicked = picked === choiceNum
+                          return (
+                            <li
+                              key={idx}
+                              className={
+                                'exam-question-choice is-clickable' +
+                                (isPicked ? ' is-picked' : '')
+                              }
+                              onClick={() => pickChoice(q.id, choiceNum)}
+                            >
+                              <span className="exam-question-choice-num">
+                                {choiceNum}
+                              </span>
+                              <span>{c}</span>
+                            </li>
+                          )
+                        })}
+                      </ol>
+                    </li>
+                  )
+                })}
+              </ol>
+            </section>
+          )
+        })}
+      </div>
+
+      <div className="exam-take-footer">
+        <div className="muted">
+          {isOvertime ? '已超时,请尽快交卷' : `${isInListeningPhase ? '聴解' : '読解+文字'} 剩余 ${formatCountdown(remaining)}`}
+          {' · '}
+          共 {readingCount} 题读+词+法{hasListening ? ` · ${listeningCount} 题听力` : ''}
+        </div>
+        <button
+          type="button"
+          className="primary-button"
+          disabled={isSubmitting}
+          onClick={() => void handleSubmit()}
+        >
+          {isSubmitting ? '交卷中…' : '交卷'}
+        </button>
+      </div>
+    </section>
+  )
+}

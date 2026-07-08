@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { SoundOutlined } from '@ant-design/icons'
+import { Select } from 'antd'
 import { Link } from 'react-router-dom'
 import { correctReviewResult } from '../api/review'
 import type { ReviewSnapshot } from '../api/review'
@@ -68,6 +69,13 @@ export function ReviewPage() {
   const [correctionDraft, setCorrectionDraft] = useState<Record<string, 'hard' | 'easy'>>({})
   const [isApplyingCorrection, setIsApplyingCorrection] = useState(false)
   const [correctionApplied, setCorrectionApplied] = useState(false)
+  // Per-session rating tally shown on session-done. Counts each word ONCE
+  // (final rating after FSRS commit), not per-cycle repeats.
+  const [sessionStats, setSessionStats] = useState<{
+    easy: number
+    hard: number
+    again: number
+  }>({ easy: 0, hard: 0, again: 0 })
 
   const folderList = Array.isArray(folders) ? folders : []
 
@@ -86,6 +94,7 @@ export function ReviewPage() {
     setAgainEntries([])
     setCorrectionDraft({})
     setCorrectionApplied(false)
+    setSessionStats({ easy: 0, hard: 0, again: 0 })
     useAppStore.getState().resetReviewSession()
   }, [reviewFolderId])
 
@@ -232,6 +241,15 @@ export function ReviewPage() {
         },
       ])
     }
+    // Bump per-session rating counter BEFORE submit so a network failure
+    // still leaves the stats meaningful. Counts each word once (the loop
+    // above already returned early on repeat cycles).
+    setSessionStats((prev) => ({
+      ...prev,
+      easy: prev.easy + (finalRating === 'easy' ? 1 : 0),
+      hard: prev.hard + (finalRating === 'hard' ? 1 : 0),
+      again: prev.again + (finalRating === 'again' ? 1 : 0),
+    }))
     await useAppStore.getState().submitReview(finalRating)
     setDebtByWord((prev) => {
       const next = { ...prev }
@@ -447,6 +465,41 @@ export function ReviewPage() {
               : t('review.sessionDoneNoFolder')}
           </p>
 
+          {(() => {
+            const total = sessionStats.easy + sessionStats.hard + sessionStats.again
+            if (total === 0) return null
+            // "Correctness rate" counts Easy + Hard as understood, Again as
+            // wrong. Hard is included because after FSRS it still marks
+            // "user recalled", just with more effort.
+            const correct = sessionStats.easy + sessionStats.hard
+            const rate = Math.round((correct / total) * 100)
+            return (
+              <div className="review-session-stats">
+                <div className="review-session-stats-headline">
+                  <span className="review-session-stats-rate">{rate}%</span>
+                  <span className="muted">
+                    {' '}
+                    正确率 · 共 {total} 词
+                  </span>
+                </div>
+                <ul className="review-session-stats-breakdown">
+                  <li>
+                    <span className="dot dot-easy" aria-hidden></span>
+                    Easy <strong>{sessionStats.easy}</strong>
+                  </li>
+                  <li>
+                    <span className="dot dot-hard" aria-hidden></span>
+                    Hard <strong>{sessionStats.hard}</strong>
+                  </li>
+                  <li>
+                    <span className="dot dot-again" aria-hidden></span>
+                    Again <strong>{sessionStats.again}</strong>
+                  </li>
+                </ul>
+              </div>
+            )
+          })()}
+
           {againEntries.length > 0 ? (
             <div className="again-rescue">
               <div className="again-rescue-header">
@@ -557,22 +610,23 @@ export function ReviewPage() {
           <div className="review-meta-right">
             <label className="session-inline">
               <span className="muted">{t('review.folderLabel')}</span>
-              <select
+              <Select
                 value={reviewFolderId ?? ''}
                 disabled={isLoadingFolders || isLoadingReviews}
-                onChange={(event) => {
-                  const next = event.target.value === '' ? null : event.target.value
+                onChange={(v) => {
+                  const next = v === '' ? null : v
                   useAppStore.getState().setReviewFolderId(next)
                   void useAppStore.getState().fetchTodayReviews()
                 }}
-              >
-                <option value="">{t('review.allFolders')}</option>
-                {folderList.map((folder) => (
-                  <option key={folder.id} value={folder.id}>
-                    {folder.name}
-                  </option>
-                ))}
-              </select>
+                style={{ minWidth: 160 }}
+                options={[
+                  { value: '', label: t('review.allFolders') },
+                  ...folderList.map((folder) => ({
+                    value: folder.id,
+                    label: folder.name,
+                  })),
+                ]}
+              />
             </label>
             <span className="review-tag">{currentWord.folder.name}</span>
           </div>

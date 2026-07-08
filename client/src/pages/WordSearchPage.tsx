@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Modal, Progress, Spin } from 'antd'
+import { Modal, Progress, Select, Spin } from 'antd'
 import { Link, useSearchParams } from 'react-router-dom'
 import { fillWordByAi } from '../api/ai'
 import { getErrorMessage, isDuplicateWordError } from '../api/error'
@@ -292,32 +292,33 @@ export function WordSearchPage() {
           />
           <label className="lang-picker" title="覆盖自动检测的输入语言">
             <span className="muted">输入</span>
-            <select
+            <Select
               value={sourceOverride}
-              onChange={(event) =>
-                setSourceOverride(event.target.value as SourceOverride)
-              }
-            >
-              <option value="auto">
-                自动 ({detectedSource === 'zh' ? '中文' : detectedSource === 'jp' ? '日语' : '英语'})
-              </option>
-              <option value="zh">中文</option>
-              <option value="jp">日语</option>
-              <option value="en">英语</option>
-            </select>
+              onChange={(v) => setSourceOverride(v)}
+              style={{ minWidth: 140 }}
+              options={[
+                {
+                  value: 'auto',
+                  label: `自动 (${detectedSource === 'zh' ? '中文' : detectedSource === 'jp' ? '日语' : '英语'})`,
+                },
+                { value: 'zh', label: '中文' },
+                { value: 'jp', label: '日语' },
+                { value: 'en', label: '英语' },
+              ]}
+            />
           </label>
           {effectiveSource === 'zh' ? (
             <label className="lang-picker" title="把这个中文词翻译成…">
               <span className="muted">查</span>
-              <select
+              <Select
                 value={chineseTarget}
-                onChange={(event) =>
-                  setChineseTarget(event.target.value as 'en' | 'jp')
-                }
-              >
-                <option value="jp">日语</option>
-                <option value="en">英语</option>
-              </select>
+                onChange={(v) => setChineseTarget(v)}
+                style={{ minWidth: 90 }}
+                options={[
+                  { value: 'jp', label: '日语' },
+                  { value: 'en', label: '英语' },
+                ]}
+              />
             </label>
           ) : null}
           <button type="button" className="primary-button" onClick={submitKeyword}>
@@ -434,22 +435,23 @@ export function WordSearchPage() {
             <div className="dict-save-row">
               <label className="session-inline">
                 <span className="muted">{t('wordSearch.saveTo')}</span>
-                <select
-                  value={selectedWordFolderId}
-                  onChange={(event) => setSelectedWordFolderId(event.target.value)}
+                <Select
+                  value={selectedWordFolderId || undefined}
+                  onChange={(v) => setSelectedWordFolderId(v ?? '')}
                   disabled={wordFolders.length === 0}
-                >
-                  {wordFolders.length === 0 ? (
-                    <option value="">{t('wordSearch.noFolderOption')}</option>
-                  ) : null}
-                  {wordFolders
+                  placeholder={
+                    wordFolders.length === 0
+                      ? t('wordSearch.noFolderOption')
+                      : undefined
+                  }
+                  style={{ minWidth: 180 }}
+                  options={wordFolders
                     .filter((folder) => folder.language === effectiveLanguage)
-                    .map((folder) => (
-                      <option key={folder.id} value={folder.id}>
-                        {folder.name}（{folder.language.toUpperCase()}）
-                      </option>
-                    ))}
-                </select>
+                    .map((folder) => ({
+                      value: folder.id,
+                      label: `${folder.name}(${folder.language.toUpperCase()})`,
+                    }))}
+                />
               </label>
               {wordFolders.length === 0 ? (
                 <Link className="secondary-link" to="/folders">

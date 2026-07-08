@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Modal, Tabs, message } from 'antd'
+import { Modal, Select, Tabs, message } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
 import { useI18n } from '../i18n'
 import {
@@ -421,21 +421,18 @@ export function HomePage() {
             <div className="folder-card-actions home-folder-actions">
               <label className="session-inline home-folder-limit">
                 <span className="muted">{t('home.learnLimit')}</span>
-                <select
+                <Select
                   value={sessionLimit === null ? 'all' : String(sessionLimit)}
-                  onChange={(event) => handleLearnLimitChange(event.target.value)}
-                >
-                  {LEARN_LIMIT_OPTIONS.map((option) => (
-                    <option
-                      key={option.value === null ? 'all' : option.value}
-                      value={option.value === null ? 'all' : String(option.value)}
-                    >
-                      {option.value === null
+                  onChange={(v) => handleLearnLimitChange(v)}
+                  style={{ minWidth: 100 }}
+                  options={LEARN_LIMIT_OPTIONS.map((option) => ({
+                    value: option.value === null ? 'all' : String(option.value),
+                    label:
+                      option.value === null
                         ? t('home.all')
-                        : `${option.value}${t('home.unit')}`}
-                    </option>
-                  ))}
-                </select>
+                        : `${option.value}${t('home.unit')}`,
+                  }))}
+                />
               </label>
               <div>
                 <button

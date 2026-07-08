@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { InputNumber, Select } from 'antd'
 import { getAiUsage, type AiUsageSummary } from '../api/ai'
 
 const FEATURE_LABELS: Record<string, string> = {
@@ -50,11 +51,16 @@ export function AiUsagePage() {
         </div>
         <label className="session-inline">
           <span>统计周期</span>
-          <select value={days} onChange={(event) => setDays(Number(event.target.value))}>
-            <option value={7}>近 7 天</option>
-            <option value={30}>近 30 天</option>
-            <option value={90}>近 90 天</option>
-          </select>
+          <Select
+            value={days}
+            onChange={(v) => setDays(v)}
+            style={{ minWidth: 120 }}
+            options={[
+              { value: 7, label: '近 7 天' },
+              { value: 30, label: '近 30 天' },
+              { value: 90, label: '近 90 天' },
+            ]}
+          />
         </label>
       </div>
 
@@ -78,14 +84,16 @@ export function AiUsagePage() {
               <p className="hero-count" style={{ fontSize: 36 }}>${estimatedCost.toFixed(4)}</p>
               <label className="session-inline" style={{ justifyContent: 'space-between' }}>
                 <span className="muted">单价 ($ / 1M tokens)</span>
-                <input
-                  type="number"
+                <InputNumber
                   min={0}
-                  step="0.1"
+                  step={0.1}
                   value={pricePerMillionTokens}
-                  onChange={(event) => {
-                    const next = Number(event.target.value)
-                    setPricePerMillionTokens(Number.isFinite(next) && next >= 0 ? next : 0)
+                  onChange={(next) => {
+                    setPricePerMillionTokens(
+                      typeof next === 'number' && Number.isFinite(next) && next >= 0
+                        ? next
+                        : 0,
+                    )
                   }}
                   style={{ width: 120 }}
                 />

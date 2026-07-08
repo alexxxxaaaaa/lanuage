@@ -1,5 +1,5 @@
 import { SearchOutlined } from '@ant-design/icons'
-import { FloatButton, Modal, Progress, message } from 'antd'
+import { FloatButton, Modal, Progress, Select, message } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fillWordByAi, type AiFillWordResult } from '../api/ai'
@@ -289,19 +289,15 @@ export function QuickSearchFloat() {
               ) : null}
 
               <div className="quick-search-add-row">
-                <select
-                  value={targetFolderId}
-                  onChange={(e) => setTargetFolderId(e.target.value)}
-                >
-                  <option value="">{t('quickSearch.pickFolder')}</option>
-                  {folderList
+                <Select
+                  value={targetFolderId || undefined}
+                  onChange={(v) => setTargetFolderId(v ?? '')}
+                  placeholder={t('quickSearch.pickFolder')}
+                  style={{ minWidth: 180, flex: 1 }}
+                  options={folderList
                     .filter((f) => f.language === aiResult.language)
-                    .map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.name}
-                      </option>
-                    ))}
-                </select>
+                    .map((f) => ({ value: f.id, label: f.name }))}
+                />
                 <button
                   type="button"
                   className="primary-button"

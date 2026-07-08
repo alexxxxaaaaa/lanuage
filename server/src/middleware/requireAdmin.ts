@@ -1,18 +1,7 @@
 import type { MiddlewareHandler } from 'hono'
 import { prisma } from '../lib/prisma'
-import { getEnv } from '../lib/env'
-import { verifyToken } from '../services/authService'
+import { isUserAdmin, verifyToken } from '../services/authService'
 import type { AppEnv } from './requireAuth'
-
-function parseAdminList(): Set<string> {
-  const raw = getEnv('ADMIN_USERNAMES') ?? ''
-  return new Set(
-    raw
-      .split(',')
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean),
-  )
-}
 
 export const requireAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
   const header = c.req.header('authorization') ?? c.req.header('Authorization') ?? ''
@@ -44,8 +33,7 @@ export const requireAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
     return c.json({ message: '用户不存在' }, 401)
   }
 
-  const admins = parseAdminList()
-  if (admins.size === 0 || !admins.has(user.username.toLowerCase())) {
+  if (!isUserAdmin(user.username)) {
     return c.json({ message: '无管理员权限' }, 403)
   }
 

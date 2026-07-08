@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Modal, Progress } from 'antd'
+import { Input, Modal, Progress, Select } from 'antd'
+import type { InputRef } from 'antd'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { fillWordByAi } from '../api/ai'
 import { getErrorMessage, isDuplicateWordError } from '../api/error'
@@ -57,7 +58,7 @@ export function AddWordPage() {
     () => folderList.find((folder) => folder.id === form.folderId),
     [folderList, form.folderId],
   )
-  const wordInputRef = useRef<HTMLInputElement>(null)
+  const wordInputRef = useRef<InputRef>(null)
   const successTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -211,12 +212,12 @@ export function AddWordPage() {
           <label>
             {t('addWord.aiFill')} <span className="optional-mark">{t('addWord.optional')}</span>
             <div className="dict-lookup-row">
-              <input
+              <Input
                 value={aiTerm}
                 onChange={(event) => setAiTerm(event.target.value)}
                 placeholder={t('addWord.aiPlaceholder')}
+                style={{ flex: 1 }}
               />
-            
               <button
                 type="button"
                 className="secondary-button"
@@ -240,19 +241,18 @@ export function AddWordPage() {
           ) : null}
           <label>
             {t('addWord.sourceNote')} <span className="optional-mark">{t('addWord.optional')}</span>
-            <select
-              value={form.sourceNoteId}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, sourceNoteId: event.target.value }))
+            <Select
+              value={form.sourceNoteId || undefined}
+              onChange={(v) =>
+                setForm((current) => ({ ...current, sourceNoteId: v ?? '' }))
               }
-            >
-              <option value="">{t('addWord.noSourceNote')}</option>
-              {noteOptions.map((note) => (
-                <option key={note.id} value={note.id}>
-                  {note.title}
-                </option>
-              ))}
-            </select>
+              placeholder={t('addWord.noSourceNote')}
+              allowClear
+              options={noteOptions.map((note) => ({
+                value: note.id,
+                label: note.title,
+              }))}
+            />
           </label>
           {!isLoadingFolders && folderList.length === 0 ? (
             <p className="error-text">
@@ -270,56 +270,50 @@ export function AddWordPage() {
 
           <label>
             {t('addWord.word')} <span className="required-mark">*</span>
-            <input
+            <Input
               ref={wordInputRef}
               value={form.word}
               onChange={(event) =>
                 setForm((current) => ({ ...current, word: event.target.value }))
               }
-              
-              required
             />
           </label>
 
           <label>
             {t('addWord.reading')} <span className="required-mark">*</span>
-            <input
+            <Input
               value={form.reading}
               onChange={(event) =>
                 setForm((current) => ({ ...current, reading: event.target.value }))
               }
-              
-              required
             />
           </label>
 
           <label>
             {t('addWord.meaning')} <span className="optional-mark">{t('addWord.optional')}</span>
-            <textarea
+            <Input.TextArea
               value={form.meaning}
               onChange={(event) =>
                 setForm((current) => ({ ...current, meaning: event.target.value }))
               }
-              
               rows={3}
             />
           </label>
 
           <label>
             {t('addWord.example')} <span className="optional-mark">{t('addWord.optional')}</span>
-            <textarea
+            <Input.TextArea
               value={form.example}
               onChange={(event) =>
                 setForm((current) => ({ ...current, example: event.target.value }))
               }
-              
               rows={3}
             />
           </label>
 
           <label>
             {t('addWord.note')} <span className="optional-mark">{t('addWord.optional')}</span>
-            <textarea
+            <Input.TextArea
               value={form.note}
               onChange={(event) =>
                 setForm((current) => ({ ...current, note: event.target.value }))
@@ -331,7 +325,7 @@ export function AddWordPage() {
 
           <label>
             {t('addWord.partOfSpeech')} <span className="optional-mark">{t('addWord.optional')}</span>
-            <input
+            <Input
               value={form.partOfSpeech}
               onChange={(event) =>
                 setForm((current) => ({ ...current, partOfSpeech: event.target.value }))

@@ -5,6 +5,7 @@ export type AuthUser = {
   username: string
   createdAt?: string
   canSeePodcast?: boolean
+  isAdmin?: boolean
 }
 
 export type AuthResponse = {

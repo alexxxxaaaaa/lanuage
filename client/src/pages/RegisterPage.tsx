@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Input } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
 import { register } from '../api/auth'
 import { useAuthStore } from '../store/authStore'
@@ -40,11 +41,10 @@ export function RegisterPage() {
         <form className="auth-form" onSubmit={handleSubmit}>
           <label className="auth-field">
             <span>用户名</span>
-            <input
+            <Input
               autoFocus
-              required
+              size="large"
               minLength={2}
-              type="text"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
               autoComplete="username"
@@ -53,10 +53,9 @@ export function RegisterPage() {
           </label>
           <label className="auth-field">
             <span>密码</span>
-            <input
-              required
+            <Input.Password
+              size="large"
               minLength={6}
-              type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete="new-password"
@@ -65,10 +64,9 @@ export function RegisterPage() {
           </label>
           <label className="auth-field">
             <span>确认密码</span>
-            <input
-              required
+            <Input.Password
+              size="large"
               minLength={6}
-              type="password"
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
               autoComplete="new-password"

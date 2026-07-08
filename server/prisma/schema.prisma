@@ -19,6 +19,7 @@ model User {
   aiUsageLogs       AiUsageLog[]
   grammars          Grammar[]
   podcasts          Podcast[]
+  exams             Exam[]
 }
 
 model Folder {
@@ -183,4 +184,49 @@ model Podcast {
 
   @@index([userId])
   @@unique([userId, youtubeId])
+}
+
+// A JLPT-style real exam (真题). Phase 1: users upload a question PDF, we
+// parse it with the AI into a structured `parsedData` blob and let them
+// browse the questions. Phase 2+ adds answers (from a separate solution PDF),
+// interactive answering, listening audio, etc. Assets other than the parsed
+// JSON (the original PDF and audio) live in external storage (R2) — we only
+// keep URLs here.
+model Exam {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  title          String            // "N1 2019年7月"
+  year           String   @default("")
+  level          String   @default("N1")
+  // Optional URLs to external assets; empty when not yet uploaded.
+  questionPdfUrl String   @default("")
+  solutionPdfUrl String   @default("")
+  audioUrl       String   @default("")
+  // JSON blob:
+  //   { sections: [{ type, instruction, questions: [{ id, stem, target, choices, answer, explanation }] }] }
+  parsedData     String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  attempts       ExamAttempt[]
+
+  @@index([userId])
+}
+
+model ExamAttempt {
+  id          String    @id @default(uuid())
+  examId      String
+  exam        Exam      @relation(fields: [examId], references: [id])
+  userId      String
+  // JSON: { [questionId: number]: userAnswer: number }
+  answers     String    @default("{}")
+  score       Int?
+  // JSON: { [sectionType]: correct/total }
+  scoreByType String    @default("{}")
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+
+  @@index([examId])
+  @@index([userId])
 }

@@ -20,6 +20,25 @@ function normalizeUsername(input?: string) {
   return (input ?? '').trim().toLowerCase()
 }
 
+/** Parse ADMIN_USERNAMES env into a lowercase set. Shared with the
+ *  requireAdmin middleware — this is the single source of truth for who
+ *  counts as an admin. */
+function parseAdminList(): Set<string> {
+  const raw = getEnv('ADMIN_USERNAMES') ?? ''
+  return new Set(
+    raw
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+  )
+}
+
+export function isUserAdmin(username: string): boolean {
+  const admins = parseAdminList()
+  if (admins.size === 0) return false
+  return admins.has(username.toLowerCase())
+}
+
 function assertCredentialFormat(username: string, password: string) {
   if (username.length < MIN_USERNAME_LENGTH) {
     throw new AppError('用户名至少 2 个字符', 400)
@@ -60,7 +79,11 @@ export async function register(rawUsername: string, password: string) {
 
   return {
     token: await signTokenForUser(user),
-    user: { id: user.id, username: user.username },
+    user: {
+      id: user.id,
+      username: user.username,
+      isAdmin: isUserAdmin(user.username),
+    },
   }
 }
 
@@ -82,7 +105,11 @@ export async function login(rawUsername: string, password: string) {
 
   return {
     token: await signTokenForUser(user),
-    user: { id: user.id, username: user.username },
+    user: {
+      id: user.id,
+      username: user.username,
+      isAdmin: isUserAdmin(user.username),
+    },
   }
 }
 
@@ -96,6 +123,7 @@ export async function getUserById(id: string) {
     username: user.username,
     createdAt: user.createdAt,
     canSeePodcast: user.canSeePodcast,
+    isAdmin: isUserAdmin(user.username),
   }
 }
 
