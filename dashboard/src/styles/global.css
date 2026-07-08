@@ -1,0 +1,77 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+.login-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1677ff 0%, #4096ff 100%);
+}
+
+.login-card {
+  width: 360px;
+  padding: 32px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+.login-title {
+  text-align: center;
+  margin-bottom: 24px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f1f1f;
+}
+
+.login-subtitle {
+  text-align: center;
+  color: #8c8c8c;
+  margin-top: -16px;
+  margin-bottom: 24px;
+  font-size: 13px;
+}
+
+.layout-logo {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: 1px;
+}
+
+.layout-header {
+  background: #fff;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+}
+
+.layout-content {
+  margin: 16px;
+  padding: 16px;
+  background: #fff;
+  border-radius: 8px;
+  min-height: calc(100vh - 64px - 32px);
+}
+
+.stat-card .ant-statistic-title {
+  color: #595959;
+}
