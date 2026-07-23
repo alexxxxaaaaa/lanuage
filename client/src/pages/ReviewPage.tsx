@@ -53,6 +53,14 @@ export function ReviewPage() {
   const isSubmitting = useAppStore((state) => state.isSubmitting)
   const error = useAppStore((state) => state.error)
   const [stepIndex, setStepIndex] = useState(0)
+  // Per-word retry queue: the LIST of failed stage indices that still need
+  // redoing. Failing at step 2 stores [2]; failing at step 0 and 2 stores
+  // [0, 2]. Retry cycles ONLY through the failed stages — retrying stages
+  // the user already passed would leak info (e.g. hearing the pronunciation
+  // gives away the spelling for a recall-only failure).
+  const [retryStagesByWord, setRetryStagesByWord] = useState<
+    Record<string, number[]>
+  >({})
   const [stepRatings, setStepRatings] = useState<
     Record<string, Partial<Record<ReviewStepKey, 'again' | 'hard' | 'easy'>>>
   >({})
@@ -76,6 +84,13 @@ export function ReviewPage() {
     hard: number
     again: number
   }>({ easy: 0, hard: 0, again: 0 })
+  // "Did this word ever get an `again` rating this session?" — used to
+  // classify the session-done stats. If the user hit Again at ANY step
+  // (even if they later cleaned it up on retry and the FSRS finalRating
+  // ended up 'easy'), we still count it as an Again in the recap: the user
+  // wants credit for "I needed help on this" rather than "I eventually
+  // remembered". FSRS finalRating stays unchanged (scheduling is separate).
+  const [hadAgainByWord, setHadAgainByWord] = useState<Record<string, boolean>>({})
 
   const folderList = Array.isArray(folders) ? folders : []
 
@@ -95,6 +110,8 @@ export function ReviewPage() {
     setCorrectionDraft({})
     setCorrectionApplied(false)
     setSessionStats({ easy: 0, hard: 0, again: 0 })
+    setHadAgainByWord({})
+    setRetryStagesByWord({})
     useAppStore.getState().resetReviewSession()
   }, [reviewFolderId])
 
@@ -102,8 +119,20 @@ export function ReviewPage() {
   const currentReview = reviews[currentIndex]
   const currentWord = currentReview?.word
   const completedWords = Math.max(0, totalReviewCount - reviews.length)
-  const currentStep = REVIEW_STEPS[stepIndex]
-  const isLastStep = stepIndex === REVIEW_STEPS.length - 1
+  // Words in retry-mode use their private failed-stage queue; everyone
+  // else uses the global stepIndex. `retryStages` is the head of the
+  // failed-stage list to redo, so if a user only failed at recall, they
+  // ONLY see recall on retry (not pronunciation/recognition again).
+  const currentRetryStages =
+    currentReview ? retryStagesByWord[currentReview.wordId] : undefined
+  const retryStep =
+    currentRetryStages && currentRetryStages.length > 0
+      ? currentRetryStages[0]
+      : null
+  const effectiveStepIndex = retryStep ?? stepIndex
+  const currentStep = REVIEW_STEPS[effectiveStepIndex]
+  const isLastStep = effectiveStepIndex === REVIEW_STEPS.length - 1
+  const isInRetry = retryStep !== null
   /** 当前是第几个单词（1…总词数），三种复习方式共用同一个「第几词」，不会变成 60/30 */
   const currentWordPosition =
     totalReviewCount === 0
@@ -155,23 +184,51 @@ export function ReviewPage() {
     const wordId = currentReview.wordId
     const stepKey = currentStep.key
 
-    if (!isLastStep) {
-      setStepRatings((prev) => ({
-        ...prev,
-        [wordId]: {
-          ...(prev[wordId] ?? {}),
-          [stepKey]: rating,
-        },
-      }))
-      goNextInRound()
+    // Track any-step Again for the session-done stats. Persists across
+    // cycles — even if the user later retries and passes, we remember.
+    if (rating === 'again') {
+      setHadAgainByWord((prev) => ({ ...prev, [wordId]: true }))
+    }
+
+    // Always record the rating for the stage we're on. This works for both
+    // normal mode (progressive cycle) and retry mode (revisits a specific
+    // failed stage) — the stored rating for that stage gets overwritten.
+    const nextStepRatings = {
+      ...stepRatings,
+      [wordId]: {
+        ...(stepRatings[wordId] ?? {}),
+        [stepKey]: rating,
+      },
+    }
+    setStepRatings(nextStepRatings)
+
+    // Decide: continue (more stages/words to do) OR finalize this word.
+    const currentRetryQueue = retryStagesByWord[wordId] ?? []
+    const willFinalize = isInRetry ? currentRetryQueue.length <= 1 : isLastStep
+
+    if (!willFinalize) {
+      // More stages to process on THIS word (retry) or move to next word (normal).
+      if (isInRetry) {
+        // Pop the just-completed stage from the retry queue.
+        setRetryStagesByWord((prev) => ({
+          ...prev,
+          [wordId]: currentRetryQueue.slice(1),
+        }))
+      } else {
+        goNextInRound()
+      }
+      if (isCardFlipped) {
+        useAppStore.getState().toggleCard()
+      }
       return
     }
 
-    const previous = stepRatings[wordId] ?? {}
+    // Finalize path — read the word's full ratings including the one just applied.
+    const stages = nextStepRatings[wordId] ?? {}
     const allRatings: Array<'again' | 'hard' | 'easy'> = [
-      previous.pronunciation ?? 'easy',
-      previous.recognition ?? 'easy',
-      rating,
+      stages.pronunciation ?? 'easy',
+      stages.recognition ?? 'easy',
+      stages.recall ?? 'easy',
     ]
     const cycleDelta = allRatings.reduce((sum, item) => sum + getDebtDelta(item), 0)
     const currentDebt = debtByWord[wordId] ?? 0
@@ -185,22 +242,28 @@ export function ReviewPage() {
       ...prev,
       [wordId]: nextDebt,
     }))
-    setStepRatings((prev) => {
-      const next = { ...prev }
-      delete next[wordId]
-      return next
-    })
 
     if (shouldRepeatToday) {
       setRepeatCountByWord((prev) => ({
         ...prev,
         [wordId]: repeatCount + 1,
       }))
-
+      // Only redo the stages that were rated 'again' this cycle. If ONLY
+      // recall failed, retry queue = [2]. If pronunciation + recall failed,
+      // retry = [0, 2]. If the debt threshold triggered a retry without any
+      // explicit 'again' rating (rare), fall back to all-three so the user
+      // gets a full re-round.
+      const failedStages: number[] = []
+      if (allRatings[0] === 'again') failedStages.push(0)
+      if (allRatings[1] === 'again') failedStages.push(1)
+      if (allRatings[2] === 'again') failedStages.push(2)
+      if (failedStages.length === 0) failedStages.push(0, 1, 2)
+      setRetryStagesByWord((prev) => ({ ...prev, [wordId]: failedStages }))
+      // Keep stepRatings intact — retry stages will overwrite their own
+      // slots, non-failed stages keep their previous non-again ratings.
       if (currentIndex < reviews.length - 1) {
         useAppStore.getState().goToNextReview()
       } else {
-        setStepIndex(0)
         useAppStore.getState().setReviewIndex(0)
       }
       if (isCardFlipped) {
@@ -208,6 +271,18 @@ export function ReviewPage() {
       }
       return
     }
+
+    // Ready to submit — clear per-word bookkeeping. DO NOT clear the
+    // retry queue here: doing so would let `effectiveStep` fall back to
+    // the (unrelated) global stepIndex mid-transition, which briefly
+    // renders the wrong step's UI before submitReview drops the word from
+    // the queue. The stale entry is harmless once the wordId leaves
+    // todayReviews. Session-scope resets (folder change) wipe it anyway.
+    setStepRatings((prev) => {
+      const next = { ...prev }
+      delete next[wordId]
+      return next
+    })
 
     const repeatPenalty = repeatCountByWord[wordId] ?? 0
     let finalRating = toFinalRatingByDebt(nextDebt)
@@ -244,11 +319,21 @@ export function ReviewPage() {
     // Bump per-session rating counter BEFORE submit so a network failure
     // still leaves the stats meaningful. Counts each word once (the loop
     // above already returned early on repeat cycles).
+    //
+    // Classification: if the word had ANY `again` in this session (at any
+    // step, any cycle), we bin it as Again in the recap regardless of the
+    // FSRS finalRating. The user asked for this — they want the recap to
+    // reflect "I struggled with this one" rather than "I eventually got it".
+    // FSRS finalRating (submitted to server) is untouched.
+    const wasEverAgain = hadAgainByWord[wordId] === true || finalRating === 'again'
+    const displayRating: 'again' | 'hard' | 'easy' = wasEverAgain
+      ? 'again'
+      : finalRating
     setSessionStats((prev) => ({
       ...prev,
-      easy: prev.easy + (finalRating === 'easy' ? 1 : 0),
-      hard: prev.hard + (finalRating === 'hard' ? 1 : 0),
-      again: prev.again + (finalRating === 'again' ? 1 : 0),
+      easy: prev.easy + (displayRating === 'easy' ? 1 : 0),
+      hard: prev.hard + (displayRating === 'hard' ? 1 : 0),
+      again: prev.again + (displayRating === 'again' ? 1 : 0),
     }))
     await useAppStore.getState().submitReview(finalRating)
     setDebtByWord((prev) => {
@@ -299,7 +384,11 @@ export function ReviewPage() {
             event.preventDefault()
             void handleStepRating('again')
           }
-        } else if (isCardFlipped) {
+        } else {
+          // Stages 1 (pronunciation) and 2 (recognition): Enter = Easy.
+          // No card-flip requirement — the user asked for a straight
+          // "I got this, next" shortcut for these two stages. Recall stage
+          // has its own Enter behavior wired to the typed-answer verdict.
           event.preventDefault()
           void handleStepRating('easy')
         }

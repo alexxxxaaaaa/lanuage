@@ -35,6 +35,21 @@ export async function importPodcast(payload: {
   return r.data
 }
 
+/** Import an mp3-based podcast — file already placed in the frontend's
+ *  public/ folder, referenced by `mp3Url` (e.g. "/podcast-media/foo.mp3"),
+ *  transcript pasted as SRT. */
+export async function importMp3Podcast(payload: {
+  title: string
+  mp3Url: string
+  primaryLang: 'jp' | 'en'
+  primarySrt: string
+  zhSrt?: string
+  thumbnail?: string
+}) {
+  const r = await apiClient.post<Podcast>('/api/podcasts/mp3', payload)
+  return r.data
+}
+
 export async function deletePodcast(id: string) {
   const r = await apiClient.delete<{ id: string }>(`/api/podcasts/${id}`)
   return r.data

@@ -8,11 +8,13 @@ import { examsRouter } from './routes/exams'
 import { expressionsRouter } from './routes/expressions'
 import { foldersRouter } from './routes/folders'
 import { grammarRouter } from './routes/grammar'
+import { grammarQuestionsRouter } from './routes/grammarQuestions'
 import { grammarReviewRouter } from './routes/grammarReview'
 import { healthRouter } from './routes/health'
 import { notesRouter } from './routes/notes'
 import { podcastsRouter } from './routes/podcasts'
 import { reviewRouter } from './routes/review'
+import { weeklyReviewRouter } from './routes/weeklyReview'
 import { wordsRouter } from './routes/words'
 import { handleError } from './middleware/errorHandler'
 import { requireAdmin } from './middleware/requireAdmin'
@@ -54,6 +56,9 @@ export function createApp() {
   app.use('/api/grammar/*', requireAuth)
   app.route('/api/grammar', grammarRouter)
 
+  app.use('/api/grammar-questions/*', requireAuth)
+  app.route('/api/grammar-questions', grammarQuestionsRouter)
+
   app.use('/api/grammar-reviews/*', requireAuth)
   app.route('/api/grammar-reviews', grammarReviewRouter)
 
@@ -65,6 +70,9 @@ export function createApp() {
 
   app.use('/api/exams/*', requireAuth)
   app.route('/api/exams', examsRouter)
+
+  app.use('/api/weekly-review/*', requireAuth)
+  app.route('/api/weekly-review', weeklyReviewRouter)
 
   app.use('/api/ai/*', requireAuth)
   app.route('/api/ai', aiRouter)

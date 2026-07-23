@@ -425,7 +425,7 @@ a {
 }
 .grammar-card-label {
   flex-shrink: 0;
-  width: 36px;
+  min-width: 64px;
   color: rgba(0, 0, 0, 0.45);
   font-size: 12px;
   padding-top: 2px;
@@ -1816,8 +1816,8 @@ button:disabled,
   font-weight: 600;
 }
 
-.word-form input,
-.word-form textarea,
+.word-form input:not(.ant-input),
+.word-form textarea:not(.ant-input),
 .word-form select {
   width: 100%;
   padding: 12px 14px;
@@ -1828,7 +1828,7 @@ button:disabled,
   font: inherit;
 }
 
-.word-form textarea {
+.word-form textarea:not(.ant-input) {
   resize: vertical;
   min-height: 220px;
 }
@@ -2147,9 +2147,9 @@ button:disabled,
   color: var(--text-h);
 }
 
-.form-field input,
+.form-field input:not(.ant-input),
 .form-field select,
-.form-field textarea {
+.form-field textarea:not(.ant-input) {
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -2160,9 +2160,9 @@ button:disabled,
   resize: vertical;
 }
 
-.form-field input:focus,
+.form-field input:not(.ant-input):focus,
 .form-field select:focus,
-.form-field textarea:focus {
+.form-field textarea:not(.ant-input):focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
@@ -2623,7 +2623,7 @@ button:disabled,
   grid-template-columns: 1fr;
 }
 
-.expression-filter-row input,
+.expression-filter-row input:not(.ant-input),
 .expression-filter-row select {
   padding: 10px 12px;
   border-radius: 10px;
@@ -2734,9 +2734,9 @@ button:disabled,
   color: var(--text-m);
 }
 
-.quick-add-row input,
+.quick-add-row input:not(.ant-input),
 .quick-add-row select,
-.quick-add-row textarea {
+.quick-add-row textarea:not(.ant-input) {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -2747,7 +2747,7 @@ button:disabled,
   color: var(--text-h);
 }
 
-.quick-add-row textarea {
+.quick-add-row textarea:not(.ant-input) {
   resize: vertical;
 }
 
@@ -2833,7 +2833,7 @@ button:disabled,
   color: #334155;
 }
 
-.auth-field input {
+.auth-field input:not(.ant-input) {
   padding: 10px 12px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
@@ -2842,7 +2842,7 @@ button:disabled,
   transition: border-color 0.15s;
 }
 
-.auth-field input:focus {
+.auth-field input:not(.ant-input):focus {
   border-color: #6366f1;
 }
 
@@ -3940,9 +3940,8 @@ button:disabled,
 .exam-upload-field > span {
   font-weight: 500;
 }
-.exam-upload-field input[type="text"],
-.exam-upload-field input[type="file"],
-.exam-upload-field select {
+/* Only style raw file inputs — antd Input/Select bring their own styling. */
+.exam-upload-field input[type="file"] {
   padding: 8px 10px;
   border: 1px solid rgba(15, 23, 42, 0.18);
   border-radius: 8px;
@@ -3951,8 +3950,7 @@ button:disabled,
   color: var(--text-h);
   background: white;
 }
-.exam-upload-field input:focus,
-.exam-upload-field select:focus {
+.exam-upload-field input[type="file"]:focus {
   outline: none;
   border-color: rgb(99, 102, 241);
 }
@@ -4369,3 +4367,376 @@ button:disabled,
 .review-session-stats-breakdown .dot-easy { background: rgb(34, 197, 94); }
 .review-session-stats-breakdown .dot-hard { background: rgb(245, 158, 11); }
 .review-session-stats-breakdown .dot-again { background: rgb(239, 68, 68); }
+
+/* Weekly-review modal — Friday recap. */
+.weekly-review-body {
+  display: grid;
+  gap: 20px;
+}
+.weekly-review-window {
+  margin: 0;
+  font-size: 12px;
+}
+.weekly-review-section {
+  display: grid;
+  gap: 8px;
+}
+.weekly-review-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.weekly-review-section-header strong {
+  font-size: 14px;
+  color: var(--text-h);
+}
+.weekly-review-section-header .muted {
+  font-size: 12px;
+}
+.weekly-review-podcast-list {
+  list-style: disc inside;
+  padding: 0;
+  margin: 0;
+  font-size: 13px;
+  display: grid;
+  gap: 2px;
+}
+.weekly-review-legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin: 0 4px 0 8px;
+  vertical-align: middle;
+}
+.weekly-review-legend-dot.dot-word { background: rgb(99, 102, 241); }
+.weekly-review-legend-dot.dot-grammar { background: rgb(16, 185, 129); }
+
+/* Per-day activity bars. 7 columns; each has a track with 2 stacked chunks
+   (word events on bottom, grammar on top). Height maps proportionally to
+   the max daily total. */
+.weekly-review-bars {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  align-items: end;
+  height: 120px;
+  margin-top: 4px;
+}
+.weekly-review-bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+}
+.weekly-review-bar-track {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column-reverse;
+  background: rgba(15, 23, 42, 0.04);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.weekly-review-bar-word {
+  background: rgb(99, 102, 241);
+  min-height: 0;
+  transition: height 0.15s;
+}
+.weekly-review-bar-grammar {
+  background: rgb(16, 185, 129);
+  min-height: 0;
+  transition: height 0.15s;
+}
+.weekly-review-bar-label {
+  font-size: 11px;
+  color: var(--muted, #6b7280);
+}
+.weekly-review-bar-total {
+  font-size: 10px;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+  min-height: 14px;
+}
+
+/* Grammar question MCQ cards, used by GrammarQuestionsPage + GrammarDetailPage. */
+.grammar-learn-questions {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  padding-top: 14px;
+}
+.grammar-learn-questions .eyebrow {
+  margin: 0 0 4px 0;
+}
+
+.grammar-question-flat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.grammar-question-flat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.grammar-question-flat-meta {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 0 4px;
+  font-size: 0.85rem;
+  flex-wrap: wrap;
+}
+.grammar-question-flat-index {
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.grammar-question-flat-pattern {
+  font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.25);
+}
+.grammar-question-flat-pattern:hover {
+  color: #2c56d1;
+  border-bottom-color: #2c56d1;
+}
+.grammar-question-flat-meaning {
+  font-size: 0.8rem;
+}
+
+.grammar-question-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.grammar-question-group {
+  padding: 0;
+  overflow: hidden;
+}
+.grammar-question-group-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 14px 18px;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+.grammar-question-group-header:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+.grammar-question-group-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.grammar-question-group-title strong {
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+.grammar-question-group-meaning {
+  font-size: 0.85rem;
+  margin-top: 2px;
+}
+.grammar-question-group-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+.grammar-question-group-caret {
+  color: var(--text-h);
+  font-size: 0.9rem;
+  width: 12px;
+}
+.grammar-question-group-wrong-badge {
+  background: #fee2e2;
+  color: #b91c1c;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.grammar-question-group-body {
+  padding: 4px 18px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.grammar-question-card {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #fafafa;
+}
+.grammar-question-prompt {
+  margin: 0 0 12px 0;
+  font-size: 1rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+.grammar-question-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.grammar-question-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+  font-size: 0.95rem;
+  color: inherit;
+}
+.grammar-question-option:hover:not(:disabled) {
+  background: #f2f6ff;
+  border-color: #b5cdff;
+}
+.grammar-question-option:disabled {
+  cursor: default;
+}
+.grammar-question-option.is-picked:not(.is-revealed) {
+  background: #eef4ff;
+  border-color: #6d8dcf;
+}
+.grammar-question-option.is-correct {
+  background: #dcfce7;
+  border-color: #22c55e;
+}
+.grammar-question-option.is-wrong {
+  background: #fee2e2;
+  border-color: #ef4444;
+}
+.grammar-question-option-label {
+  font-weight: 700;
+  min-width: 18px;
+  color: var(--text-h);
+}
+.grammar-question-option.is-correct .grammar-question-option-label {
+  color: #15803d;
+}
+.grammar-question-option.is-wrong .grammar-question-option-label {
+  color: #b91c1c;
+}
+.grammar-question-option-text {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.grammar-question-footer {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 10px;
+  font-size: 0.9rem;
+}
+.grammar-question-verdict-correct {
+  color: #15803d;
+  font-weight: 600;
+}
+.grammar-question-verdict-wrong {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+/* Exam audio player — sticky at the top of the take page. */
+.exam-take-audio-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: #ffffff;
+  padding: 12px 0 8px;
+  margin-bottom: 8px;
+  box-shadow: 0 8px 12px -8px rgba(0, 0, 0, 0.15);
+}
+.exam-audio-player {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background: #fafafa;
+}
+.exam-audio-player-audio {
+  width: 100%;
+  height: 36px;
+}
+.exam-audio-subs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: center;
+  min-height: 68px;
+}
+.exam-audio-subs-neighbor {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  min-height: 20px;
+}
+.exam-audio-subs-active {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #1a1a1a;
+  min-height: 26px;
+  transition: color 0.15s;
+}
+@media (prefers-color-scheme: dark) {
+  .exam-take-audio-wrap { background: #1a1a1a; }
+  .exam-audio-player { background: #222; border-color: rgba(255,255,255,0.1); }
+  .exam-audio-subs-active { color: #f5f5f5; }
+}
+
+/* Per-question passage (問題8 style) — indented block above the question card. */
+.exam-question-passage {
+  background: #f7f7f5;
+  border-left: 3px solid #888;
+  padding: 12px 16px;
+  margin: 0 0 12px 0;
+  border-radius: 4px;
+  line-height: 1.75;
+  font-family: serif;
+}
+.exam-question-passage p {
+  margin: 0;
+}
+/* Shared heading for a group of questions (e.g. 3番 質問1/質問2). */
+.exam-question-group-title {
+  font-weight: 700;
+  font-size: 1rem;
+  margin: 16px 0 8px 0;
+  color: var(--text-h);
+}
+@media (prefers-color-scheme: dark) {
+  .exam-question-passage { background: #1f1f1f; border-left-color: #666; }
+}
+
+/* MP3-based podcast audio player — sits in the same spot as the YouTube
+ * iframe would, but takes only as much height as the native controls need. */
+.podcast-mp3-audio {
+  width: 100%;
+  height: 44px;
+  display: block;
+}

@@ -33,6 +33,28 @@ function pickFolderByLanguage(
   return sameLanguage[0].id
 }
 
+// localStorage key for "last folder I saved a word into". Restored on next
+// AddWordPage mount so users don't have to re-pick every session. URL
+// `?folderId=` and prefill precedence still win over this.
+const LAST_FOLDER_KEY = 'add-word:last-folder-id'
+
+function loadLastFolder(): string {
+  if (typeof window === 'undefined') return ''
+  try {
+    return window.localStorage.getItem(LAST_FOLDER_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+function saveLastFolder(id: string) {
+  if (typeof window === 'undefined') return
+  try {
+    if (id) window.localStorage.setItem(LAST_FOLDER_KEY, id)
+  } catch {
+    /* quota / privacy mode — ignore */
+  }
+}
+
 export function AddWordPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
@@ -48,7 +70,12 @@ export function AddWordPage() {
     [folders],
   )
 
-  const [form, setForm] = useState({ ...initialForm, folderId: prefillFolderId })
+  const [form, setForm] = useState({
+    ...initialForm,
+    // URL param wins; otherwise fall back to the last-saved folder from
+    // localStorage. Validated against `folderList` after fetchFolders below.
+    folderId: prefillFolderId || loadLastFolder(),
+  })
   const [aiTerm, setAiTerm] = useState('')
   const [noteOptions, setNoteOptions] = useState<Array<{ id: string; title: string }>>([])
   const [isFillingByAi, setIsFillingByAi] = useState(false)
@@ -79,6 +106,19 @@ export function AddWordPage() {
       setForm((current) => ({ ...current, folderId: prefillFolderId }))
     }
   }, [prefillFolderId])
+
+  // Validate the persisted folder id once folders load — if the user deleted
+  // that folder in another tab / session, drop the stale reference so the
+  // Select shows its placeholder instead of a broken value.
+  useEffect(() => {
+    if (isLoadingFolders) return
+    if (folderList.length === 0) return
+    setForm((current) => {
+      if (!current.folderId) return current
+      const stillExists = folderList.some((f) => f.id === current.folderId)
+      return stillExists ? current : { ...current, folderId: '' }
+    })
+  }, [isLoadingFolders, folderList])
 
   useEffect(() => {
     if (prefillNoteId) {
@@ -124,6 +164,9 @@ export function AddWordPage() {
         partOfSpeech: form.partOfSpeech,
       })
 
+      // Persist the folder we just saved into so the NEXT AddWordPage mount
+      // (even in a fresh session) defaults to it.
+      saveLastFolder(form.folderId)
       setForm((current) => ({
         ...initialForm,
         folderId: current.folderId,

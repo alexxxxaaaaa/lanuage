@@ -20,6 +20,7 @@ model User {
   grammars          Grammar[]
   podcasts          Podcast[]
   exams             Exam[]
+  reviewEvents      ReviewEvent[]
 }
 
 model Folder {
@@ -142,6 +143,7 @@ model Grammar {
   userId      String
   user        User     @relation(fields: [userId], references: [id])
   review      GrammarReview?
+  questions   GrammarQuestion[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -149,6 +151,37 @@ model Grammar {
   @@index([userId])
   @@index([level])
   @@index([userId, pinnedAt])
+}
+
+// N1-style four-choice questions attached to a Grammar row. Options are
+// stored as a JSON-encoded string array of length 4; answerIndex is 0..3.
+model GrammarQuestion {
+  id          String   @id @default(uuid())
+  grammarId   String
+  grammar     Grammar  @relation(fields: [grammarId], references: [id], onDelete: Cascade)
+  prompt      String
+  options     String
+  answerIndex Int
+  createdAt   DateTime @default(now())
+  attempts    GrammarQuestionAttempt[]
+
+  @@index([grammarId])
+}
+
+// One row per (user, question) attempt. Upserted on re-answer so the
+// "wrong questions" view reflects the user's most recent attempt.
+model GrammarQuestionAttempt {
+  id            String   @id @default(uuid())
+  userId        String
+  questionId    String
+  question      GrammarQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedIndex Int
+  isCorrect     Boolean
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, questionId])
+  @@index([userId, isCorrect])
 }
 
 model GrammarReview {
@@ -170,7 +203,13 @@ model Podcast {
   id          String   @id @default(uuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id])
+  // For YouTube podcasts this is the real videoId. For mp3 podcasts it's a
+  // synthetic id like "mp3-<uuid>" so the (userId, youtubeId) unique
+  // constraint still holds.
   youtubeId   String
+  // Non-empty when this is a local/mp3-based podcast (served from the
+  // frontend's public/ folder). Frontend switches player based on this.
+  mp3Url      String   @default("")
   title       String
   primaryLang String   @default("jp")
   thumbnail   String   @default("")
@@ -229,4 +268,23 @@ model ExamAttempt {
 
   @@index([examId])
   @@index([userId])
+}
+
+// Per-rating event log. Powers weekly-review analytics (how many words
+// reviewed this week, correctness rate, etc). The Review row only holds
+// FSRS *current* state, which is enough for scheduling but not for time-
+// windowed analytics — we can't reconstruct "how many reviews did I do
+// last Tuesday" from Review alone. One row per submitted rating.
+model ReviewEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  // 'word' | 'grammar' — same enum values on the client.
+  kind      String
+  itemId    String
+  // 'again' | 'hard' | 'easy'
+  rating    String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }

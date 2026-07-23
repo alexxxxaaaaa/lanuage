@@ -4,6 +4,11 @@ import {
   getTodayGrammarReviews,
   submitGrammarReviewResult,
 } from '../api/grammarReview'
+import {
+  listGrammarQuestionsFor,
+  type GrammarQuestion,
+} from '../api/grammarQuestions'
+import { GrammarQuestionCard } from '../components/GrammarQuestionCard'
 import { useTab } from '../components/TabContext'
 import type { GrammarReviewItem, ReviewRating } from '../types'
 
@@ -16,6 +21,12 @@ export function ReviewGrammarPage() {
   const [isFlipped, setIsFlipped] = useState(false)
   const [done, setDone] = useState(0)
   const [initialTotal, setInitialTotal] = useState(0)
+  // Questions attached to each grammar, cached per grammarId. Loaded lazily
+  // when a grammar becomes current; if a review-again cycles it back later,
+  // we reuse the cached list (including any attempts the user just made).
+  const [questionsByGrammar, setQuestionsByGrammar] = useState<
+    Record<string, GrammarQuestion[]>
+  >({})
 
   useEffect(() => {
     setTitle('语法复习')
@@ -41,6 +52,19 @@ export function ReviewGrammarPage() {
   }, [])
 
   const current = queue[0]
+
+  useEffect(() => {
+    if (!current) return
+    const gid = current.grammarId
+    if (questionsByGrammar[gid]) return
+    listGrammarQuestionsFor(gid)
+      .then((rows) =>
+        setQuestionsByGrammar((prev) => ({ ...prev, [gid]: rows })),
+      )
+      .catch(() => {
+        setQuestionsByGrammar((prev) => ({ ...prev, [gid]: [] }))
+      })
+  }, [current, questionsByGrammar])
 
   const handleRate = useCallback(
     async (rating: ReviewRating) => {
@@ -197,6 +221,40 @@ export function ReviewGrammarPage() {
             ) : null}
           </span>
         </button>
+
+        {isFlipped ? (() => {
+          const questions = questionsByGrammar[current.grammarId]
+          if (!questions) return <p className="muted">练习加载中...</p>
+          if (questions.length === 0) return null
+          return (
+            <div className="grammar-learn-questions">
+              <p className="eyebrow">练习</p>
+              {questions.map((q) => (
+                <GrammarQuestionCard
+                  key={q.id}
+                  question={q}
+                  onAnswered={({ isCorrect, selectedIndex }) => {
+                    setQuestionsByGrammar((prev) => {
+                      const list = prev[current.grammarId]
+                      if (!list) return prev
+                      return {
+                        ...prev,
+                        [current.grammarId]: list.map((qq) =>
+                          qq.id !== q.id
+                            ? qq
+                            : {
+                                ...qq,
+                                attempt: { selectedIndex, isCorrect },
+                              },
+                        ),
+                      }
+                    })
+                  }}
+                />
+              ))}
+            </div>
+          )
+        })() : null}
 
         <div className="actions rating-actions">
           <div className="rating-action">

@@ -99,6 +99,10 @@ export function PodcastDetailPage() {
 
   const playerRef = useRef<YTPlayer | null>(null)
   const playerHostRef = useRef<HTMLDivElement | null>(null)
+  // For mp3-based podcasts we render an <audio> tag and wrap it in an adapter
+  // that satisfies the same interface as YTPlayer, so downstream code (poll,
+  // hotkeys, seek) doesn't need to branch on the underlying player.
+  const audioRef = useRef<HTMLAudioElement | null>(null)
   const linesRef = useRef<Podcast['transcript']['lines']>([])
   const currentIdxRef = useRef(currentIdx)
   currentIdxRef.current = currentIdx
@@ -144,11 +148,89 @@ export function PodcastDetailPage() {
     }
   }, [podcast?.id, podcast?.primaryLang])
 
-  // Initialize the YT player once we have the podcast.
+  // Initialize the player once we have the podcast. Mp3-based podcasts get an
+  // HTMLAudioElement adapter; YouTube ones go through the iframe API.
   useEffect(() => {
     if (!podcast) return
     let cancelled = false
     let pollTimer: number | null = null
+
+    const setupPolling = (getter: () => number) => {
+      let lastSavedAt = 0
+      pollTimer = window.setInterval(() => {
+        const sec = getter()
+        const ms = sec * 1000
+        if (!isScrubbingRef.current) setCurrentSec(sec)
+        const lines = linesRef.current
+        let next = -1
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].start <= ms) next = i
+          else break
+        }
+        if (next !== currentIdxRef.current) setCurrentIdx(next)
+        const now = Date.now()
+        if (sec > 5 && now - lastSavedAt > 5000) {
+          void savePodcastPosition(podcast.id, sec).catch(() => {})
+          lastSavedAt = now
+        }
+      }, 250)
+    }
+
+    // ── MP3 path ──
+    if (podcast.mp3Url) {
+      const el = audioRef.current
+      if (!el) return
+      el.playbackRate = playbackRate
+      const saved = podcast.lastPositionSec ?? 0
+      const dur = podcast.durationSec
+      if (saved > 0 && (dur === 0 || saved < dur - 10)) {
+        el.currentTime = saved
+      }
+      // Adapter — makes the audio element quack like a YTPlayer so keyboard
+      // shortcuts and seek logic below stay agnostic of the backend.
+      const adapter: YTPlayer = {
+        playVideo: () => { void el.play() },
+        pauseVideo: () => el.pause(),
+        seekTo: (sec: number) => { el.currentTime = sec },
+        getCurrentTime: () => el.currentTime,
+        getPlayerState: () => (el.paused ? 2 : 1), // 2=paused, 1=playing (YT enum)
+        setPlaybackRate: (rate: number) => { el.playbackRate = rate },
+        destroy: () => { el.pause() },
+      }
+      playerRef.current = adapter
+
+      const onPlay = () => setIsPlaying(true)
+      const onPause = () => {
+        setIsPlaying(false)
+        if (el.currentTime > 5) {
+          void savePodcastPosition(podcast.id, el.currentTime).catch(() => {})
+        }
+      }
+      const onEnded = () => {
+        setIsPlaying(false)
+        void savePodcastPosition(podcast.id, 0).catch(() => {})
+      }
+      el.addEventListener('play', onPlay)
+      el.addEventListener('pause', onPause)
+      el.addEventListener('ended', onEnded)
+      setupPolling(() => el.currentTime)
+
+      return () => {
+        cancelled = true
+        if (pollTimer !== null) window.clearInterval(pollTimer)
+        try {
+          const sec = el.currentTime
+          if (sec > 5) {
+            savePodcastPositionBeacon(podcast.id, sec, getStoredToken())
+          }
+        } catch {}
+        el.removeEventListener('play', onPlay)
+        el.removeEventListener('pause', onPause)
+        el.removeEventListener('ended', onEnded)
+      }
+    }
+
+    // ── YouTube path (existing) ──
     void loadYouTubeApi().then(() => {
       if (cancelled || !playerHostRef.current || !window.YT) return
       const player = new window.YT.Player(playerHostRef.current, {
@@ -512,7 +594,17 @@ export function PodcastDetailPage() {
           ✕
         </button>
         <div className="podcast-player-frame">
-          <div ref={playerHostRef} />
+          {podcast?.mp3Url ? (
+            <audio
+              ref={audioRef}
+              src={podcast.mp3Url}
+              controls
+              preload="metadata"
+              className="podcast-mp3-audio"
+            />
+          ) : (
+            <div ref={playerHostRef} />
+          )}
         </div>
       </div>
       {videoHidden ? (

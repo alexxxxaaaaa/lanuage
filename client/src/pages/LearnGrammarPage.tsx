@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { getUnlearnedGrammars, initGrammarReview } from '../api/grammarReview'
+import {
+  listGrammarQuestionsFor,
+  type GrammarQuestion,
+} from '../api/grammarQuestions'
+import { GrammarQuestionCard } from '../components/GrammarQuestionCard'
 import { useTab } from '../components/TabContext'
 import type { Grammar, ReviewRating } from '../types'
 
@@ -39,6 +44,11 @@ export function LearnGrammarPage() {
   const [itemIdx, setItemIdx] = useState(0)
   const [ratedInBatch, setRatedInBatch] = useState<Record<string, ReviewRating>>({})
   const [sessionCount, setSessionCount] = useState(0)
+  // 5 MCQs per grammar, cached per grammarId — fetched lazily as the user
+  // reaches each new item and reused if we cycle back.
+  const [questionsByGrammar, setQuestionsByGrammar] = useState<
+    Record<string, GrammarQuestion[]>
+  >({})
 
   useEffect(() => {
     setTitle('语法学习')
@@ -65,6 +75,18 @@ export function LearnGrammarPage() {
   const batches = useMemo(() => chunkInto(allGrammars, BATCH_SIZE), [allGrammars])
   const currentBatch = batches[batchIdx] ?? []
   const currentItem = currentBatch[itemIdx]
+
+  useEffect(() => {
+    if (!currentItem) return
+    if (questionsByGrammar[currentItem.id]) return
+    listGrammarQuestionsFor(currentItem.id)
+      .then((rows) =>
+        setQuestionsByGrammar((prev) => ({ ...prev, [currentItem.id]: rows })),
+      )
+      .catch(() => {
+        setQuestionsByGrammar((prev) => ({ ...prev, [currentItem.id]: [] }))
+      })
+  }, [currentItem, questionsByGrammar])
 
   const advance = () => {
     if (itemIdx < currentBatch.length - 1) {
@@ -225,6 +247,40 @@ export function LearnGrammarPage() {
               已评为「{ratedInBatch[currentItem.id]}」
             </p>
           ) : null}
+
+          {(() => {
+            const questions = questionsByGrammar[currentItem.id]
+            if (!questions) return <p className="muted">练习加载中...</p>
+            if (questions.length === 0) return null
+            return (
+              <div className="grammar-learn-questions">
+                <p className="eyebrow">练习</p>
+                {questions.map((q) => (
+                  <GrammarQuestionCard
+                    key={q.id}
+                    question={q}
+                    onAnswered={({ isCorrect, selectedIndex }) => {
+                      setQuestionsByGrammar((prev) => {
+                        const list = prev[currentItem.id]
+                        if (!list) return prev
+                        return {
+                          ...prev,
+                          [currentItem.id]: list.map((qq) =>
+                            qq.id !== q.id
+                              ? qq
+                              : {
+                                  ...qq,
+                                  attempt: { selectedIndex, isCorrect },
+                                },
+                          ),
+                        }
+                      })
+                    }}
+                  />
+                ))}
+              </div>
+            )
+          })()}
         </div>
 
         {phase === 'study' ? (

@@ -176,7 +176,7 @@ export async function updateReview(userId: string, wordId: string, rating: strin
   )
   const firstLearnedAt = currentReview?.lastReviewedAt ? currentReview.firstLearnedAt : reviewedAt
 
-  return prisma.review.update({
+  const updated = await prisma.review.update({
     where: {
       wordId: word.id,
     },
@@ -195,6 +195,16 @@ export async function updateReview(userId: string, wordId: string, rating: strin
       },
     },
   })
+  // Log the event for weekly-review analytics. Best-effort; we don't want
+  // an ORM hiccup here to fail the user's review submission.
+  try {
+    await prisma.reviewEvent.create({
+      data: { userId, kind: 'word', itemId: word.id, rating },
+    })
+  } catch {
+    /* ignore */
+  }
+  return updated
 }
 
 /**
@@ -261,7 +271,7 @@ export async function correctReview(
     ? snapshot.firstLearnedAt
     : reviewedAt
 
-  return prisma.review.update({
+  const updated = await prisma.review.update({
     where: { wordId: word.id },
     data: {
       ...nextState,
@@ -274,6 +284,16 @@ export async function correctReview(
       word: { include: { folder: true } },
     },
   })
+  // Correction replaces the previous event's outcome — log the new rating
+  // so weekly-review stats reflect the user's corrected intent.
+  try {
+    await prisma.reviewEvent.create({
+      data: { userId, kind: 'word', itemId: word.id, rating: newRating },
+    })
+  } catch {
+    /* ignore */
+  }
+  return updated
 }
 
 export async function markWordMastered(userId: string, wordId: string) {

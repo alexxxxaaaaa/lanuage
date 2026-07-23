@@ -168,7 +168,7 @@ export async function submitGrammarReview(
     ? currentReview.firstLearnedAt
     : reviewedAt
 
-  return prisma.grammarReview.update({
+  const updated = await prisma.grammarReview.update({
     where: { grammarId: grammar.id },
     data: {
       ...nextState,
@@ -179,6 +179,14 @@ export async function submitGrammarReview(
     },
     include: { grammar: true },
   })
+  try {
+    await prisma.reviewEvent.create({
+      data: { userId, kind: 'grammar', itemId: grammar.id, rating },
+    })
+  } catch {
+    /* ignore */
+  }
+  return updated
 }
 
 /** Initial seed when the user has just learned a grammar item for the first
@@ -234,13 +242,26 @@ export async function initGrammarReview(
     where: { id: grammar.id },
     data: { isLearned: true },
   })
+  try {
+    await prisma.reviewEvent.create({
+      data: { userId, kind: 'grammar', itemId: grammar.id, rating },
+    })
+  } catch {
+    /* ignore */
+  }
   return review
 }
 
 export async function getUnlearnedGrammars(userId: string) {
+  // "Unlearned" means BOTH:
+  //   - user hasn't manually marked isLearned = true, AND
+  //   - no FSRS review has been submitted (no Review row, or lastReviewedAt null)
+  // The isLearned flag was previously ignored, so manually-marked grammars
+  // kept showing up in the Learn queue.
   return prisma.grammar.findMany({
     where: {
       userId,
+      isLearned: false,
       OR: [
         { review: { is: null } },
         { review: { is: { lastReviewedAt: null } } },
@@ -263,6 +284,7 @@ export async function getGrammarReviewCounts(userId: string) {
     prisma.grammar.count({
       where: {
         userId,
+        isLearned: false,
         OR: [
           { review: { is: null } },
           { review: { is: { lastReviewedAt: null } } },

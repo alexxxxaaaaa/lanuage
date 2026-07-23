@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Input, Modal } from 'antd'
+import { SearchOutlined } from '@ant-design/icons'
 import { Link, useParams } from 'react-router-dom'
 import { generateExpressionCasual, translateExpressionToZh } from '../api/ai'
 import {
@@ -345,11 +346,12 @@ export function ExpressionFolderDetailPage() {
       ) : null}
 
       <div className="card expression-filter-row expression-filter-row-single">
-        <Input.Search
+        <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={t('expression.searchPlaceholder')}
           allowClear
+          prefix={<SearchOutlined style={{ color: 'rgba(0,0,0,0.35)' }} />}
         />
       </div>
 

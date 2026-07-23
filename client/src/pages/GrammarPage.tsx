@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Input, Select } from 'antd'
+import { SearchOutlined } from '@ant-design/icons'
 import { Link, useNavigate } from 'react-router-dom'
 import { fillGrammarByAi } from '../api/ai'
 import { createGrammar, getGrammars, updateGrammar } from '../api/grammar'
@@ -205,6 +206,13 @@ export function GrammarPage() {
           <button
             type="button"
             className="ghost-button"
+            onClick={() => navigate('/grammar/questions')}
+          >
+            题库
+          </button>
+          <button
+            type="button"
+            className="ghost-button"
             onClick={() => setIsCreating((prev) => !prev)}
           >
             {isCreating ? t('grammar.collapseBtn') : t('grammar.newPatternBtn')}
@@ -213,12 +221,13 @@ export function GrammarPage() {
       </div>
 
       <div className="card" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-        <Input.Search
+        <Input
           value={keyword}
           onChange={(event) => setKeyword(event.target.value)}
           placeholder={t('grammar.searchPlaceholder')}
           style={{ flex: '1 1 240px' }}
           allowClear
+          prefix={<SearchOutlined style={{ color: 'rgba(0,0,0,0.35)' }} />}
         />
         <Select
           value={level || undefined}

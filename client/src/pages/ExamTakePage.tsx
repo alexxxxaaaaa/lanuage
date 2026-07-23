@@ -8,6 +8,7 @@ import {
   submitAttempt,
 } from '../api/exams'
 import { getErrorMessage } from '../api/error'
+import { ExamAudioPlayer } from '../components/ExamAudioPlayer'
 import type { ExamDetail, ExamQuestion, ExamSection } from '../types'
 
 // N1 real-exam durations. Reading portion covers vocab + grammar + reading;
@@ -228,6 +229,11 @@ export function ExamTakePage() {
 
   const isOvertime = remaining <= 0
 
+  // Subtitle URL lives inside parsedData.meta so we don't have to change the
+  // DB schema — falls back to undefined when the exam has no companion SRT.
+  const subtitleUrl =
+    exam.parsedData?.meta?.subtitleUrl || (exam as ExamDetail).subtitleUrl
+
   return (
     <section className="page exam-take">
       <header className="exam-take-header">
@@ -244,6 +250,15 @@ export function ExamTakePage() {
           {formatCountdown(remaining)}
         </div>
       </header>
+
+      {exam.audioUrl ? (
+        <div className="exam-take-audio-wrap">
+          <ExamAudioPlayer
+            audioUrl={exam.audioUrl}
+            subtitleUrl={subtitleUrl}
+          />
+        </div>
+      ) : null}
 
       <div className="exam-take-body">
         {sections.map((section, sectionIdx) => {
@@ -263,44 +278,61 @@ export function ExamTakePage() {
                 </div>
               ) : null}
               <ol className="exam-question-list">
-                {section.questions.map((q) => {
+                {section.questions.map((q, qIdx) => {
                   const picked = answers[String(q.id)]
+                  const prev = qIdx > 0 ? section.questions[qIdx - 1] : null
+                  // Per-question passage (問題8 style) — only show once above
+                  // its first occurrence.
+                  const showPassage =
+                    q.passage &&
+                    (!prev || prev.passage !== q.passage)
+                  // Group heading (問題5・3番 質問1/2) — only above first.
+                  const showGroup =
+                    q.groupTitle &&
+                    (!prev || prev.groupTitle !== q.groupTitle)
                   return (
-                    <li
-                      key={q.id}
-                      className="exam-question-card is-interactive"
-                    >
-                      <div className="exam-question-head">
-                        <span className="exam-question-id">{q.id}</span>
-                        <div className="exam-question-stem">
-                          {q.target ? (
-                            <p className="exam-question-target">目标词:{q.target}</p>
-                          ) : null}
-                          <p>{q.stem}</p>
+                    <div key={q.id}>
+                      {showPassage ? (
+                        <div className="exam-question-passage">
+                          <p style={{ whiteSpace: 'pre-wrap' }}>{q.passage}</p>
                         </div>
-                      </div>
-                      <ol className="exam-question-choices">
-                        {q.choices.map((c, idx) => {
-                          const choiceNum = idx + 1
-                          const isPicked = picked === choiceNum
-                          return (
-                            <li
-                              key={idx}
-                              className={
-                                'exam-question-choice is-clickable' +
-                                (isPicked ? ' is-picked' : '')
-                              }
-                              onClick={() => pickChoice(q.id, choiceNum)}
-                            >
-                              <span className="exam-question-choice-num">
-                                {choiceNum}
-                              </span>
-                              <span>{c}</span>
-                            </li>
-                          )
-                        })}
-                      </ol>
-                    </li>
+                      ) : null}
+                      {showGroup ? (
+                        <p className="exam-question-group-title">{q.groupTitle}</p>
+                      ) : null}
+                      <li className="exam-question-card is-interactive">
+                        <div className="exam-question-head">
+                          <span className="exam-question-id">{q.id}</span>
+                          <div className="exam-question-stem">
+                            {q.target ? (
+                              <p className="exam-question-target">目标词:{q.target}</p>
+                            ) : null}
+                            <p style={{ whiteSpace: 'pre-wrap' }}>{q.stem}</p>
+                          </div>
+                        </div>
+                        <ol className="exam-question-choices">
+                          {q.choices.map((c, idx) => {
+                            const choiceNum = idx + 1
+                            const isPicked = picked === choiceNum
+                            return (
+                              <li
+                                key={idx}
+                                className={
+                                  'exam-question-choice is-clickable' +
+                                  (isPicked ? ' is-picked' : '')
+                                }
+                                onClick={() => pickChoice(q.id, choiceNum)}
+                              >
+                                <span className="exam-question-choice-num">
+                                  {choiceNum}
+                                </span>
+                                <span>{c}</span>
+                              </li>
+                            )
+                          })}
+                        </ol>
+                      </li>
+                    </div>
                   )
                 })}
               </ol>

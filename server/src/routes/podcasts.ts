@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import {
   deletePodcast,
   getPodcast,
+  importMp3Podcast,
   importPodcast,
   inspectYoutubeUrl,
   listPodcasts,
@@ -42,6 +43,29 @@ podcastsRouter.post('/', async (c) => {
     primaryLang: lang,
     primarySrt: body.primarySrt,
     zhSrt: body.zhSrt,
+  })
+  return c.json(created, 201)
+})
+
+/** POST /api/podcasts/mp3 — import a podcast backed by a local mp3 file
+ *  (served from the frontend's public/ folder) with a pasted SRT transcript. */
+podcastsRouter.post('/mp3', async (c) => {
+  const body = await c.req.json<{
+    title?: string
+    mp3Url?: string
+    primaryLang?: 'jp' | 'en'
+    primarySrt?: string
+    zhSrt?: string
+    thumbnail?: string
+  }>()
+  const lang = body.primaryLang === 'en' ? 'en' : 'jp'
+  const created = await importMp3Podcast(getUserId(c), {
+    title: body.title ?? '',
+    mp3Url: body.mp3Url ?? '',
+    primaryLang: lang,
+    primarySrt: body.primarySrt ?? '',
+    zhSrt: body.zhSrt,
+    thumbnail: body.thumbnail,
   })
   return c.json(created, 201)
 })

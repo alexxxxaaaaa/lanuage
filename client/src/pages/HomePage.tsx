@@ -10,6 +10,7 @@ import {
 import { getTodayNewWords } from '../api/words'
 import type { Word } from '../types'
 import { useAppStore } from '../store/useAppStore'
+import { WeeklyReviewModal } from '../components/WeeklyReviewModal'
 
 const LEARN_LIMIT_OPTIONS: { value: number | null; label: string }[] = [
   { value: 5, label: '5 个' },
@@ -49,6 +50,21 @@ export function HomePage() {
   const [learnFolderId, setLearnFolderId] = useState<string | null>(null)
   const [todayNewWords, setTodayNewWords] = useState<Word[]>([])
   const [masteringWordId, setMasteringWordId] = useState<string | null>(null)
+  const [weeklyOpen, setWeeklyOpen] = useState(false)
+
+  // Auto-open the weekly review modal on Fridays, once per week. localStorage
+  // key includes ISO week so the "dismissed" state resets each Friday.
+  useEffect(() => {
+    const now = new Date()
+    if (now.getDay() !== 5) return // 5 = Friday
+    const y = now.getFullYear()
+    const m = String(now.getMonth() + 1).padStart(2, '0')
+    const d = String(now.getDate()).padStart(2, '0')
+    const key = `weekly-review-seen:${y}-${m}-${d}`
+    if (localStorage.getItem(key)) return
+    setWeeklyOpen(true)
+    localStorage.setItem(key, '1')
+  }, [])
   // Always show full due pool on Home; todayReviews is filtered by reviewFolderId
   // (the per-session filter chosen in the Review page) which would hide other folders.
   const dueListItems = useMemo(
@@ -159,6 +175,13 @@ export function HomePage() {
         <p className="eyebrow">Today Review</p>
         <div className="home-hero-title-row">
           <h2>{t('home.title')}</h2>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => setWeeklyOpen(true)}
+          >
+            本周回顾
+          </button>
           <button
             type="button"
             className="secondary-button"
@@ -456,6 +479,8 @@ export function HomePage() {
           </article>
         ))}
       </div>
+
+      <WeeklyReviewModal open={weeklyOpen} onClose={() => setWeeklyOpen(false)} />
     </section>
   )
 }

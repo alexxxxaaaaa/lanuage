@@ -11,6 +11,7 @@ import { FolderDetailPage } from './pages/FolderDetailPage'
 import { FoldersPage } from './pages/FoldersPage'
 import { GrammarDetailPage } from './pages/GrammarDetailPage'
 import { GrammarPage } from './pages/GrammarPage'
+import { GrammarQuestionsPage } from './pages/GrammarQuestionsPage'
 import { LearnGrammarPage } from './pages/LearnGrammarPage'
 import { ReviewGrammarPage } from './pages/ReviewGrammarPage'
 import { PodcastDetailPage } from './pages/PodcastDetailPage'
@@ -42,6 +43,7 @@ export function buildRoutes(opts: { canSeePodcast: boolean }): RouteObject[] {
     { path: '/grammar', element: <GrammarPage /> },
     { path: '/grammar/learn', element: <LearnGrammarPage /> },
     { path: '/grammar/review', element: <ReviewGrammarPage /> },
+    { path: '/grammar/questions', element: <GrammarQuestionsPage /> },
     { path: '/grammar/:id', element: <GrammarDetailPage /> },
     { path: '/exams', element: <ExamsPage /> },
     { path: '/exams/:id', element: <ExamDetailPage /> },

@@ -180,6 +180,74 @@ export async function importPodcast(
   })
 }
 
+/** Local/mp3-based podcast import — pastes an SRT and points to an mp3 file
+ *  already served from the frontend's public/ folder. Skips YouTube entirely. */
+export async function importMp3Podcast(
+  userId: string,
+  input: {
+    title: string
+    mp3Url: string
+    primaryLang: SupportedPrimary
+    primarySrt: string
+    zhSrt?: string
+    thumbnail?: string
+  },
+) {
+  const title = (input.title ?? '').trim()
+  const mp3Url = (input.mp3Url ?? '').trim()
+  const primarySrt = (input.primarySrt ?? '').trim()
+  if (!title) throw new AppError('title is required', 400)
+  if (!mp3Url) throw new AppError('mp3Url is required', 400)
+  if (!primarySrt) throw new AppError('primarySrt is required', 400)
+
+  const primaryLines = parseSubtitle(primarySrt)
+  if (primaryLines.length === 0) {
+    throw new AppError('Primary subtitle is empty or invalid', 400)
+  }
+  const chineseLines = input.zhSrt && input.zhSrt.trim().length > 0
+    ? parseSubtitle(input.zhSrt)
+    : []
+
+  const merged: TranscriptLine[] = primaryLines.map((line) => {
+    if (chineseLines.length === 0) return { ...line }
+    const lineEnd = line.start + line.dur
+    const overlapping = chineseLines.filter(
+      (z) => z.start < lineEnd && z.start + z.dur > line.start,
+    )
+    const zhText = overlapping.map((z) => z.text).join(' ').trim()
+    return zhText ? { ...line, zh: zhText } : { ...line }
+  })
+
+  const durationSec = Math.ceil(
+    Math.max(...merged.map((l) => (l.start + l.dur) / 1000), 0),
+  )
+
+  const blob: TranscriptBlob = {
+    lines: merged,
+    primaryTrack: { languageCode: input.primaryLang, kind: 'mp3' },
+    chineseTrack: chineseLines.length > 0
+      ? { languageCode: 'zh', kind: 'mp3' }
+      : null,
+  }
+
+  // Synthetic youtubeId so the existing (userId, youtubeId) unique index still
+  // works. Prefixed so it's obviously not a real YouTube video.
+  const syntheticId = `mp3-${crypto.randomUUID()}`
+
+  return prisma.podcast.create({
+    data: {
+      userId,
+      youtubeId: syntheticId,
+      mp3Url,
+      title,
+      primaryLang: input.primaryLang,
+      thumbnail: input.thumbnail ?? '',
+      durationSec,
+      transcript: JSON.stringify(blob),
+    },
+  })
+}
+
 export async function listPodcasts(userId: string) {
   const rows = await prisma.podcast.findMany({
     where: { userId },
@@ -190,6 +258,7 @@ export async function listPodcasts(userId: string) {
     select: {
       id: true,
       youtubeId: true,
+      mp3Url: true,
       title: true,
       primaryLang: true,
       thumbnail: true,

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Input, message, Modal, Select } from 'antd'
 import {
   deletePodcast,
+  importMp3Podcast,
   importPodcast,
   inspectYoutubeUrl,
   listPodcasts,
@@ -74,6 +75,58 @@ export function PodcastsPage() {
   const [error, setError] = useState<string | null>(null)
   const [primarySrt, setPrimarySrt] = useState('')
   const [zhSrt, setZhSrt] = useState('')
+
+  // MP3 import modal state — separate from YouTube flow.
+  const [mp3ModalOpen, setMp3ModalOpen] = useState(false)
+  const [mp3Title, setMp3Title] = useState('')
+  const [mp3Url, setMp3Url] = useState('')
+  const [mp3Lang, setMp3Lang] = useState<'jp' | 'en'>('jp')
+  const [mp3PrimarySrt, setMp3PrimarySrt] = useState('')
+  const [mp3ZhSrt, setMp3ZhSrt] = useState('')
+  const [isMp3Importing, setIsMp3Importing] = useState(false)
+
+  const handleMp3Import = async () => {
+    const title = mp3Title.trim()
+    const url = mp3Url.trim()
+    const srt = mp3PrimarySrt.trim()
+    if (!title || !url || !srt) {
+      message.warning('标题、mp3 路径、字幕内容都要填')
+      return
+    }
+    setIsMp3Importing(true)
+    try {
+      await importMp3Podcast({
+        title,
+        mp3Url: url,
+        primaryLang: mp3Lang,
+        primarySrt: srt,
+        zhSrt: mp3ZhSrt.trim() || undefined,
+      })
+      message.success('MP3 播客导入成功')
+      setMp3ModalOpen(false)
+      setMp3Title('')
+      setMp3Url('')
+      setMp3PrimarySrt('')
+      setMp3ZhSrt('')
+      await load()
+    } catch (err) {
+      message.error(getErrorMessage(err, '导入失败'))
+    } finally {
+      setIsMp3Importing(false)
+    }
+  }
+
+  const handleMp3SrtFile = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setter: (v: string) => void,
+  ) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => setter(String(reader.result ?? ''))
+    reader.readAsText(file)
+    e.target.value = ''
+  }
 
   const groups = useMemo(() => groupByDate(list), [list])
 
@@ -213,6 +266,13 @@ export function PodcastsPage() {
           >
             {isImporting ? '导入中...' : '导入'}
           </button>
+          <button
+            type="button"
+            className="ghost-button"
+            onClick={() => setMp3ModalOpen(true)}
+          >
+            从 MP3 导入
+          </button>
         </div>
 
         <details style={{ marginTop: 12 }}>
@@ -344,6 +404,90 @@ export function PodcastsPage() {
           </section>
         ))}
       </div>
+
+      <Modal
+        title="从 MP3 导入播客"
+        open={mp3ModalOpen}
+        onCancel={() => setMp3ModalOpen(false)}
+        okText={isMp3Importing ? '导入中...' : '导入'}
+        cancelText="取消"
+        confirmLoading={isMp3Importing}
+        onOk={() => void handleMp3Import()}
+        width={640}
+        destroyOnClose
+      >
+        <div style={{ display: 'grid', gap: 12 }}>
+          <p className="muted" style={{ margin: 0, fontSize: 12 }}>
+            用法:先把 mp3 文件放到{' '}
+            <code>client/public/podcast-media/</code> 下(例如 <code>my-cast.mp3</code>),
+            然后 <b>mp3 路径</b>填 <code>/podcast-media/my-cast.mp3</code>。SRT 字幕文件粘贴到下面。
+          </p>
+          <label style={{ display: 'grid', gap: 4 }}>
+            <span className="muted">标题 *</span>
+            <Input
+              value={mp3Title}
+              onChange={(e) => setMp3Title(e.target.value)}
+              placeholder="例如:N1 听力真题 2011-07"
+            />
+          </label>
+          <label style={{ display: 'grid', gap: 4 }}>
+            <span className="muted">mp3 路径 *</span>
+            <Input
+              value={mp3Url}
+              onChange={(e) => setMp3Url(e.target.value)}
+              placeholder="/podcast-media/xxx.mp3"
+            />
+          </label>
+          <label style={{ display: 'grid', gap: 4 }}>
+            <span className="muted">主语言</span>
+            <Select
+              value={mp3Lang}
+              onChange={(v) => setMp3Lang(v)}
+              options={[
+                { value: 'jp', label: '日语' },
+                { value: 'en', label: '英语' },
+              ]}
+              style={{ maxWidth: 160 }}
+            />
+          </label>
+          <label style={{ display: 'grid', gap: 4 }}>
+            <span className="muted">
+              主语言字幕(.srt) *
+              <input
+                type="file"
+                accept=".srt,.vtt,text/plain"
+                onChange={(e) => handleMp3SrtFile(e, setMp3PrimarySrt)}
+                style={{ marginLeft: 8 }}
+              />
+            </span>
+            <Input.TextArea
+              rows={5}
+              value={mp3PrimarySrt}
+              onChange={(e) => setMp3PrimarySrt(e.target.value)}
+              placeholder="粘贴 .srt 或 .vtt 内容"
+              style={{ fontFamily: 'monospace', fontSize: 12 }}
+            />
+          </label>
+          <label style={{ display: 'grid', gap: 4 }}>
+            <span className="muted">
+              中文字幕(可选)
+              <input
+                type="file"
+                accept=".srt,.vtt,text/plain"
+                onChange={(e) => handleMp3SrtFile(e, setMp3ZhSrt)}
+                style={{ marginLeft: 8 }}
+              />
+            </span>
+            <Input.TextArea
+              rows={4}
+              value={mp3ZhSrt}
+              onChange={(e) => setMp3ZhSrt(e.target.value)}
+              placeholder="如有中文字幕也粘进来,会按时间对齐到主语言行"
+              style={{ fontFamily: 'monospace', fontSize: 12 }}
+            />
+          </label>
+        </div>
+      </Modal>
     </section>
   )
 }

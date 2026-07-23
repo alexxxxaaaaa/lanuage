@@ -17,3 +17,16 @@ server/prisma/migrations.mysql.archive/
 server/prisma/schema.mysql.prisma.backup
 .specstory
 .wrangler/
+
+# Build artifacts
+server/tsconfig.tsbuildinfo
+
+# Large media files — hosted via R2 / static server rather than shipped in git.
+# Keep .srt subtitle files (small text) but exclude .mp3.
+client/public/exam-media/*.mp3
+client/public/podcast-media/*.mp3
+client/public/exam-media/*.wav
+client/public/podcast-media/*.wav
+
+# Generated SQL from ingestGrammarQuestions script
+server/data/grammarQuestions/_generated_insert.sql

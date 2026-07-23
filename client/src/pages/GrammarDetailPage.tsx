@@ -3,6 +3,11 @@ import { Input, Select } from 'antd'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { fillGrammarByAi } from '../api/ai'
 import { deleteGrammar, getGrammar, updateGrammar } from '../api/grammar'
+import {
+  listGrammarQuestionsFor,
+  type GrammarQuestion,
+} from '../api/grammarQuestions'
+import { GrammarQuestionCard } from '../components/GrammarQuestionCard'
 import { getErrorMessage } from '../api/error'
 import type { Grammar, UpdateGrammarPayload } from '../types'
 
@@ -16,6 +21,8 @@ export function GrammarDetailPage() {
   const [isAiFilling, setIsAiFilling] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState<UpdateGrammarPayload>({})
+  const [questions, setQuestions] = useState<GrammarQuestion[]>([])
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false)
 
   const load = async () => {
     if (!id) return
@@ -43,6 +50,15 @@ export function GrammarDetailPage() {
   useEffect(() => {
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
+
+  useEffect(() => {
+    if (!id) return
+    setIsLoadingQuestions(true)
+    listGrammarQuestionsFor(id)
+      .then((rows) => setQuestions(rows))
+      .catch(() => setQuestions([]))
+      .finally(() => setIsLoadingQuestions(false))
   }, [id])
 
   const handleAiFill = async () => {
@@ -248,6 +264,21 @@ export function GrammarDetailPage() {
               <p style={{ whiteSpace: 'pre-line' }}>{grammar.note}</p>
             </div>
           ) : null}
+
+          <div className="card">
+            <h3 style={{ marginTop: 0 }}>练习</h3>
+            {isLoadingQuestions ? (
+              <p className="muted">加载中…</p>
+            ) : questions.length === 0 ? (
+              <p className="muted">这条语法还没有题目</p>
+            ) : (
+              <div className="grammar-question-group-body">
+                {questions.map((q) => (
+                  <GrammarQuestionCard key={q.id} question={q} />
+                ))}
+              </div>
+            )}
+          </div>
         </>
       )}
     </section>

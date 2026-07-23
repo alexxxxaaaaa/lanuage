@@ -190,6 +190,9 @@ export type UpdateGrammarPayload = Partial<CreateGrammarPayload> & {
 export type PodcastSummary = {
   id: string
   youtubeId: string
+  // Non-empty when this is an mp3-based podcast (served from the frontend's
+  // public/ folder). Frontend renders HTML audio instead of YouTube iframe.
+  mp3Url?: string
   title: string
   primaryLang: 'jp' | 'en'
   thumbnail: string
@@ -250,7 +253,13 @@ export type ExamQuestion = {
   stem: string
   target?: string
   choices: string[]
+  // Per-question passage. Populated when a section groups multiple sub-passages
+  // (e.g. 問題8 has 4 unrelated short passages; each question carries its own).
   passage?: string
+  // Groups adjacent questions under a shared listening prompt (e.g. 問題5's
+  // 3番 has 質問1 + 質問2 about the same audio). Frontend collapses the shared
+  // heading above the first occurrence.
+  groupTitle?: string
   answer: number | null
   explanation?: string
 }
@@ -274,6 +283,19 @@ export type ExamListItem = {
   updatedAt: string
 }
 
+export type SubtitleLine = {
+  startMs: number
+  endMs: number
+  text: string
+}
+
 export type ExamDetail = ExamListItem & {
-  parsedData: { sections: ExamSection[] }
+  // Optional per-exam listening subtitle URL — served from client/public/exam-media/
+  // when the exam ships an SRT alongside its audio. Read out of parsedData.meta
+  // so we don't have to change the DB schema.
+  subtitleUrl?: string
+  parsedData: {
+    sections: ExamSection[]
+    meta?: { subtitleUrl?: string }
+  }
 }
