@@ -99,10 +99,11 @@ export function PodcastDetailPage() {
 
   const playerRef = useRef<YTPlayer | null>(null)
   const playerHostRef = useRef<HTMLDivElement | null>(null)
-  // For mp3-based podcasts we render an <audio> tag and wrap it in an adapter
-  // that satisfies the same interface as YTPlayer, so downstream code (poll,
-  // hotkeys, seek) doesn't need to branch on the underlying player.
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  // For mp3-based podcasts: track the <audio> element via state so the
+  // player-init effect fires *after* the element is mounted. Using a plain
+  // useRef here caused a subtle race — the useEffect ran with ref.current
+  // still null on the first pass and never re-ran.
+  const [audioEl, setAudioEl] = useState<HTMLAudioElement | null>(null)
   const linesRef = useRef<Podcast['transcript']['lines']>([])
   const currentIdxRef = useRef(currentIdx)
   currentIdxRef.current = currentIdx
@@ -178,7 +179,7 @@ export function PodcastDetailPage() {
 
     // ── MP3 path ──
     if (podcast.mp3Url) {
-      const el = audioRef.current
+      const el = audioEl
       if (!el) return
       el.playbackRate = playbackRate
       const saved = podcast.lastPositionSec ?? 0
@@ -332,8 +333,10 @@ export function PodcastDetailPage() {
     }
     // playbackRate intentionally not in deps — first-load value only; later
     // changes go through the separate setPlaybackRate effect below.
+    // audioEl is included so the mp3 branch re-fires once the <audio> element
+    // actually mounts (ref-callback sets state).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [podcast?.youtubeId])
+  }, [podcast?.youtubeId, audioEl])
 
   // Persist position when the user navigates away / closes the tab — the
   // component cleanup isn't guaranteed to run in those cases. Use the
@@ -599,7 +602,10 @@ export function PodcastDetailPage() {
         <div className="podcast-player-frame">
           {podcast?.mp3Url ? (
             <audio
-              ref={audioRef}
+              // Callback ref — fires with the element when mounted (and null
+              // on unmount). Setting state here re-runs the player-init effect
+              // with the actual DOM node, avoiding the useRef timing issue.
+              ref={setAudioEl}
               src={podcast.mp3Url}
               controls
               preload="metadata"
