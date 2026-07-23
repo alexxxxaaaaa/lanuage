@@ -475,9 +475,12 @@ export function PodcastDetailPage() {
   const togglePlay = () => {
     const player = playerRef.current
     if (!player) return
-    const PS = window.YT?.PlayerState
-    const state = player.getPlayerState()
-    if (state === PS?.PLAYING) player.pauseVideo()
+    // Compare with the raw YT.PlayerState.PLAYING value (1) instead of
+    // `window.YT.PlayerState.PLAYING` — mp3 podcasts never load the YouTube
+    // API, so `window.YT` is undefined and the old code always fell through
+    // to `else`, making the play button a no-op after start.
+    const isPlayingNow = player.getPlayerState() === 1
+    if (isPlayingNow) player.pauseVideo()
     else player.playVideo()
   }
 
