@@ -48,11 +48,6 @@ declare global {
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
-// Temporary build marker + diagnostics — lets us confirm which bundle is
-// actually running and trace the mp3 wiring. Remove once the control bug is
-// nailed down.
-const BUILD_TAG = 'mp3-diag-1'
-
 let apiLoadPromise: Promise<void> | null = null
 function loadYouTubeApi(): Promise<void> {
   if (window.YT?.Player) return Promise.resolve()
@@ -281,7 +276,6 @@ export function PodcastDetailPage() {
   // init effect could run before the node existed and never re-fire, leaving
   // playerRef null so the toolbar / seek did nothing).
   const attachMp3 = useCallback((el: HTMLAudioElement | null) => {
-    console.log(`[podcast ${BUILD_TAG}] attachMp3`, el ? 'MOUNT' : 'unmount', 'pod=', podcastRef.current?.id)
     // Tear down any previous attachment first.
     if (mp3CleanupRef.current) {
       mp3CleanupRef.current()
@@ -289,11 +283,7 @@ export function PodcastDetailPage() {
     }
     if (!el) return
     const pod = podcastRef.current
-    if (!pod) {
-      console.warn(`[podcast ${BUILD_TAG}] attachMp3 aborted: podcastRef is null`)
-      return
-    }
-    console.log(`[podcast ${BUILD_TAG}] attachMp3 wiring adapter for`, pod.id)
+    if (!pod) return
 
     el.playbackRate = playbackRateRef.current
     const saved = pod.lastPositionSec ?? 0
@@ -507,7 +497,6 @@ export function PodcastDetailPage() {
 
   const togglePlay = () => {
     const player = playerRef.current
-    console.log(`[podcast ${BUILD_TAG}] togglePlay clicked, player=`, player ? 'SET' : 'NULL', 'state=', player?.getPlayerState())
     if (!player) return
     // Compare with the raw YT.PlayerState.PLAYING value (1) instead of
     // `window.YT.PlayerState.PLAYING` — mp3 podcasts never load the YouTube
@@ -839,8 +828,6 @@ export function PodcastDetailPage() {
         <span className="podcast-toolbar-hint">
           <kbd>←</kbd><kbd>→</kbd>切句<span className="podcast-toolbar-dot">·</span>
           <kbd>Space</kbd>播放
-          <span className="podcast-toolbar-dot">·</span>
-          <span style={{ color: '#e11', fontWeight: 700 }}>{BUILD_TAG}</span>
         </span>
       </div>
     </section>
