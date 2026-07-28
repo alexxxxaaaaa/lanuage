@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Select } from 'antd'
 import { Link, useParams } from 'react-router-dom'
 import {
@@ -47,6 +47,11 @@ declare global {
 }
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]
+
+// Temporary build marker + diagnostics — lets us confirm which bundle is
+// actually running and trace the mp3 wiring. Remove once the control bug is
+// nailed down.
+const BUILD_TAG = 'mp3-diag-1'
 
 let apiLoadPromise: Promise<void> | null = null
 function loadYouTubeApi(): Promise<void> {
@@ -99,14 +104,18 @@ export function PodcastDetailPage() {
 
   const playerRef = useRef<YTPlayer | null>(null)
   const playerHostRef = useRef<HTMLDivElement | null>(null)
-  // For mp3-based podcasts: track the <audio> element via state so the
-  // player-init effect fires *after* the element is mounted. Using a plain
-  // useRef here caused a subtle race — the useEffect ran with ref.current
-  // still null on the first pass and never re-ran.
-  const [audioEl, setAudioEl] = useState<HTMLAudioElement | null>(null)
   const linesRef = useRef<Podcast['transcript']['lines']>([])
   const currentIdxRef = useRef(currentIdx)
   currentIdxRef.current = currentIdx
+  // Mutable mirrors so the mp3 <audio> ref-callback (attachMp3) — which is
+  // stable across renders — can read the latest podcast / playback rate
+  // without being torn down and rebuilt on every change.
+  const podcastRef = useRef<Podcast | null>(null)
+  podcastRef.current = podcast
+  const playbackRateRef = useRef(playbackRate)
+  playbackRateRef.current = playbackRate
+  // Teardown (listeners + poll timer) for the currently-attached mp3 element.
+  const mp3CleanupRef = useRef<null | (() => void)>(null)
 
   useEffect(() => {
     if (!id) return
@@ -153,85 +162,15 @@ export function PodcastDetailPage() {
   // HTMLAudioElement adapter; YouTube ones go through the iframe API.
   useEffect(() => {
     if (!podcast) return
+    // MP3-backed podcasts wire their player imperatively via the <audio>
+    // element's ref-callback (attachMp3) — it fires the instant the DOM node
+    // mounts, with no dependence on effect / render timing. Nothing to do here.
+    if (podcast.mp3Url) return
+
     let cancelled = false
     let pollTimer: number | null = null
 
-    const setupPolling = (getter: () => number) => {
-      let lastSavedAt = 0
-      pollTimer = window.setInterval(() => {
-        const sec = getter()
-        const ms = sec * 1000
-        if (!isScrubbingRef.current) setCurrentSec(sec)
-        const lines = linesRef.current
-        let next = -1
-        for (let i = 0; i < lines.length; i++) {
-          if (lines[i].start <= ms) next = i
-          else break
-        }
-        if (next !== currentIdxRef.current) setCurrentIdx(next)
-        const now = Date.now()
-        if (sec > 5 && now - lastSavedAt > 5000) {
-          void savePodcastPosition(podcast.id, sec).catch(() => {})
-          lastSavedAt = now
-        }
-      }, 250)
-    }
-
-    // ── MP3 path ──
-    if (podcast.mp3Url) {
-      const el = audioEl
-      if (!el) return
-      el.playbackRate = playbackRate
-      const saved = podcast.lastPositionSec ?? 0
-      const dur = podcast.durationSec
-      if (saved > 0 && (dur === 0 || saved < dur - 10)) {
-        el.currentTime = saved
-      }
-      // Adapter — makes the audio element quack like a YTPlayer so keyboard
-      // shortcuts and seek logic below stay agnostic of the backend.
-      const adapter: YTPlayer = {
-        playVideo: () => { void el.play() },
-        pauseVideo: () => el.pause(),
-        seekTo: (sec: number) => { el.currentTime = sec },
-        getCurrentTime: () => el.currentTime,
-        getPlayerState: () => (el.paused ? 2 : 1), // 2=paused, 1=playing (YT enum)
-        setPlaybackRate: (rate: number) => { el.playbackRate = rate },
-        destroy: () => { el.pause() },
-      }
-      playerRef.current = adapter
-
-      const onPlay = () => setIsPlaying(true)
-      const onPause = () => {
-        setIsPlaying(false)
-        if (el.currentTime > 5) {
-          void savePodcastPosition(podcast.id, el.currentTime).catch(() => {})
-        }
-      }
-      const onEnded = () => {
-        setIsPlaying(false)
-        void savePodcastPosition(podcast.id, 0).catch(() => {})
-      }
-      el.addEventListener('play', onPlay)
-      el.addEventListener('pause', onPause)
-      el.addEventListener('ended', onEnded)
-      setupPolling(() => el.currentTime)
-
-      return () => {
-        cancelled = true
-        if (pollTimer !== null) window.clearInterval(pollTimer)
-        try {
-          const sec = el.currentTime
-          if (sec > 5) {
-            savePodcastPositionBeacon(podcast.id, sec, getStoredToken())
-          }
-        } catch {}
-        el.removeEventListener('play', onPlay)
-        el.removeEventListener('pause', onPause)
-        el.removeEventListener('ended', onEnded)
-      }
-    }
-
-    // ── YouTube path (existing) ──
+    // ── YouTube path ──
     void loadYouTubeApi().then(() => {
       if (cancelled || !playerHostRef.current || !window.YT) return
       const player = new window.YT.Player(playerHostRef.current, {
@@ -333,10 +272,101 @@ export function PodcastDetailPage() {
     }
     // playbackRate intentionally not in deps — first-load value only; later
     // changes go through the separate setPlaybackRate effect below.
-    // audioEl is included so the mp3 branch re-fires once the <audio> element
-    // actually mounts (ref-callback sets state).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [podcast?.youtubeId, audioEl])
+  }, [podcast?.youtubeId])
+
+  // Ref-callback for the mp3 <audio> element. Runs synchronously when React
+  // mounts (node) or unmounts (null) the element — no effect/render-timing
+  // dependence, which is what made the previous state-based wiring flaky (the
+  // init effect could run before the node existed and never re-fire, leaving
+  // playerRef null so the toolbar / seek did nothing).
+  const attachMp3 = useCallback((el: HTMLAudioElement | null) => {
+    console.log(`[podcast ${BUILD_TAG}] attachMp3`, el ? 'MOUNT' : 'unmount', 'pod=', podcastRef.current?.id)
+    // Tear down any previous attachment first.
+    if (mp3CleanupRef.current) {
+      mp3CleanupRef.current()
+      mp3CleanupRef.current = null
+    }
+    if (!el) return
+    const pod = podcastRef.current
+    if (!pod) {
+      console.warn(`[podcast ${BUILD_TAG}] attachMp3 aborted: podcastRef is null`)
+      return
+    }
+    console.log(`[podcast ${BUILD_TAG}] attachMp3 wiring adapter for`, pod.id)
+
+    el.playbackRate = playbackRateRef.current
+    const saved = pod.lastPositionSec ?? 0
+    const dur = pod.durationSec
+    if (saved > 0 && (dur === 0 || saved < dur - 10)) {
+      el.currentTime = saved
+    }
+
+    // Adapter — makes the <audio> quack like a YTPlayer so the toolbar,
+    // hotkeys and seek logic stay agnostic of the backend.
+    const adapter: YTPlayer = {
+      playVideo: () => { void el.play() },
+      pauseVideo: () => el.pause(),
+      seekTo: (sec: number) => { el.currentTime = sec },
+      getCurrentTime: () => el.currentTime,
+      getPlayerState: () => (el.paused ? 2 : 1), // 2=paused, 1=playing (YT enum)
+      setPlaybackRate: (rate: number) => { el.playbackRate = rate },
+      destroy: () => { el.pause() },
+    }
+    playerRef.current = adapter
+
+    const onPlay = () => setIsPlaying(true)
+    const onPause = () => {
+      setIsPlaying(false)
+      if (el.currentTime > 5) {
+        void savePodcastPosition(pod.id, el.currentTime).catch(() => {})
+      }
+    }
+    const onEnded = () => {
+      setIsPlaying(false)
+      void savePodcastPosition(pod.id, 0).catch(() => {})
+    }
+    el.addEventListener('play', onPlay)
+    el.addEventListener('pause', onPause)
+    el.addEventListener('ended', onEnded)
+
+    // Poll current time → highlight current line + persist position.
+    let lastSavedAt = 0
+    const pollTimer = window.setInterval(() => {
+      const sec = el.currentTime
+      const ms = sec * 1000
+      if (!isScrubbingRef.current) setCurrentSec(sec)
+      const lines = linesRef.current
+      let next = -1
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].start <= ms) next = i
+        else break
+      }
+      if (next !== currentIdxRef.current) setCurrentIdx(next)
+      const now = Date.now()
+      if (sec > 5 && now - lastSavedAt > 5000) {
+        void savePodcastPosition(pod.id, sec).catch(() => {})
+        lastSavedAt = now
+      }
+    }, 250)
+
+    mp3CleanupRef.current = () => {
+      window.clearInterval(pollTimer)
+      try {
+        if (el.currentTime > 5) {
+          savePodcastPositionBeacon(pod.id, el.currentTime, getStoredToken())
+        }
+      } catch {}
+      el.removeEventListener('play', onPlay)
+      el.removeEventListener('pause', onPause)
+      el.removeEventListener('ended', onEnded)
+      playerRef.current = null
+    }
+    // Deps intentionally empty: all values read via stable refs so the
+    // callback identity never changes (React would otherwise re-run it,
+    // tearing down + rebuilding the player on every render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Persist position when the user navigates away / closes the tab — the
   // component cleanup isn't guaranteed to run in those cases. Use the
@@ -477,6 +507,7 @@ export function PodcastDetailPage() {
 
   const togglePlay = () => {
     const player = playerRef.current
+    console.log(`[podcast ${BUILD_TAG}] togglePlay clicked, player=`, player ? 'SET' : 'NULL', 'state=', player?.getPlayerState())
     if (!player) return
     // Compare with the raw YT.PlayerState.PLAYING value (1) instead of
     // `window.YT.PlayerState.PLAYING` — mp3 podcasts never load the YouTube
@@ -602,10 +633,10 @@ export function PodcastDetailPage() {
         <div className="podcast-player-frame">
           {podcast?.mp3Url ? (
             <audio
-              // Callback ref — fires with the element when mounted (and null
-              // on unmount). Setting state here re-runs the player-init effect
-              // with the actual DOM node, avoiding the useRef timing issue.
-              ref={setAudioEl}
+              // Imperative ref-callback — wires the adapter + polling the
+              // instant the node mounts (see attachMp3). Robust against the
+              // effect / render-timing races the old state-based ref had.
+              ref={attachMp3}
               src={podcast.mp3Url}
               controls
               preload="metadata"
@@ -808,6 +839,8 @@ export function PodcastDetailPage() {
         <span className="podcast-toolbar-hint">
           <kbd>←</kbd><kbd>→</kbd>切句<span className="podcast-toolbar-dot">·</span>
           <kbd>Space</kbd>播放
+          <span className="podcast-toolbar-dot">·</span>
+          <span style={{ color: '#e11', fontWeight: 700 }}>{BUILD_TAG}</span>
         </span>
       </div>
     </section>
