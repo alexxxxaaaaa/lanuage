@@ -122,18 +122,6 @@ export function GrammarQuestionsPage() {
                 <span className="grammar-question-flat-index">
                   Q{idx + 1}
                 </span>
-                <Link
-                  to={`/grammar/${q.grammarId}`}
-                  className="grammar-question-flat-pattern"
-                  style={{ fontFamily: 'serif' }}
-                >
-                  {q.grammarPattern}
-                </Link>
-                {q.grammarMeaning ? (
-                  <span className="muted grammar-question-flat-meaning">
-                    {q.grammarMeaning}
-                  </span>
-                ) : null}
               </div>
               <GrammarQuestionCard
                 question={q}

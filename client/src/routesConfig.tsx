@@ -20,6 +20,7 @@ import { HomePage } from './pages/HomePage'
 import { LearnPage } from './pages/LearnPage'
 import { NoteDetailPage } from './pages/NoteDetailPage'
 import { NotesPage } from './pages/NotesPage'
+import { ReadingPage } from './pages/ReadingPage'
 import { ReviewPage } from './pages/ReviewPage'
 import { WordSearchPage } from './pages/WordSearchPage'
 
@@ -46,6 +47,7 @@ export function buildRoutes(opts: { canSeePodcast: boolean }): RouteObject[] {
     { path: '/grammar/questions', element: <GrammarQuestionsPage /> },
     { path: '/grammar/:id', element: <GrammarDetailPage /> },
     { path: '/exams', element: <ExamsPage /> },
+    { path: '/reading', element: <ReadingPage /> },
     { path: '/exams/:id', element: <ExamDetailPage /> },
     { path: '/exams/:id/attempts/:attemptId', element: <ExamTakePage /> },
     { path: '/exams/:id/attempts/:attemptId/result', element: <ExamResultPage /> },

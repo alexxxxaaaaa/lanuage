@@ -24,7 +24,8 @@ export function ExamsPage() {
 
   useEffect(() => {
     void listExams()
-      .then((rows) => setExams(rows))
+      // 精读拆篇也存成 Exam(标题以「精读·」开头),它们归精读板块,真题库里排除。
+      .then((rows) => setExams(rows.filter((r) => !r.title.startsWith('精读·'))))
       .catch((e) => message.error(getErrorMessage(e, '加载真题失败')))
       .finally(() => setIsLoading(false))
   }, [])
