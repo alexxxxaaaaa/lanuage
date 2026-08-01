@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Select } from 'antd'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router'
 import {
   getPodcast,
   savePodcastPosition,

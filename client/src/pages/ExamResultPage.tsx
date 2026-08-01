@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router'
 import { message } from 'antd'
 import { getAttempt, getExam, type ExamAttempt } from '../api/exams'
 import { getErrorMessage } from '../api/error'

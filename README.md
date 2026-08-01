@@ -90,12 +90,3 @@ cd ../client && npm run pages:deploy
 ```
 
 See `DEPLOY.md` for full details.
-
-## Importing legacy MySQL data (one-off)
-
-If you have data in the old MySQL database and want to migrate it into local SQLite:
-
-1. Set `LEGACY_MYSQL_URL` in `server/.env` to your MySQL connection string.
-2. `cd server && npm run migrate:mysql-to-sqlite`
-
-Note: this expects a `User` table to exist in MySQL. If the source MySQL predates the auth refactor, the script will need manual adjustment.

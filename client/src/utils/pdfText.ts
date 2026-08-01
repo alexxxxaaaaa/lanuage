@@ -6,12 +6,12 @@ import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
-// Version-pinned CDN URLs for pdf.js's CJK CMap data and standard font data.
-// Used by the (currently unused) text-extraction path; harmless to keep set —
+// CDN URLs for pdf.js's CJK CMap data and standard font data. The version is
+// read off the library itself so these can never drift out of sync with the
+// installed engine on upgrade — mismatched CMap data renders as garbage CJK.
 // pdf.js only fetches these when a document actually needs them.
-const PDFJS_VERSION = '5.6.205'
-const PDFJS_CMAP_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/cmaps/`
-const PDFJS_STANDARD_FONT_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/standard_fonts/`
+const PDFJS_CMAP_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/cmaps/`
+const PDFJS_STANDARD_FONT_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/standard_fonts/`
 
 export type ExtractProgress = (progress: {
   page: number
@@ -48,10 +48,6 @@ export async function renderPdfPagesToImages(
     // solution booklets that render blank because their embedded fonts
     // can't be interpreted by pdf.js's built-in engine.
     useSystemFonts: true,
-    // Some PDF authoring tools produce fonts that only work when the
-    // fetched font data is bundled with the built-in font blobs. This
-    // flag is ignored on modern pdfjs but harmless on older ones.
-    isEvalSupported: false,
   }).promise
   const totalPages = pdf.numPages
   const images: string[] = []

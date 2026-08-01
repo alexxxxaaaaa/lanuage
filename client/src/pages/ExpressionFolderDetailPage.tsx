@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Input, Modal } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router'
 import { generateExpressionCasual, translateExpressionToZh } from '../api/ai'
 import {
   deleteExpression,

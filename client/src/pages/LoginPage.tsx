@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Input } from 'antd'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { login } from '../api/auth'
 import { useAuthStore } from '../store/authStore'
 import { getErrorMessage } from '../api/error'

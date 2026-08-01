@@ -9,9 +9,9 @@
  */
 import 'dotenv/config'
 import { readFile } from 'node:fs/promises'
-import { PrismaClient } from '@prisma/client'
+import { createNodePrismaClient } from '../src/lib/prisma'
 
-const prisma = new PrismaClient()
+const prisma = createNodePrismaClient()
 
 type Passage = { code: string; type: string; content: string }
 type Question = {

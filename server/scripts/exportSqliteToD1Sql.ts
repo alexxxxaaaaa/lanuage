@@ -11,9 +11,9 @@
 import 'dotenv/config'
 import { writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { PrismaClient } from '@prisma/client'
+import { createNodePrismaClient } from '../src/lib/prisma'
 
-const prisma = new PrismaClient()
+const prisma = createNodePrismaClient()
 
 function sqlValue(v: unknown): string {
   if (v === null || v === undefined) return 'NULL'

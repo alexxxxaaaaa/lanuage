@@ -1,4 +1,4 @@
-import { Navigate, type RouteObject } from 'react-router-dom'
+import { Navigate, type RouteObject } from 'react-router'
 import { AiUsagePage } from './pages/AiUsagePage'
 import { AddWordPage } from './pages/AddWordPage'
 import { ExamDetailPage } from './pages/ExamDetailPage'

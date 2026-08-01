@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Segmented, Spin, Input } from 'antd'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import {
   listGrammarQuestions,
   type GrammarQuestion,

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Input, Select } from 'antd'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router'
 import { fillGrammarByAi } from '../api/ai'
 import { deleteGrammar, getGrammar, updateGrammar } from '../api/grammar'
 import {

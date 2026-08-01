@@ -4,10 +4,17 @@
  * Backed by kuromoji.js with its dict served from jsdelivr CDN. The dict is
  * ~12MB so we only initialize on demand (when the user opens a Japanese
  * podcast page) and cache the tokenizer for the rest of the session.
+ *
+ * We use the @sglkc fork rather than upstream `kuromoji` (unmaintained since
+ * 2022): upstream's DictionaryLoader builds dict URLs with node's `path.join`,
+ * which Vite stubs out to `{}` in browser builds — so `path.join is not a
+ * function` threw before a single dict file was ever requested. The fork joins
+ * the URL as a plain string, which also avoids `path.join` mangling the
+ * `https://` in the CDN base down to `https:/`.
  */
-import type { Tokenizer, IpadicFeatures } from 'kuromoji'
+import type { Tokenizer, IpadicFeatures } from '@sglkc/kuromoji'
 
-const DICT_PATH = 'https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/'
+const DICT_PATH = 'https://cdn.jsdelivr.net/npm/@sglkc/kuromoji@1.1.0/dict/'
 
 let tokenizerPromise: Promise<Tokenizer<IpadicFeatures>> | null = null
 
@@ -16,7 +23,7 @@ export function getTokenizer(): Promise<Tokenizer<IpadicFeatures>> {
   tokenizerPromise = new Promise((resolve, reject) => {
     // Dynamic import so kuromoji's ~700KB code chunk is split out of the
     // initial bundle.
-    void import('kuromoji').then((mod) => {
+    void import('@sglkc/kuromoji').then((mod) => {
       const builder = mod.default.builder({ dicPath: DICT_PATH })
       builder.build((err, tokenizer) => {
         if (err) {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Input } from 'antd'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router'
 import { getNoteById, type NoteDetail, updateNote } from '../api/notes'
 import { RichTextEditor } from '../components/RichTextEditor'
 

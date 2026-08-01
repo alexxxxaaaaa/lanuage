@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Input, Select } from 'antd'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { createExpressionFolder, getExpressionFolders } from '../api/expressions'
 import { getErrorMessage } from '../api/error'
 import { useI18n } from '../i18n'

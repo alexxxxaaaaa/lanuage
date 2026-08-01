@@ -7,7 +7,7 @@ import {
   Routes,
   useLocation,
   useNavigate,
-} from 'react-router-dom'
+} from 'react-router'
 import './App.css'
 import { useI18n } from './i18n'
 import { fetchMe } from './api/auth'

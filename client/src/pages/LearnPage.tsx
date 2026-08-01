@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { SoundOutlined } from '@ant-design/icons'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router'
 import { correctReviewResult, submitReviewResult } from '../api/review'
 import type { ReviewSnapshot } from '../api/review'
 import { getTodayNewWords } from '../api/words'

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router'
 import { Spin } from 'antd'
 import { useAuthStore } from '@/store/auth'
 import { getToken } from '@/lib/http'

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Input, Select } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router'
 import { fillGrammarByAi } from '../api/ai'
 import { createGrammar, getGrammars, updateGrammar } from '../api/grammar'
 import { getGrammarReviewCounts } from '../api/grammarReview'

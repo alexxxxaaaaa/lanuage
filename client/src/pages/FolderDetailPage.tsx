@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Input, Modal, Pagination, Select, Tag } from 'antd'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router'
 import { fillWordByAi } from '../api/ai'
 import { isDuplicateWordError } from '../api/error'
 import { useI18n } from '../i18n'

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Input, Select } from 'antd'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { createNote, getNotes } from '../api/notes'
 import { RichTextEditor } from '../components/RichTextEditor'
 import type { Note } from '../types'

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { message } from 'antd'
 import { listExams } from '../api/exams'
 import { getErrorMessage } from '../api/error'

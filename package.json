@@ -4,17 +4,31 @@
   "version": "1.0.0",
   "workspaces": [
     "client",
-    "server"
+    "server",
+    "dashboard"
   ],
   "scripts": {
     "dev": "concurrently -k \"npm run dev -w client\" \"npm run dev -w server\"",
     "build": "npm run build -w client && npm run build -w server",
     "client:dev": "npm run dev -w client",
     "server:dev": "npm run dev -w server",
+    "dashboard:dev": "npm run dev -w dashboard",
+    "dashboard:build": "npm run build -w dashboard",
     "prisma:generate": "npm run prisma:generate -w server",
     "prisma:migrate": "npm run prisma:migrate -w server"
   },
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^10.0.4"
+  },
+  "allowScripts": {
+    "workerd@1.20260730.1": true,
+    "esbuild": true,
+    "prisma@7.9.1": true,
+    "@prisma/engines@7.9.1": true,
+    "better-sqlite3@12.11.1": true,
+    "fsevents@2.3.3": true
   }
 }

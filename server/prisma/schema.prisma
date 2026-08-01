@@ -2,9 +2,11 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Prisma 7 no longer accepts `url` here — the connection is supplied by the
+// driver adapter in prisma.config.ts (CLI) and at PrismaClient construction
+// (runtime). See src/lib/prisma.ts for the Node path and src/worker.ts for D1.
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
 }
 
 model User {

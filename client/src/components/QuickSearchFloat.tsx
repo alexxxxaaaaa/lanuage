@@ -1,7 +1,7 @@
 import { SearchOutlined } from '@ant-design/icons'
 import { FloatButton, Modal, Progress, Select, message } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import { fillWordByAi, type AiFillWordResult } from '../api/ai'
 import { getErrorMessage, isDuplicateWordError } from '../api/error'
 import { getWords } from '../api/words'

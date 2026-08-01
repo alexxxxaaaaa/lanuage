@@ -1,0 +1,12 @@
+{
+  // Type-checks everything the build tsconfig leaves out. `tsc` (build) only
+  // covers src/ because that's what compiles into dist/, so scripts/, prisma/
+  // and prisma.config.ts used to be checked by nothing at all — errors there
+  // only surfaced when a script was actually run. Run via `npm run typecheck`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": ["src", "scripts", "prisma", "prisma.config.ts"]
+}

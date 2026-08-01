@@ -1,4 +1,4 @@
-import { Navigate, useLocation } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router'
 import { useAuthStore } from '../store/authStore'
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {

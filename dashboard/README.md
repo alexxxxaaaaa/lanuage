@@ -8,7 +8,7 @@
 - **Ant Design v6**（与主站 client 同源）
 - **Zustand** 管理登录态
 - **Axios** + JWT Bearer
-- **React Router v7**
+- **React Router v8**
 
 ## 依赖的 server 改动
 

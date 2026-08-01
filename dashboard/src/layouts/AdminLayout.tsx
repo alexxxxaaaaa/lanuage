@@ -12,7 +12,7 @@ import {
   TeamOutlined,
   UserOutlined,
 } from '@ant-design/icons'
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuthStore } from '@/store/auth'
 
 const { Sider, Header, Content } = Layout

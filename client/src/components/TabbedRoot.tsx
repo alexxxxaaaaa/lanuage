@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import { useLocation, useNavigate, useRoutes } from 'react-router-dom'
+import { useLocation, useNavigate, useRoutes } from 'react-router'
 import { useAuthStore } from '../store/authStore'
 import { useTabsStore, normPath } from '../store/tabsStore'
 import { buildRoutes } from '../routesConfig'

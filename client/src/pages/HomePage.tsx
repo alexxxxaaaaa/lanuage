@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Modal, Select, Tabs, message } from 'antd'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router'
 import { useI18n } from '../i18n'
 import {
   getTodayLearnedStats,

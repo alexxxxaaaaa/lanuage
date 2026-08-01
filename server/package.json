@@ -6,16 +6,16 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
+    "typecheck": "tsc -p tsconfig.all.json",
     "start": "node dist/index.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "node --import tsx prisma/seed.ts",
     "prisma:studio": "prisma studio",
     "reviews:backfill": "node --import tsx scripts/backfillMissingReviews.ts",
-    "migrate:mysql-to-sqlite": "node --import tsx scripts/migrateMysqlToSqlite.ts",
     "export:sqlite-to-d1-sql": "node --import tsx scripts/exportSqliteToD1Sql.ts",
     "import:words": "node --import tsx scripts/importWordsToCloud.ts",
-    "import:exam": "node --experimental-strip-types scripts/importExam.ts",
+    "import:exam": "node --import tsx scripts/importExam.ts",
     "extract:n1-pdf": "python3 scripts/extractN1Pdf.py",
     "wrangler:dev": "wrangler dev",
     "wrangler:deploy": "wrangler deploy",
@@ -25,24 +25,22 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.0.2",
+    "@prisma/adapter-better-sqlite3": "^7.9.1",
     "@prisma/adapter-d1": "^7.8.0",
-    "@prisma/client": "^6.19.3",
+    "@prisma/client": "^7.9.1",
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^12.9.0",
     "dotenv": "^17.4.2",
     "hono": "^4.12.18",
     "jose": "^6.2.3",
-    "mysql2": "^3.22.3",
-    "openai": "^6.34.0"
+    "openai": "^7.3.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260508.1",
+    "@cloudflare/workers-types": "^5.20260801.1",
     "@types/bcryptjs": "^2.4.6",
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^24.12.2",
-    "prisma": "^6.19.3",
+    "@types/node": "^26.1.2",
+    "prisma": "^7.9.1",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "wrangler": "^4.90.0"
   }
 }

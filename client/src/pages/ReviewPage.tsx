@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { SoundOutlined } from '@ant-design/icons'
 import { Select } from 'antd'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { correctReviewResult } from '../api/review'
 import type { ReviewSnapshot } from '../api/review'
 import { SpeakButton } from '../components/SpeakButton'
