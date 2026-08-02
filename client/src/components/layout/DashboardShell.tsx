@@ -5,11 +5,11 @@ import { KeepAliveOutlet } from './KeepAliveOutlet'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { BackstageNote } from '../BackstageNote'
-import { QuickSearchFloat } from '../QuickSearchFloat'
 import { Modal } from '../ui/Modal'
 import type { AuthUser } from '../../api/auth'
 import { APP_SCROLLER_ID } from '../../lib/scroll'
 import { useSessionSync } from '../../hooks/useSessionSync'
+import { useRememberSectionLocation } from '../../store/useSectionLocations'
 
 const COLLAPSED_STORAGE_KEY = 'ws:sidebar-collapsed'
 
@@ -34,6 +34,7 @@ export function DashboardShell({ user }: { user: AuthUser }) {
   const mainRef = useRef<HTMLElement>(null)
 
   useSessionSync()
+  useRememberSectionLocation()
 
   // The mobile menu is stored as "which route was it opened on" rather than a
   // boolean, so *any* navigation closes it by derivation — including ones that
@@ -115,8 +116,6 @@ export function DashboardShell({ user }: { user: AuthUser }) {
         </main>
       </div>
 
-      {/* The add-word page already is the full version of this popup. */}
-      {pathname !== '/words/new' && <QuickSearchFloat />}
       <Modal isOpen={isBackstageOpen} size="full" onClose={() => setIsBackstageOpen(false)}>
         <BackstageNote />
       </Modal>

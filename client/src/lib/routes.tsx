@@ -117,8 +117,8 @@ export const ROUTES: readonly RouteDefinition[] = [
     parent: '/folders/:id',
   },
   {
-    // Reached from a wordlist, from the quick-search float, and from a note —
-    // so it hangs off /folders rather than owning a sidebar slot of its own.
+    // Reached from a wordlist and from a note — so it hangs off /folders
+    // rather than owning a sidebar slot of its own.
     path: '/words/new',
     titleKey: 'addWord',
     element: <AddWordPage />,
@@ -238,6 +238,20 @@ export const ROUTES: readonly RouteDefinition[] = [
 export const SIDEBAR_ROUTES: readonly RouteDefinition[] = ROUTES.filter(
   (r) => r.showInSidebar,
 )
+
+/**
+ * The sidebar section `pathname` sits under — the longest sidebar route it
+ * matches exactly or as a path prefix — or null when it belongs to none
+ * (`/` and `/words/new`). Also what decides which sidebar row reads active.
+ */
+export function sectionOf(pathname: string): string | null {
+  let best: string | null = null
+  for (const { path } of SIDEBAR_ROUTES) {
+    if (pathname !== path && !pathname.startsWith(`${path}/`)) continue
+    if (best === null || path.length > best.length) best = path
+  }
+  return best
+}
 
 // ---------------------------------------------------------------------------
 // Compiled lookup tables — built once at module load.

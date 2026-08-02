@@ -5,7 +5,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type KeyboardEvent,
 } from 'react'
 import axios from 'axios'
@@ -32,17 +31,10 @@ type Props = {
   placeholder?: string
   className?: string
   inputClassName?: string
-  style?: CSSProperties
-  /** Debounce in ms before firing remote lookups. Default 250. */
-  debounceMs?: number
-  /**
-   * Render the dropdown in normal flow instead of absolutely positioned. Used
-   * inside the Quick Search modal, whose body doesn't clip absolute children.
-   */
-  inlineDropdown?: boolean
 }
 
-const DEBOUNCE_MS_DEFAULT = 250
+/** Debounce before firing remote lookups. */
+const DEBOUNCE_MS = 250
 const MAX_PER_SECTION = 5
 
 const SECTION_LABEL =
@@ -67,17 +59,7 @@ function dictLangFor(input: 'zh' | 'jp' | 'en'): 'jp' | 'en' {
 }
 
 export const SearchSuggest = forwardRef<SearchSuggestHandle, Props>(function SearchSuggest(
-  {
-    value,
-    onChange,
-    onSubmit,
-    placeholder,
-    className,
-    inputClassName,
-    style,
-    debounceMs,
-    inlineDropdown,
-  },
+  { value, onChange, onSubmit, placeholder, className, inputClassName },
   ref,
 ) {
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -89,7 +71,10 @@ export const SearchSuggest = forwardRef<SearchSuggestHandle, Props>(function Sea
   const blurTimerRef = useRef<number | null>(null)
 
   useImperativeHandle(ref, () => ({
-    focus: () => inputRef.current?.focus(),
+    // `preventScroll`: the caller focuses this on page entry, after the shell
+    // has just restored that page's scroll offset — the browser's own
+    // scroll-into-view would undo it.
+    focus: () => inputRef.current?.focus({ preventScroll: true }),
   }))
 
   // Combined, deduped list of suggestions: library first, dictionary second.
@@ -141,12 +126,12 @@ export const SearchSuggest = forwardRef<SearchSuggestHandle, Props>(function Sea
           setDictionary([])
         }
       })()
-    }, debounceMs ?? DEBOUNCE_MS_DEFAULT)
+    }, DEBOUNCE_MS)
     return () => {
       window.clearTimeout(handle)
       controller.abort()
     }
-  }, [value, isComposing, debounceMs])
+  }, [value, isComposing])
 
   // Reset highlight whenever the candidate list shape changes.
   useEffect(() => {
@@ -178,15 +163,11 @@ export const SearchSuggest = forwardRef<SearchSuggestHandle, Props>(function Sea
       event.preventDefault()
       setHighlight((idx) => (idx <= 0 ? items.length - 1 : idx - 1))
     } else if (event.key === 'Enter') {
-      const picked = highlight >= 0 ? items[highlight] : null
-      if (picked) {
-        event.preventDefault()
-        commit(picked.data.word)
-      } else {
-        // Let the wrapping <form> handle empty-highlight Enter via its own
-        // submit handler — don't preventDefault here.
-        close()
-      }
+      // No wrapping <form> — Enter is the submit path, for the highlighted
+      // candidate when there is one and for the raw text otherwise.
+      event.preventDefault()
+      commit(highlight >= 0 ? items[highlight].data.word : value)
+      close()
     } else if (event.key === 'Escape') {
       close()
     }
@@ -217,7 +198,7 @@ export const SearchSuggest = forwardRef<SearchSuggestHandle, Props>(function Sea
   const showDropdown = isOpen && items.length > 0
 
   return (
-    <div className={`relative min-w-0 flex-1 ${className ?? ''}`} style={style}>
+    <div className={`relative min-w-0 flex-1 ${className ?? ''}`}>
       <input
         ref={inputRef}
         type="search"
@@ -234,11 +215,7 @@ export const SearchSuggest = forwardRef<SearchSuggestHandle, Props>(function Sea
       />
       {showDropdown ? (
         <div
-          className={
-            inlineDropdown
-              ? 'mt-1 max-h-80 min-w-[280px] overflow-y-auto rounded-[10px] border border-border bg-surface'
-              : 'absolute top-[calc(100%+4px)] right-0 left-0 z-100 max-h-90 min-w-[280px] overflow-y-auto rounded-[10px] border border-border bg-surface shadow-[0_10px_25px_rgba(15,23,42,0.12)]'
-          }
+          className="absolute top-[calc(100%+4px)] right-0 left-0 z-100 max-h-90 min-w-[280px] overflow-y-auto rounded-[10px] border border-border bg-surface shadow-[0_10px_25px_rgba(15,23,42,0.12)]"
           // Prevent input blur before click handler fires.
           onMouseDown={(e) => e.preventDefault()}
         >

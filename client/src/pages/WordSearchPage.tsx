@@ -6,8 +6,9 @@ import { Link, useSearchParams } from 'react-router'
 import { fillWordByAi } from '../api/ai'
 import { getErrorMessage, isDuplicateWordError } from '../api/error'
 import { createWord, getWords } from '../api/words'
-import { SearchSuggest } from '../components/SearchSuggest'
+import { SearchSuggest, type SearchSuggestHandle } from '../components/SearchSuggest'
 import { SpeakButton } from '../components/SpeakButton'
+import { usePageActive } from '../components/layout/pageContext'
 import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
 import type { Word } from '../types'
@@ -47,7 +48,9 @@ export function WordSearchPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const q = searchParams.get('q') ?? ''
   const folders = useAppStore((state) => state.folders)
-  const [keyword, setKeyword] = useState(q)
+  // Deliberately empty even when the URL already carries a `?q=` — the box is
+  // for the *next* search; the current one is what the results below show.
+  const [keyword, setKeyword] = useState('')
   const [sourceOverride, setSourceOverride] = useState<SourceOverride>('auto')
   const [chineseTarget, setChineseTarget] = useState<'en' | 'jp'>(() =>
     readStoredChineseTarget(),
@@ -64,14 +67,32 @@ export function WordSearchPage() {
   const [isSearchingLocal, setIsSearchingLocal] = useState(() => q.trim().length > 0)
   const [autoAiFiredFor, setAutoAiFiredFor] = useState('')
 
+  // Arriving on the page — first mount, or coming back from another one — hands
+  // over an empty box with the cursor already in it, so clicking the sidebar
+  // entry is enough to start typing. What is below stays put: the last lookup
+  // is still there to read. Cleared during render rather than in the effect so
+  // the incoming frame is already empty, same as the `?q=` reset further down.
+  const searchRef = useRef<SearchSuggestHandle>(null)
+  const isActive = usePageActive()
+  const [wasActive, setWasActive] = useState(isActive)
+  if (wasActive !== isActive) {
+    setWasActive(isActive)
+    if (isActive) setKeyword('')
+  }
+  useEffect(() => {
+    if (isActive) searchRef.current?.focus()
+  }, [isActive])
+
   // Persist last chosen target language so the next zh search defaults to it.
   useEffect(() => {
     if (typeof window === 'undefined') return
     window.localStorage.setItem(CHINESE_TARGET_KEY, chineseTarget)
   }, [chineseTarget])
 
-  // Detected source language from chars, plus the active source after override.
-  const detectedSource = useMemo(() => detectFromChars(keyword), [keyword])
+  // What the page is currently about: whatever is being typed, falling back to
+  // the query the result on screen came from once the box has been cleared.
+  const activeTerm = keyword.trim() || q.trim()
+  const detectedSource = detectFromChars(activeTerm)
   const effectiveSource: 'zh' | 'jp' | 'en' =
     sourceOverride === 'auto' ? detectedSource : sourceOverride
   // The language the *saved* word ends up in:
@@ -84,16 +105,20 @@ export function WordSearchPage() {
     void useAppStore.getState().fetchFolders()
   }, [])
 
-  // Takes the search text explicitly. Reading from `keyword` state via closure
-  // was buggy: when this is called from the q-change useEffect, the keyword
-  // hasn't been committed yet, so `keyword` is still the previous render's
-  // value (often empty on fresh mount) and the AI fires for the wrong text.
-  const runAiLookup = async (rawText?: string) => {
-    const text = (rawText ?? keyword).trim()
+  // The text to look up is always passed in, never read from `keyword`: the
+  // box is empty on page entry, and the q-change effect below calls this
+  // before its own `setKeyword` has committed.
+  const runAiLookup = async (rawText: string) => {
+    const text = rawText.trim()
     if (!text) {
       setError(t('wordSearch.enterKeyword'))
       return
     }
+    // Detect off that same text rather than off `effectiveSource`, for the
+    // same reason — it is derived from state the caller can be ahead of.
+    const source: 'zh' | 'jp' | 'en' =
+      sourceOverride === 'auto' ? detectFromChars(text) : sourceOverride
+    const target: 'en' | 'jp' = source === 'zh' ? chineseTarget : source
     // Cancellation token: when two AI lookups race (slow first, fast second),
     // the late-resolving stale call would otherwise overwrite the newer result.
     // We bump the ref and ignore results whose token no longer matches.
@@ -111,13 +136,13 @@ export function WordSearchPage() {
     try {
       const word = await fillWordByAi({
         word: text,
-        sourceLanguage: effectiveSource,
-        targetLanguage,
+        sourceLanguage: source,
+        targetLanguage: target,
         // Legacy: kept so older code paths see a valid en/jp value.
-        language: targetLanguage,
+        language: target,
       })
       if (token !== aiLookupTokenRef.current) return
-      setWordResult({ ...word, language: word.language ?? targetLanguage })
+      setWordResult({ ...word, language: word.language ?? target })
     } catch (searchError) {
       if (token !== aiLookupTokenRef.current) return
       setError(getErrorMessage(searchError, t('wordSearch.lookupFailed')))
@@ -209,13 +234,15 @@ export function WordSearchPage() {
     setSelectedWordFolderId(defaultWordFolderId)
   }
 
-  const submitKeyword = () => {
-    const text = keyword.trim()
+  /** The one submit path: Enter in the box, a picked suggestion, the button. */
+  const submitKeyword = (raw: string = keyword) => {
+    const text = raw.trim()
     if (!text) {
       setError(t('wordSearch.enterKeyword'))
       return
     }
     setError(null)
+    setKeyword(text)
     if (text !== q) {
       // URL change will pick up via the auto-fire useEffect below, which
       // itself skips AI when the local library already has matches.
@@ -244,7 +271,7 @@ export function WordSearchPage() {
     try {
       await createWord({
         folderId: selectedWordFolderId,
-        language: wordResult.language ?? targetLanguage,
+        language: wordResult.language,
         word: wordResult.word,
         reading: wordResult.reading,
         partOfSpeech: wordResult.partOfSpeech,
@@ -268,7 +295,6 @@ export function WordSearchPage() {
   }
 
   const hasQuery = q.trim().length > 0
-  const hasAiSection = isSearchingAi || wordResult
 
   return (
     <section className="page">
@@ -282,17 +308,10 @@ export function WordSearchPage() {
       <div className="card grid gap-2.5">
         <div className="flex flex-wrap items-center gap-2.5">
           <SearchSuggest
+            ref={searchRef}
             value={keyword}
             onChange={setKeyword}
-            onSubmit={(text) => {
-              setKeyword(text)
-              if (text !== q) {
-                setSearchParams({ q: text })
-              } else if (localMatches.length === 0 && !isSearchingLocal) {
-                // Same q, no local hit — fire AI manually.
-                void runAiLookup(text)
-              }
-            }}
+            onSubmit={submitKeyword}
             placeholder={t('wordSearch.placeholder')}
             inputClassName="w-full rounded-xl border border-border bg-surface px-3.5 py-3 text-[15px] text-foreground focus:border-accent focus:ring-3 focus:ring-accent/15 focus:outline-none"
             className="min-w-[200px] flex-[1_1_240px] max-[720px]:basis-full"
@@ -328,7 +347,7 @@ export function WordSearchPage() {
               />
             </label>
           ) : null}
-          <Button type="button" onPress={submitKeyword}>
+          <Button type="button" onPress={() => submitKeyword()}>
             {t('wordSearch.search')}
           </Button>
         </div>
@@ -381,8 +400,8 @@ export function WordSearchPage() {
           <h3 className="m-0 text-base">{t('wordSearch.aiTitle')}</h3>
           <Button variant="outline"
             type="button"
-            onPress={() => void runAiLookup(keyword)}
-            isDisabled={isSearchingAi || !keyword.trim()}
+            onPress={() => void runAiLookup(activeTerm)}
+            isDisabled={isSearchingAi || !activeTerm}
           >
             {isSearchingAi
               ? t('wordSearch.aiSearching')
@@ -415,7 +434,7 @@ export function WordSearchPage() {
           <div className="grid gap-3">
             <div className="flex flex-wrap items-center gap-2.5">
               <strong className="text-[22px] text-foreground">{wordResult.word}</strong>
-              <SpeakButton text={wordResult.word} reading={wordResult.reading} lang={targetLanguage} size="md" />
+              <SpeakButton text={wordResult.word} reading={wordResult.reading} lang={wordResult.language} size="md" />
               {wordResult.reading ? (
                 <span className="muted text-[13px]">{wordResult.reading}</span>
               ) : null}
@@ -477,7 +496,7 @@ export function WordSearchPage() {
               </Button>
             </div>
           </div>
-        ) : !isSearchingAi && !hasAiSection ? (
+        ) : !isSearchingAi ? (
           <p className="muted">
             {hasQuery ? t('wordSearch.aiHintWithQuery') : t('wordSearch.aiHintNoQuery')}
           </p>
