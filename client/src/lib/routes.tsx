@@ -1,7 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
 import {
-  BookOpen,
-  FileText,
   Headphones,
   Library,
   MessagesSquare,
@@ -14,10 +12,6 @@ import {
 import type { ReactElement } from 'react'
 
 import { AddWordPage } from '../pages/AddWordPage'
-import { ExamDetailPage } from '../pages/ExamDetailPage'
-import { ExamResultPage } from '../pages/ExamResultPage'
-import { ExamTakePage } from '../pages/ExamTakePage'
-import { ExamsPage } from '../pages/ExamsPage'
 import { ExpressionFolderDetailPage } from '../pages/ExpressionFolderDetailPage'
 import { ExpressionsPage } from '../pages/ExpressionsPage'
 import { FolderDetailPage } from '../pages/FolderDetailPage'
@@ -26,6 +20,7 @@ import { GrammarDetailPage } from '../pages/GrammarDetailPage'
 import { GrammarPage } from '../pages/GrammarPage'
 import { GrammarQuestionsPage } from '../pages/GrammarQuestionsPage'
 import { HomePage } from '../pages/HomePage'
+import { JlptExamPage } from '../pages/JlptExamPage'
 import { JlptPage } from '../pages/JlptPage'
 import { JlptPracticePage } from '../pages/JlptPracticePage'
 import { LearnGrammarPage } from '../pages/LearnGrammarPage'
@@ -34,7 +29,6 @@ import { NoteDetailPage } from '../pages/NoteDetailPage'
 import { NotesPage } from '../pages/NotesPage'
 import { PodcastDetailPage } from '../pages/PodcastDetailPage'
 import { PodcastsPage } from '../pages/PodcastsPage'
-import { ReadingPage } from '../pages/ReadingPage'
 import { ReviewGrammarPage } from '../pages/ReviewGrammarPage'
 import { ReviewPage } from '../pages/ReviewPage'
 import { SettingsPage } from '../pages/SettingsPage'
@@ -201,42 +195,6 @@ export const ROUTES: readonly RouteDefinition[] = [
 
   // --- JLPT -----------------------------------------------------------------
   {
-    path: '/exams',
-    titleKey: 'exams',
-    element: <ExamsPage />,
-    icon: FileText,
-    showInSidebar: true,
-  },
-  {
-    path: '/exams/:id',
-    titleKey: 'examDetail',
-    element: <ExamDetailPage />,
-    parent: '/exams',
-  },
-  {
-    // A running attempt keeps a timer and unsaved answers, so it must not be
-    // resurrected from a stale background mount days later.
-    path: '/exams/:id/attempts/:attemptId',
-    titleKey: 'examTake',
-    element: <ExamTakePage />,
-    parent: '/exams/:id',
-    keepAlive: false,
-  },
-  {
-    path: '/exams/:id/attempts/:attemptId/result',
-    titleKey: 'examResult',
-    element: <ExamResultPage />,
-    parent: '/exams/:id',
-    keepAlive: false,
-  },
-  {
-    path: '/reading',
-    titleKey: 'reading',
-    element: <ReadingPage />,
-    icon: BookOpen,
-    showInSidebar: true,
-  },
-  {
     path: '/jlpt',
     titleKey: 'jlpt',
     element: <JlptPage />,
@@ -247,6 +205,14 @@ export const ROUTES: readonly RouteDefinition[] = [
     path: '/jlpt/practice',
     titleKey: 'jlptPractice',
     element: <JlptPracticePage />,
+    parent: '/jlpt',
+  },
+  {
+    // 考试页留在 keep-alive 里：离开这个页面时倒计时不能停，听力也得接着放
+    // ——「换个页面查个词」不该变成暂停键。状态本来就在服务端，回来再取也一致。
+    path: '/jlpt/exams/:year/:month',
+    titleKey: 'jlptExam',
+    element: <JlptExamPage />,
     parent: '/jlpt',
   },
 

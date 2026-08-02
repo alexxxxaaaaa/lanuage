@@ -21,7 +21,6 @@ model User {
   aiUsageLogs       AiUsageLog[]
   grammars          Grammar[]
   podcasts          Podcast[]
-  exams             Exam[]
   reviewEvents      ReviewEvent[]
 }
 
@@ -204,8 +203,8 @@ model GrammarReview {
 // ===== JLPT 精练题库（qbank）=====
 //
 // 全局共享的历年真题单题库（数据源 n1-qbank/markdown，见该目录 README）。
-// 与上面的 Exam/ExamAttempt 是两套东西：那边是「整卷模拟考」，这边是
-// 「按题型/年份拆开的单题精练」，只共用同一批真题内容。
+// 一套题两种用法：QbankExamAttempt 是「整卷计时模拟考」，
+// QbankAttempt / QbankFavorite 是「按题型或年份拆开的单题精练」。
 //
 // 刻意不建 Paper 表：年份维度就是 (level, year, month) 三列，直接下沉到题目行上，
 // 目录树的分组统计和练习集的排序/筛选因此全在单表内完成，不用 join。
@@ -280,6 +279,29 @@ model QbankFavorite {
   @@index([userId, createdAt])
 }
 
+// 模拟考试：一套真题的整卷作答。每套卷每人只留最近一次，「重置」= 删掉这一行。
+// 刻意不碰 QbankAttempt —— 考试成绩与平时的答题卡/错题本互不干扰，
+// 交卷后由用户主动「收错题」才写过去。
+model QbankExamAttempt {
+  id     String @id @default(uuid())
+  userId String
+  level  String @default("N1")
+  year   Int
+  month  Int
+  // strict | self。开考时定格，中途改设置不影响进行中的这场。
+  mode   String @default("strict")
+  // JSON: { [questionId]: 1-based 选项 }
+  answers String @default("{}")
+  // JSON: 交卷时定格的成绩（ExamScore），列表页直接读，不必重算整卷。
+  score   String @default("")
+  // 三个时刻决定阶段：finishedAt → 已完成，writtenSubmittedAt → 听力中，都空 → 笔试中。
+  startedAt          DateTime  @default(now())
+  writtenSubmittedAt DateTime?
+  finishedAt         DateTime?
+
+  @@unique([userId, level, year, month])
+}
+
 model Podcast {
   id          String   @id @default(uuid())
   userId      String
@@ -304,51 +326,6 @@ model Podcast {
 
   @@index([userId])
   @@unique([userId, youtubeId])
-}
-
-// A JLPT-style real exam (真题). Phase 1: users upload a question PDF, we
-// parse it with the AI into a structured `parsedData` blob and let them
-// browse the questions. Phase 2+ adds answers (from a separate solution PDF),
-// interactive answering, listening audio, etc. Assets other than the parsed
-// JSON (the original PDF and audio) live in external storage (R2) — we only
-// keep URLs here.
-model Exam {
-  id             String   @id @default(uuid())
-  userId         String
-  user           User     @relation(fields: [userId], references: [id])
-  title          String            // "N1 2019年7月"
-  year           String   @default("")
-  level          String   @default("N1")
-  // Optional URLs to external assets; empty when not yet uploaded.
-  questionPdfUrl String   @default("")
-  solutionPdfUrl String   @default("")
-  audioUrl       String   @default("")
-  // JSON blob:
-  //   { sections: [{ type, instruction, questions: [{ id, stem, target, choices, answer, explanation }] }] }
-  parsedData     String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  attempts       ExamAttempt[]
-
-  @@index([userId])
-}
-
-model ExamAttempt {
-  id          String    @id @default(uuid())
-  examId      String
-  exam        Exam      @relation(fields: [examId], references: [id])
-  userId      String
-  // JSON: { [questionId: number]: userAnswer: number }
-  answers     String    @default("{}")
-  score       Int?
-  // JSON: { [sectionType]: correct/total }
-  scoreByType String    @default("{}")
-  startedAt   DateTime  @default(now())
-  finishedAt  DateTime?
-
-  @@index([examId])
-  @@index([userId])
 }
 
 // Per-rating event log. Powers weekly-review analytics (how many words

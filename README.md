@@ -124,3 +124,31 @@ npm run upload:qbank-media       # 1102 个文件 / 约 1.6 GB，可断点续传
 行 id 是从「卷 + 卷内题号」推出来的稳定值（`n1-202012-q1`），
 所以 1、2 两步都能重复跑，用户的作答记录和收藏不会被冲掉。
 媒体地址由服务端拼，改域名只要改 `QBANK_MEDIA_BASE`（`server/wrangler.toml`）。
+
+### 模拟考试（整卷计时考）
+
+「JLPT → 模拟考试」把同一批题当整卷来考，只多一张用户维度的表
+`QbankExamAttempt`（每人每套卷一行，重置 = 删行）。它取代了旧的「真题 / 精读」
+板块（`Exam` / `ExamAttempt` 两表 + PDF→AI 解析那一套），后者已整体下线：
+
+```bash
+cd server
+# 建模拟考试表
+npx wrangler d1 execute word-sprint-db --remote \
+  --file=./prisma/migrations/20260802120000_qbank_exam/migration.sql
+# 删旧的真题 / 精读表（不可逆，建议先导出备份，见迁移文件里的说明）
+npx wrangler d1 execute word-sprint-db --remote \
+  --file=./prisma/migrations/20260802130000_drop_exam/migration.sql
+```
+
+流程是 `written`（文字・語彙 + 文法 + 読解，官方 110 分倒计时）→ 交卷 →
+`listening`（听力）→ 交卷 → `done`（成绩 + 全卷解析）。两点值得记住：
+
+- **未交卷的阶段，服务端不下发答案**：`answer` / `explain` / `stemZh` / 听力原文
+  只在 `done` 时出现在接口里，交卷后服务端也拒绝再改答案。
+- **听力是分段拼播**：题库只有每题一段的 mp3（整卷 `full.mp3` 没上传 R2），
+  所以「全文播放」= 把该卷听力的分段排成播放列表连着放完，一段被两题共用时算一段。
+
+考试记录与精练的答题卡/错题本互不干扰；成绩页的「加入错题本」才会把错题
+写进 `QbankAttempt`。考试模式（严格 / 自我评估）存在浏览器本地，开考那一刻
+定格到 attempt 上，中途改设置不影响进行中的考试。

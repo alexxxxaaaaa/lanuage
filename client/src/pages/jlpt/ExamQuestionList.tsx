@@ -1,0 +1,202 @@
+import { Fragment } from 'react'
+import { Button, Card, Chip } from '@heroui/react'
+
+import { QbankText } from '../../components/QbankText'
+import type { ExamPassage, ExamQuestion } from '../../api/qbankExam'
+import { hasPlaceholderOptions, mondaiLabel, mondaiMeta, questionDomId } from './constants'
+import {
+  EXPLAIN_BLOCK,
+  EXPLAIN_LABEL,
+  OPTION,
+  OPTION_NUM,
+  OPTION_TAG,
+  OPTION_TONE,
+  PASSAGE_BOX,
+} from './styles'
+
+/**
+ * 整卷题目列表。真题的版面顺序就是数据里的顺序，所以只要顺着扫一遍，
+ * 遇到大題号变化插一条大題头、遇到材料变化插一块材料，就还原出卷面。
+ *
+ * 两种形态：
+ *   作答态（isReview=false）—— 只有题干和选项，选了不给对错
+ *   复习态（isReview=true） —— 交卷后，展示正确答案、你的选择、译文和解析
+ *
+ * 答题卡靠 DOM id 跳题，见 constants 里的 questionDomId。
+ */
+
+type Props = {
+  questions: ExamQuestion[]
+  passages: Map<string, ExamPassage>
+  numbers: Map<string, number>
+  answers: Record<string, number>
+  isReview?: boolean
+  /** 正在播放的听力题，会高亮。 */
+  activeIds?: ReadonlySet<string>
+  onPick?: (questionId: string, selected: number) => void
+}
+
+export function ExamQuestionList({
+  questions,
+  passages,
+  numbers,
+  answers,
+  isReview = false,
+  activeIds,
+  onPick,
+}: Props) {
+  return (
+    <div className="grid gap-4">
+      {questions.map((question, i) => {
+        const prev = i > 0 ? questions[i - 1] : null
+        const isNewMondai =
+          !prev || prev.mondaiNo !== question.mondaiNo || prev.category !== question.category
+        const passage = question.passageId ? passages.get(question.passageId) : undefined
+        const isNewPassage = !!passage && prev?.passageId !== question.passageId
+        const meta = mondaiMeta(question.category, question.mondaiNo)
+
+        return (
+          <Fragment key={question.id}>
+            {isNewMondai ? (
+              <header className="mt-2 border-b border-border pb-2 first:mt-0">
+                <h3 className="m-0 flex flex-wrap items-baseline gap-2 text-[15px] font-bold text-foreground">
+                  <span>{mondaiLabel(question.category, question.mondaiNo)}</span>
+                  {meta.type ? <span>{meta.type}</span> : null}
+                </h3>
+                {meta.instruction ? (
+                  <p className="muted mt-1 mb-0 text-[13px]/[1.6]">{meta.instruction}</p>
+                ) : null}
+              </header>
+            ) : null}
+
+            {isNewPassage && passage ? (
+              <div className={PASSAGE_BOX}>
+                <p className="mt-0 mb-1.5 text-xs font-semibold text-accent">
+                  {question.category === 'listening' ? '聴解原文' : passage.type || '本文'}
+                </p>
+                <QbankText
+                  className="multiline-text text-[15px]/[1.9] text-foreground"
+                  text={passage.content}
+                />
+              </div>
+            ) : null}
+
+            <QuestionCard
+              question={question}
+              number={numbers.get(question.id) ?? i + 1}
+              selected={answers[question.id] ?? null}
+              isReview={isReview}
+              isActive={activeIds?.has(question.id) ?? false}
+              onPick={onPick}
+            />
+          </Fragment>
+        )
+      })}
+    </div>
+  )
+}
+
+function QuestionCard({
+  question,
+  number,
+  selected,
+  isReview,
+  isActive,
+  onPick,
+}: {
+  question: ExamQuestion
+  number: number
+  selected: number | null
+  isReview: boolean
+  isActive: boolean
+  onPick?: (questionId: string, selected: number) => void
+}) {
+  const answer = question.answer ?? null
+  const isCorrect = isReview && selected !== null && selected === answer
+
+  return (
+    <Card
+      className={`scroll-mt-24 gap-3 ${isActive ? 'outline-2 outline-offset-2 outline-accent' : ''}`}
+      id={questionDomId(question.id)}
+      render={(props) => <article {...props} />}
+    >
+      <div className="flex items-start gap-2.5">
+        <span className="shrink-0 leading-[1.7] font-bold text-foreground">{number}.</span>
+        <div className="multiline-text min-w-0 flex-1 text-base/[1.8] text-foreground">
+          <QbankText text={question.stemJp} />
+        </div>
+        {isReview ? (
+          <Chip color={isCorrect ? 'success' : selected === null ? 'default' : 'danger'} variant="soft">
+            {isCorrect ? '✓' : selected === null ? '未答' : '✗'}
+          </Chip>
+        ) : null}
+      </div>
+
+      <ol className="m-0 grid list-none gap-2 p-0">
+        {question.options.map((option, i) => {
+          const num = i + 1
+          const isAnswer = isReview && num === answer
+          const isWrong = isReview && selected === num && !isAnswer
+          const tone = isAnswer
+            ? OPTION_TONE.answer
+            : isWrong
+              ? OPTION_TONE.wrong
+              : !isReview && selected === num
+                ? OPTION_TONE.picked
+                : OPTION_TONE.idle
+          return (
+            <li key={i}>
+              <Button
+                variant="outline"
+                className={`${OPTION} ${tone}`}
+                isDisabled={isReview}
+                onPress={() => onPick?.(question.id, num)}
+              >
+                <span className={OPTION_NUM}>{num}</span>
+                {hasPlaceholderOptions(question.options) ? (
+                  <span className="muted">（选项由音频念出）</span>
+                ) : (
+                  <QbankText className="min-w-0 flex-1 [overflow-wrap:anywhere]" text={option} />
+                )}
+                {isAnswer ? (
+                  <Chip className={OPTION_TAG} color="success" variant="soft">
+                    正确答案
+                  </Chip>
+                ) : null}
+                {isWrong ? (
+                  <Chip className={OPTION_TAG} color="danger" variant="soft">
+                    你的选择
+                  </Chip>
+                ) : null}
+              </Button>
+            </li>
+          )
+        })}
+      </ol>
+
+      {isReview && (question.stemZh || question.explain) ? (
+        <div className="grid gap-2.5 border-t border-dashed border-border pt-3.5">
+          {question.stemZh ? (
+            <div className={EXPLAIN_BLOCK}>
+              <p className={EXPLAIN_LABEL}>
+                {question.category === 'listening' ? '設問' : '译文'}
+              </p>
+              <QbankText text={question.stemZh} />
+            </div>
+          ) : null}
+          {question.explain ? (
+            <div className={EXPLAIN_BLOCK}>
+              <p className={EXPLAIN_LABEL}>
+                {question.category === 'listening' ? '原文 / 译文' : '解析'}
+              </p>
+              <QbankText text={question.explain} />
+            </div>
+          ) : null}
+          {question.dispute ? (
+            <p className="m-0 text-xs text-warning-soft-foreground">⚠ {question.dispute}</p>
+          ) : null}
+        </div>
+      ) : null}
+    </Card>
+  )
+}

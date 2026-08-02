@@ -26,16 +26,16 @@ function mediaBase(): string {
 }
 
 /** audio/2020.12/1-1.mp3 → https://…/qbank/audio/2020.12/1-1.mp3 */
-function mediaUrl(key: string): string {
+export function mediaUrl(key: string): string {
   return key ? `${mediaBase()}${key}` : ''
 }
 
 /** 文章正文里的 ![](images/2013.07/x.png) 指向媒体根，出库时补成绝对地址。 */
-function resolveImages(content: string): string {
+export function resolveImages(content: string): string {
   return content.replace(/\]\(images\//g, `](${mediaBase()}images/`)
 }
 
-function parseOptions(raw: string): string[] {
+export function parseOptions(raw: string): string[] {
   try {
     const parsed: unknown = JSON.parse(raw)
     if (Array.isArray(parsed)) return parsed.map((v) => String(v))
@@ -101,12 +101,18 @@ export type Overview = {
   wrongCount: number
 }
 
-type TotalsRow = { category: string; mondaiNo: number; year: number; month: number; total: number }
+export type TotalsRow = {
+  category: string
+  mondaiNo: number
+  year: number
+  month: number
+  total: number
+}
 
 // 题库是静态的，进程内缓存一份分组计数；用户维度的进度每次实时查。
 const totalsCache = new Map<string, TotalsRow[]>()
 
-async function loadTotals(level: string): Promise<TotalsRow[]> {
+export async function loadTotals(level: string): Promise<TotalsRow[]> {
   const cached = totalsCache.get(level)
   if (cached) return cached
   const rows = await prisma.$queryRaw<Array<TotalsRow & { total: number | bigint }>>`

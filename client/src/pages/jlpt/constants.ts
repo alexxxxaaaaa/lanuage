@@ -142,3 +142,53 @@ export function categoryLabel(category: string): string {
 export function paperLabel(year: number, month: number): string {
   return `${year}年${month}月`
 }
+
+/**
+ * 模拟考试里答题卡跳题用的锚点 id。题 id 本身全库唯一（n1-202012-q1），
+ * 同一套卷子也不会有两个页面实例同时挂着，不会撞。
+ */
+export function questionDomId(questionId: string): string {
+  return `exam-q-${questionId}`
+}
+
+/** 即時応答（聴解4）等題型的选项卷面上本就不印，源数据存的是 "1"/"2"/"3" 占位符。 */
+export function hasPlaceholderOptions(options: string[]): boolean {
+  return options.length > 0 && options.every((o, i) => o.trim() === String(i + 1))
+}
+
+// ===== 模拟考试 =====
+
+/** 官方成绩单的三个分区，与服务端 qbankExamService 的 SECTIONS 一一对应。 */
+export const EXAM_SECTIONS: Record<string, string> = {
+  language: '言語知識（文字・語彙・文法）',
+  reading: '読解',
+  listening: '聴解',
+}
+
+export const EXAM_MODES = [
+  {
+    value: 'strict',
+    label: '严格',
+    desc: '计时结束或录音播完立刻交卷，听力不能拖动进度条 —— 完全照真实考场。',
+  },
+  {
+    value: 'self',
+    label: '自我评估',
+    desc: '超时和录音播完都不强制交卷，听力可以拖动进度条，自己掌握节奏。',
+  },
+] as const
+
+export function examModeLabel(mode: string): string {
+  return EXAM_MODES.find((m) => m.value === mode)?.label ?? mode
+}
+
+/** mm:ss / h:mm:ss，负数由调用方自己加「超时」前缀。 */
+export function formatClock(ms: number): string {
+  const total = Math.floor(Math.abs(ms) / 1000)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  const mm = String(h > 0 ? m : m).padStart(2, '0')
+  const ss = String(s).padStart(2, '0')
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
+}

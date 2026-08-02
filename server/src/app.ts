@@ -4,7 +4,6 @@ import { adminRouter } from './routes/admin'
 import { aiRouter } from './routes/ai'
 import { authRouter } from './routes/auth'
 import { dictionaryRouter } from './routes/dictionary'
-import { examsRouter } from './routes/exams'
 import { expressionsRouter } from './routes/expressions'
 import { foldersRouter } from './routes/folders'
 import { grammarRouter } from './routes/grammar'
@@ -68,9 +67,6 @@ export function createApp() {
 
   app.use('/api/dictionary/*', requireAuth)
   app.route('/api/dictionary', dictionaryRouter)
-
-  app.use('/api/exams/*', requireAuth)
-  app.route('/api/exams', examsRouter)
 
   app.use('/api/qbank/*', requireAuth)
   app.route('/api/qbank', qbankRouter)

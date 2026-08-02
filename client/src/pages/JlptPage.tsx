@@ -14,16 +14,8 @@ import {
 import { getErrorMessage } from '../api/error'
 import { usePageActive } from '../components/layout/pageContext'
 import { CATEGORIES, categoryLabel, mondaiLabel, mondaiMeta, paperLabel } from './jlpt/constants'
-
-// 目录里的每一行都是同一个骨架：左边标签、中间題型说明、右边进度 + 练习入口。
-// ≤900px 时说明文字换到第三行独占一行，标签和进度并排。
-const ROW =
-  'flex items-center gap-3.5 px-4 py-3 max-[900px]:flex-wrap max-[900px]:gap-x-3 max-[900px]:gap-y-2'
-const ROW_LABEL = 'min-w-[76px] shrink-0 text-[13px] font-semibold text-accent'
-const ROW_MAIN = 'min-w-0 flex-1 max-[900px]:order-3 max-[900px]:basis-full'
-const ROW_TITLE = 'm-0 text-sm font-semibold text-foreground'
-// 练习入口是路由跳转，用 <Link> 套 HeroUI 的按钮类，样式和别处的按钮一致。
-const PRACTICE_LINK = 'button button--outline button--sm shrink-0 text-accent'
+import { ExamPaperList } from './jlpt/ExamPaperList'
+import { ROW, ROW_LABEL, ROW_LINK as PRACTICE_LINK, ROW_MAIN, ROW_TITLE } from './jlpt/styles'
 
 function practiceHref(filter: QbankSetFilter): string {
   const params = new URLSearchParams()
@@ -205,14 +197,14 @@ function MarkedPanel({ overview }: { overview: QbankOverview }) {
 }
 
 /**
- * JLPT：大类（词汇/语法/阅读/听力/收藏）→ 題型 → 年份 三级目录。
- * 每一级都能直接开练，題型级是「该題型全部年份连着做」。
+ * JLPT：第一个 tab 是整卷模拟考试，其余是「大类（词汇/语法/阅读/听力）→ 題型
+ * → 年份」三级精练目录，每一级都能直接开练，題型级是「该題型全部年份连着做」。
  */
 export function JlptPage() {
   const isActive = usePageActive()
   const [overview, setOverview] = useState<QbankOverview | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [tab, setTab] = useState<string>('vocab')
+  const [tab, setTab] = useState<string>('mock')
 
   // 每次切回这个 tab 都重拉一次进度：练习页是另一个 tab，做完题回来
   // 这边的树是 keep-alive 挂着的，不刷新就一直显示旧的 x/y。
@@ -244,8 +236,8 @@ export function JlptPage() {
         <div>
           <h2>N1 题库</h2>
           <p className="muted">
-            2010–2025 共 31 套真题拆成单题，按題型和年份练。选完选项立刻出答案和解析，
-            做过的题会记在答题卡里。
+            2010–2025 共 31 套真题。整卷计时考是「模拟考试」，单题精练按題型和年份来 ——
+            精练选完选项立刻出答案和解析，做过的题记在答题卡里。
           </p>
         </div>
       </div>
@@ -280,6 +272,7 @@ export function JlptPage() {
             activeKey={tab}
             onChange={setTab}
             items={[
+              { key: 'mock', label: '模拟考试', children: <ExamPaperList /> },
               ...CATEGORIES.map((c) => ({
                 key: c.key,
                 label: `${c.label} ${c.section}`,

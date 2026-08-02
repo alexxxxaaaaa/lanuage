@@ -17,7 +17,16 @@ import {
 import { getErrorMessage } from '../api/error'
 import { QbankText } from '../components/QbankText'
 import { usePageActive, usePageTitle } from '../components/layout/pageContext'
-import { mondaiLabel, mondaiMeta, paperLabel } from './jlpt/constants'
+import { hasPlaceholderOptions, mondaiLabel, mondaiMeta, paperLabel } from './jlpt/constants'
+import {
+  EXPLAIN_BLOCK,
+  EXPLAIN_LABEL,
+  OPTION,
+  OPTION_NUM,
+  OPTION_TAG,
+  OPTION_TONE,
+  PASSAGE_BOX,
+} from './jlpt/styles'
 
 // 正文按需取：当前题往后预取这么多道，够连着做十几题不卡顿，
 // 又不会为「問題9 全年份」那种 270 题的集合一次拉 1 MB 正文。
@@ -47,11 +56,6 @@ function setTitleOf(filter: QbankSetFilter): string {
   return `${mondaiLabel(filter.category, filter.mondaiNo)} ${meta.type}${paper}`
 }
 
-/** 即時応答（聴解4）的选项在卷面上本就不印，源数据存的是 "1"/"2"/"3" 占位符。 */
-function hasPlaceholderOptions(options: string[]): boolean {
-  return options.length > 0 && options.every((o, i) => o.trim() === String(i + 1))
-}
-
 // 题号点阵。HeroUI 的 .button 是固定 h-10/w-fit 的胶囊，这里要的是小圆点，
 // 所以宽高一起写死（之前用 aspect-square 让浏览器自己算，网格行高算不出来，
 // 圆圈就叠在一起了）。对错配色用 utility 覆盖 .button 的背景 —— utilities
@@ -63,21 +67,6 @@ const DOT_TONE = {
   none: '',
 } as const
 
-// 选项按钮：脱掉 .button 的固定高度和 nowrap，日文长句才能折行；
-// 作答后按钮 disabled，但答案要看得清，所以把 disabled 的半透明加回不透明。
-const OPTION =
-  'h-auto w-full items-start justify-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-left text-[15px]/[1.7] font-normal whitespace-normal disabled:cursor-default disabled:opacity-100'
-const OPTION_TONE = {
-  answer: 'border-success bg-success-soft text-success-soft-foreground hover:bg-success-soft',
-  wrong: 'border-danger bg-danger-soft text-danger-soft-foreground hover:bg-danger-soft',
-  idle: 'border-border bg-surface text-foreground hover:border-accent hover:bg-accent/6',
-} as const
-const OPTION_NUM =
-  'mt-0.5 inline-flex size-[22px] shrink-0 items-center justify-center rounded-full border border-current text-xs'
-const OPTION_TAG = 'ml-auto shrink-0 self-center'
-
-const EXPLAIN_LABEL = 'mt-0 mb-0.5 text-xs font-semibold whitespace-normal text-accent'
-const EXPLAIN_BLOCK = 'multiline-text text-sm/[1.85] text-foreground'
 const LOADING = 'grid place-items-center py-12'
 
 export function JlptPracticePage() {
@@ -438,7 +427,7 @@ export function JlptPracticePage() {
           ) : (
             <>
               {showPassage && question.passage ? (
-                <div className="max-h-[46vh] overflow-y-auto rounded-[14px] border-l-[3px] border-accent/40 bg-foreground/3 px-4.5 py-3.5 max-[900px]:max-h-[38vh]">
+                <div className={`${PASSAGE_BOX} max-h-[46vh] overflow-y-auto max-[900px]:max-h-[38vh]`}>
                   <p className="mt-0 mb-1.5 text-xs font-semibold text-accent">
                     {isListening ? '聴解原文' : question.passage.type || '本文'}
                   </p>
