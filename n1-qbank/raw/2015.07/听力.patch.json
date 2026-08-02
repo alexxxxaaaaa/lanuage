@@ -1,0 +1,16 @@
+{
+ "disputes": [],
+ "overrides": [
+  {
+   "id": 10982,
+   "field": "stemMedia",
+   "value": {
+    "mediaUri": "https://oss.mojidict.com/mojitest/exams/mp3/2020-03-17_5e705513eedcf"
+   },
+   "reason": "纳豆缺该题音频（聴解5 双问题项共用的那段），取 mojidict 同卷同题分段；原文相似度 0.681（次名 0.056）",
+   "from": "mojidict"
+  }
+ ],
+ "_source": "mojidict",
+ "_note": "compare_sources.py 生成的交叉比对结果"
+}

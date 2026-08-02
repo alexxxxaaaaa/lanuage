@@ -21,3 +21,6 @@ DAILY_AI_TOKEN_BUDGET = "50000"
 # non-Cloudflare IP. The auth token goes via `wrangler secret put
 # SUBTITLE_PROXY_TOKEN`. Leave URL blank to disable proxy mode.
 SUBTITLE_PROXY_URL = ""
+# JLPT 精练题库的媒体根（R2 公共桶 jlpt 的 qbank/ 前缀）。听力 mp3 和
+# 情報検索图片都挂在这下面，上传见 server/scripts/uploadQbankMedia.sh。
+QBANK_MEDIA_BASE = "https://pub-942012cb760d44d7a0c78abce8d4d0c5.r2.dev/qbank/"

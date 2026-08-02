@@ -12,6 +12,15 @@
    ],
    "reason": "选项1:两侧文字不同，采纳可信度更高的 mojidict",
    "from": "mojidict"
+  },
+  {
+   "id": 39813,
+   "field": "stemMedia",
+   "value": {
+    "mediaUri": "https://oss.mojidict.com/mojitest/exams/mp3/870ff873-d95c-4500-a610-002adb32afcf2024%E5%B9%B47%E6%9C%88N1-%E5%95%8F%E9%A1%8C5-2%E7%95%AA.mp3"
+   },
+   "reason": "纳豆缺该题音频（聴解5 双问题项共用的那段），取 mojidict 同卷同题分段；原文相似度 0.706（次名 0.048）",
+   "from": "mojidict"
   }
  ],
  "_source": "mojidict",

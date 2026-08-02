@@ -17,6 +17,8 @@ import { ReviewGrammarPage } from './pages/ReviewGrammarPage'
 import { PodcastDetailPage } from './pages/PodcastDetailPage'
 import { PodcastsPage } from './pages/PodcastsPage'
 import { HomePage } from './pages/HomePage'
+import { JlptPage } from './pages/JlptPage'
+import { JlptPracticePage } from './pages/JlptPracticePage'
 import { LearnPage } from './pages/LearnPage'
 import { NoteDetailPage } from './pages/NoteDetailPage'
 import { NotesPage } from './pages/NotesPage'
@@ -47,6 +49,8 @@ export function buildRoutes(opts: { canSeePodcast: boolean }): RouteObject[] {
     { path: '/grammar/questions', element: <GrammarQuestionsPage /> },
     { path: '/grammar/:id', element: <GrammarDetailPage /> },
     { path: '/exams', element: <ExamsPage /> },
+    { path: '/jlpt', element: <JlptPage /> },
+    { path: '/jlpt/practice', element: <JlptPracticePage /> },
     { path: '/reading', element: <ReadingPage /> },
     { path: '/exams/:id', element: <ExamDetailPage /> },
     { path: '/exams/:id/attempts/:attemptId', element: <ExamTakePage /> },

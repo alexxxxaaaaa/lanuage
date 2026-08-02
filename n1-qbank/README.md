@@ -11,7 +11,7 @@
 
 | | 纳豆（2010–2024） | mojidict（2025） |
 |---|---|---|
-| 听力音频 | **每题一个 mp3** → `audio/<年月>/聴解N-M.mp3` | **整卷一个 mp3** → `audio/<年月>/full.mp3` |
+| 听力音频 | **每题一个 mp3** → `audio/<年月>/聴解N-M.mp3`（聴解5 有缺口，已从 mojidict 补齐） | 同左（分段音频后补）+ 另有整卷 `full.mp3` |
 | 听力原文 | 无 | **有**（日文原文 + 中文译文，作为 `PL<小节>-<题号>` 文章块） |
 | 問題号 | 接口不返回，靠结构反推（见下） | 结构自带（按大题组织），直接用 |
 
@@ -26,17 +26,46 @@ n1-qbank/
 ├── markdown/                题库 md，每年月一个文件（入 git）
 │   └── <YYYY>年<MM>月_N1_题库.md
 ├── images/                  情報検索等图片型材料（入 git，58 张）
-├── audio/                   听力音频，每题一个 mp3（**不入 git**，见 .gitignore）
-│   └── <年月>/<聴解N-M>.mp3
-└── index.json               筛选索引，仅元数据不含正文（入 git，881 KB）
+├── audio/                   听力音频，每题一段（入 git，约 1.9 GB）
+│   ├── <年月>/聴解N-M.mp3    题库引用的就是这些，1041 个
+│   ├── <年月>/材料N.mp3      纳豆按材料另存的一份，没有题引用（见下）
+│   └── 2025.*/full.mp3      整卷录音（含指示语与作答间隔），也没有题引用
+└── index.json               筛选索引，仅元数据不含正文（入 git，940 KB）
 ```
 
-音频不入 git 的原因与 `client/public/exam-media` 一致：单文件超限、体积大，走 R2 托管。
+音频入 git 是有意为之（见 `.gitignore` 里的说明）：题库要自包含，不依赖外部存储的可用性。
+网站那一侧另外把它们同步到 R2 做分发，见 `server/scripts/uploadQbankMedia.sh`；
+**传哪些以 `index.json` 为准**（被题目引用的 1041 个），`材料N.mp3`、`full.mp3`
+这类没人引用的不传。
+
+## 听力音频是怎么补齐的
+
+1071 道听力题现在**全部有音频**，来路有三条：
+
+| 来源 | 数量 | 说明 |
+|---|---|---|
+| 纳豆每题一段 | 958 | `stemMedia.mediaUri`，`fetch_audio.py` 下的 |
+| mojidict 分段（2025 两套） | 60 | 材料自带 `mediaId`，`fetch_moji_segments.py`，不需要 token |
+| mojidict 补纳豆的缺口 | 53 | 見下，`fetch_moji_audio_patch.py` |
+
+纳豆 2010–2024 每卷 聴解5 的「質問1 / 質問2」共用一段录音，源站没给（`stemMedia` 是空的），
+53 道题因此没声音；另有 2022.07 那段虽有文件但只剩 12 秒，是截断的残片。这 27 段
+从 mojidict 同卷同题借，**比听力原文**确认是同一段（命中项相似度 0.62+，次名全在 0.11 以下，
+最小领先 9.4 倍）。借来的出处记在 `raw/<年月>/听力.patch.json` 的 overrides 里，
+字段是 `stemMedia`，可查可回滚，raw 快照本身不动。
+
+一段录音被多题共用时，文件按**该组第一道题的题号**命名，两道题的 `- audio:` 指向同一个文件
+（全库 30 处，全部是 聴解5 的双问题项）。
+
+> 纳豆其实还按材料另存过一份 `材料N.mp3`，内容与那段大体相同，但各年份长短不一
+> （比 mojidict 的分段 -49s ~ +26s 不等），且从来没被 md 引用过。统一走 mojidict 是为了
+> 来源单一、时长稳定；这些文件留在 repo 里当原始素材，不上传。
 
 ## markdown 格式
 
-与 [`server/scripts/importExam.ts`](../server/scripts/importExam.ts) 的解析契约完全一致，
-可直接 `npm run import:exam -- --file ...` 导入 `ExamPaper`/`ExamPassage`/`ExamQuestion`。
+与 [`server/scripts/importQbank.ts`](../server/scripts/importQbank.ts) 的解析契约完全一致，
+`cd server && npm run import:qbank` 即可全量导入 `QbankPassage` / `QbankQuestion`
+（网站的「JLPT 精练」板块用的就是这两张表，上线步骤见根目录 README）。
 
 ```markdown
 ## Q1                          ← 笔试题；听力题是 ## 聴解1-1
@@ -99,6 +128,22 @@ python3 server/scripts/nadou/fetch_moji_patch.py   # 补纳豆缺题 → <部分
 python3 server/scripts/nadou/to_markdown.py        # 重跑即自动合并
 ```
 
+听力音频那两个脚本**不需要 MOJI_TOKEN**（OSS 上是公开对象，raw JSON 和 moji 快照
+也都在 git 里，clone 下来就能重跑）：
+
+```bash
+# 2025 两套的分段音频（58 段）
+python3 server/scripts/nadou/fetch_moji_segments.py --check    # 只报告缺哪些
+python3 server/scripts/nadou/fetch_moji_segments.py
+
+# 纳豆 聴解5 的缺口（27 段，靠原文比对确认是同一段）
+python3 server/scripts/nadou/fetch_moji_audio_patch.py --check # 只报告匹配结果
+python3 server/scripts/nadou/fetch_moji_audio_patch.py
+
+python3 server/scripts/nadou/to_markdown.py                    # 把 - audio: 写进 md
+python3 server/scripts/nadou/build_index.py
+```
+
 新增年份时改 `fetch_moji_exam.py` 的 `EXAMS` 列表（examId 取自
 `test.mojidict.com/paper/<examId>` 的 URL —— 站内没有可用的列表接口，
 `Exam` / `ExamV2` 两个 class 明确拒绝 find 权限）。
@@ -106,8 +151,10 @@ python3 server/scripts/nadou/to_markdown.py        # 重跑即自动合并
 **mojidict 的字段坑**（都已处理，改脚本时别踩回去）：
 
 - 听力材料的正文在 `subtitle`（日文原文），`title` 是空的；`translation` 是中文译文
-- 每个听力材料另有自己的 `mediaId`，即该题的音频片段（当前只下了整卷 `full.mp3`，
-  分段音频的地址在 raw JSON 里，需要时可再下）
+- 每个听力材料另有自己的 `mediaId`，即该题的音频片段；整卷 `full.mp3` 在 `exam.mediaId` 上。
+  分段已由 `fetch_moji_segments.py` 全部下下来，题库引用的是分段而不是整卷
+- 材料的 `subtitle` 里每行带 `data-starttime`，是**相对该分段**的时间戳
+  （聴解1-1 分段 94 秒，末行 01:28，对得上），将来要做原文跟读可以直接用
 - 情報検索（問題13）材料的正文是 `<MOJiTest_URL>` 占位符，真内容在 `imageId`
 - 请求不带 `User-Agent` 会 403
 - 大题标题里的「問題N」**不可信** —— 2025.07 第 12、13 个大题标题都写着「問題12」，

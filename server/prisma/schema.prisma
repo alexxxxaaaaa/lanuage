@@ -201,51 +201,83 @@ model GrammarReview {
   lastReviewedAt  DateTime?
 }
 
-// ===== 真题题库（JLPT past-exam question bank）=====
+// ===== JLPT 精练题库（qbank）=====
+//
+// 全局共享的历年真题单题库（数据源 n1-qbank/markdown，见该目录 README）。
+// 与上面的 Exam/ExamAttempt 是两套东西：那边是「整卷模拟考」，这边是
+// 「按题型/年份拆开的单题精练」，只共用同一批真题内容。
+//
+// 刻意不建 Paper 表：年份维度就是 (level, year, month) 三列，直接下沉到题目行上，
+// 目录树的分组统计和练习集的排序/筛选因此全在单表内完成，不用 join。
+// 題型名（漢字読み等）和大題指示语由 (category, mondaiNo) 唯一决定，
+// 是前端常量（client/src/pages/jlpt/constants.ts），不入库。
 
-model ExamPaper {
-  id        String         @id @default(uuid())
-  level     String         @default("N1")
+model QbankPassage {
+  id      String @id @default(uuid())
+  level   String @default("N1")
+  year    Int
+  month   Int
+  code    String // 卷内编号：P8-1 / P11 / PL1-1（听力原文）
+  type    String @default("") // 内容理解（短文）等
+  content String // 原文；情報検索的图片是 markdown 图片语法，路径相对媒体根
+
+  questions QbankQuestion[]
+
+  @@unique([level, year, month, code])
+}
+
+model QbankQuestion {
+  id        String        @id @default(uuid())
+  level     String        @default("N1")
   year      Int
   month     Int
-  title     String         @default("")
-  createdAt DateTime       @default(now())
-  passages  ExamPassage[]
-  questions ExamQuestion[]
+  category  String // vocab | grammar | reading | listening
+  mondaiNo  Int // 笔试 1–13；听力 1–5（category 内唯一）
+  seq       String // 卷内展示题号：Q1 / 聴解1-1
+  orderNo   Int // 卷内排序，听力从 1000 起，保证笔试在前
+  stemJp    String        @default("")
+  stemZh    String        @default("") // 笔试=中文翻译；听力=日文設問（源站如此）
+  options   String        @default("[]") // JSON 字符串数组
+  answer    Int // 1-based
+  explain   String        @default("") // 逐选项解析；听力是原文+译文
+  audioKey  String        @default("") // 相对媒体根，如 audio/2020.12/1-1.mp3
+  source    String        @default("nadou") // nadou | mojidict
+  dispute   String        @default("") // 两来源答案不一致时的说明
+  passageId String?
+  passage   QbankPassage? @relation(fields: [passageId], references: [id], onDelete: SetNull)
 
-  @@unique([level, year, month])
+  attempts  QbankAttempt[]
+  favorites QbankFavorite[]
+
+  @@unique([level, year, month, seq])
+  @@index([category, mondaiNo, year, month, orderNo])
+  @@index([passageId])
 }
 
-model ExamPassage {
-  id      String    @id @default(uuid())
-  paperId String
-  paper   ExamPaper @relation(fields: [paperId], references: [id], onDelete: Cascade)
-  code    String // 如 "P10"、"P11-A"
-  type    String    @default("")
-  content String
+// 一题一行，重做时覆盖 —— 答题卡和错题本都只关心「最近一次」的对错。
+model QbankAttempt {
+  id         String        @id @default(uuid())
+  userId     String
+  questionId String
+  question   QbankQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selected   Int // 1-based
+  isCorrect  Boolean
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
 
-  @@unique([paperId, code])
-  @@index([paperId])
+  @@unique([userId, questionId])
+  @@index([userId, isCorrect])
 }
 
-model ExamQuestion {
-  id          String    @id @default(uuid())
-  paperId     String
-  paper       ExamPaper @relation(fields: [paperId], references: [id], onDelete: Cascade)
-  seq         String // 展示题号，如 "Q1"、"聴解1-1"
-  orderNo     Int // 排序用数字
-  section     String // 文字·語彙 / 文法 / 読解 / 聴解
-  mondai      String    @default("") // 問題号或听力小节
-  type        String    @default("")
-  stemJp      String    @default("")
-  stemZh      String    @default("")
-  options     String    @default("[]") // JSON 数组字符串
-  answer      Int
-  explain     String    @default("")
-  passageCode String    @default("") // 引用 ExamPassage.code（读解题）
+model QbankFavorite {
+  id         String        @id @default(uuid())
+  userId     String
+  questionId String
+  question   QbankQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  createdAt  DateTime      @default(now())
 
-  @@unique([paperId, seq])
-  @@index([paperId])
+  @@unique([userId, questionId])
+  @@index([userId, createdAt])
 }
 
 model Podcast {

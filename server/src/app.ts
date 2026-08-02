@@ -13,6 +13,7 @@ import { grammarReviewRouter } from './routes/grammarReview'
 import { healthRouter } from './routes/health'
 import { notesRouter } from './routes/notes'
 import { podcastsRouter } from './routes/podcasts'
+import { qbankRouter } from './routes/qbank'
 import { reviewRouter } from './routes/review'
 import { weeklyReviewRouter } from './routes/weeklyReview'
 import { wordsRouter } from './routes/words'
@@ -70,6 +71,9 @@ export function createApp() {
 
   app.use('/api/exams/*', requireAuth)
   app.route('/api/exams', examsRouter)
+
+  app.use('/api/qbank/*', requireAuth)
+  app.route('/api/qbank', qbankRouter)
 
   app.use('/api/weekly-review/*', requireAuth)
   app.route('/api/weekly-review', weeklyReviewRouter)

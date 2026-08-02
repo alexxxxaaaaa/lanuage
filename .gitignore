@@ -33,6 +33,10 @@ client/public/podcast-media/*.wav
 # Generated SQL from ingestGrammarQuestions script
 server/data/grammarQuestions/_generated_insert.sql
 
+# 题库 → D1 的分片 SQL 与 R2 上传断点记录，都能从 n1-qbank/markdown 重新生成
+server/d1_qbank/
+server/.qbank-upload.log
+
 # N1 真题源文件（PDF/图片体积过大，不入库；仅提交 N1/整理/ 下的题库 md）
 N1/**/*.pdf
 N1/**/*.png

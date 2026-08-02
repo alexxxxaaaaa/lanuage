@@ -16,7 +16,7 @@ QBANK = os.path.join(ROOT, "n1-qbank")
 MD = os.path.join(QBANK, "markdown")
 OUT = os.path.join(QBANK, "index.json")
 
-# 与 importExam.ts 一致的解析规则
+# 与 importQbank.ts 一致的解析规则
 RE_Q = re.compile(r"^##\s+(Q\d+|聴解\S+)\s*$")
 RE_PASS = re.compile(r"^###\s*文章\s*([^（(]+)[（(](.+?)[）)]\s*$")
 RE_OPT = re.compile(r"^\s+(\d+)\.\s?(.*)$")

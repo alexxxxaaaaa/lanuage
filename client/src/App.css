@@ -4748,3 +4748,589 @@ button:disabled,
 .reading-group-title {
   margin: 4px 0 8px;
 }
+
+/* ===== JLPT 精练（qbank）=====
+ * 目录页：大类 tab → 題型 → 年份 三级；答题页：左题目 + 右答题卡。
+ * 配色沿用真题板块那套（accent 蓝 / 绿对 / 红错），只是排版更紧。 */
+
+.jlpt-loading {
+  display: grid;
+  place-items: center;
+  padding: 48px 0;
+}
+.jlpt-summary {
+  margin: -8px 0 0;
+  font-size: 13px;
+}
+.jlpt-tabs .ant-tabs-nav {
+  margin-bottom: 12px;
+}
+
+.jlpt-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.jlpt-group {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card-bg);
+  overflow: hidden;
+}
+.jlpt-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+}
+.jlpt-list > .jlpt-row {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card-bg);
+}
+.jlpt-row-group {
+  background: rgba(37, 99, 235, 0.05);
+}
+.jlpt-row-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+  min-height: 0;
+}
+.jlpt-row-chapter {
+  flex-shrink: 0;
+  min-width: 68px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+}
+.jlpt-row-chapter-sub {
+  padding-left: 20px;
+}
+.jlpt-row-main {
+  flex: 1;
+  min-width: 0;
+}
+.jlpt-row-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+.jlpt-row-instruction {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.jlpt-row-count {
+  font-size: 13px;
+  color: var(--text);
+  flex-shrink: 0;
+}
+.jlpt-paper-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+.jlpt-paper-list .jlpt-row + .jlpt-row {
+  border-top: 1px dashed var(--border);
+}
+
+.jlpt-progress {
+  width: 180px;
+  flex-shrink: 0;
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+}
+.jlpt-progress-bar {
+  position: relative;
+  width: 100%;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+.jlpt-progress-answered,
+.jlpt-progress-correct {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  border-radius: 999px;
+}
+.jlpt-progress-answered {
+  background: rgba(37, 99, 235, 0.45);
+}
+.jlpt-progress-correct {
+  background: #22c55e;
+}
+.jlpt-progress-count {
+  font-size: 12px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.jlpt-practice-button {
+  flex-shrink: 0;
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: var(--card-bg);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.jlpt-practice-button:hover {
+  background: var(--accent);
+  color: #fff;
+}
+.jlpt-practice-button.is-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.jlpt-marked {
+  display: grid;
+  gap: 12px;
+}
+.jlpt-marked-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ---- 答题页 ---- */
+.jlpt-take-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.jlpt-take-header h2 {
+  margin: 0;
+}
+.jlpt-take-instruction {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+}
+.jlpt-take-position {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.jlpt-take-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  gap: 20px;
+  align-items: start;
+}
+.jlpt-take-main {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.jlpt-passage {
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.03);
+  border-left: 3px solid rgba(37, 99, 235, 0.4);
+  max-height: 46vh;
+  overflow-y: auto;
+}
+.jlpt-passage-label {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.jlpt-passage-body {
+  font-size: 15px;
+  line-height: 1.9;
+  color: var(--text-h);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.qbank-figure {
+  display: block;
+  max-width: 100%;
+  margin: 10px 0;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+.qbank-em {
+  font-style: normal;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.jlpt-audio audio {
+  width: 100%;
+  height: 40px;
+}
+.jlpt-audio-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
+.jlpt-question {
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+.jlpt-question-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.jlpt-question-index {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: var(--text-h);
+  line-height: 1.7;
+}
+.jlpt-question-stem {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  line-height: 1.8;
+  color: var(--text-h);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.jlpt-question-source {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--text);
+  white-space: normal;
+}
+.jlpt-fav-button {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: rgba(15, 23, 42, 0.25);
+  font-size: 18px;
+  padding: 0 4px;
+  cursor: pointer;
+  min-height: 0;
+}
+.jlpt-fav-button.is-on {
+  color: #f59e0b;
+}
+
+.jlpt-options {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.jlpt-option {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start; /* 全局 button 是 center,选项要左对齐 */
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  text-align: left;
+  font-size: 15px;
+  font-weight: 400; /* 覆盖全局 button 的 600,选项是正文不是按钮文案 */
+  line-height: 1.7;
+  color: var(--text-h);
+  min-height: 0;
+}
+.jlpt-option-num {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  font-size: 12px;
+}
+.jlpt-option-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.jlpt-option.is-clickable:hover {
+  border-color: var(--accent);
+  background: rgba(37, 99, 235, 0.06);
+}
+.jlpt-option.is-revealed {
+  cursor: default;
+  opacity: 1;
+}
+.jlpt-option.is-answer {
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.12);
+}
+.jlpt-option.is-answer .jlpt-option-num {
+  background: #22c55e;
+  border-color: #22c55e;
+  color: #fff;
+}
+.jlpt-option.is-wrong {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+.jlpt-option.is-wrong .jlpt-option-num {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #fff;
+}
+.jlpt-option-tag {
+  flex-shrink: 0;
+  margin-left: auto; /* 即時応答那种没有选项正文的题也把标签顶到右边 */
+  align-self: center;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.jlpt-option-tag.is-answer {
+  background: rgba(34, 197, 94, 0.2);
+  color: #15803d;
+}
+.jlpt-option-tag.is-wrong {
+  background: rgba(239, 68, 68, 0.16);
+  color: #b91c1c;
+}
+
+.jlpt-explain {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+  display: grid;
+  gap: 10px;
+}
+.jlpt-verdict {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  font-weight: 700;
+}
+.jlpt-verdict.is-correct {
+  color: #15803d;
+}
+.jlpt-verdict.is-wrong {
+  color: #b91c1c;
+}
+.jlpt-explain-block {
+  font-size: 14px;
+  line-height: 1.85;
+  color: var(--text-h);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.jlpt-explain-label {
+  margin: 0 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: normal;
+}
+.jlpt-dispute {
+  margin: 0;
+  font-size: 12px;
+  color: #b45309;
+}
+.jlpt-link-button {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  padding: 0;
+  cursor: pointer;
+  min-height: 0;
+}
+
+.jlpt-nav {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+/* ---- 答题卡 ---- */
+.jlpt-answer-card {
+  position: sticky;
+  top: 16px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 10px;
+}
+.jlpt-answer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.jlpt-answer-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.jlpt-answer-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.jlpt-stat {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--text);
+}
+.jlpt-stat.is-correct {
+  background: rgba(34, 197, 94, 0.16);
+  color: #15803d;
+}
+.jlpt-stat.is-wrong {
+  background: rgba(239, 68, 68, 0.16);
+  color: #b91c1c;
+}
+.jlpt-answer-score {
+  margin: 0;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-h);
+}
+.jlpt-answer-score .muted {
+  font-size: 13px;
+}
+.jlpt-grid-toggle {
+  display: none;
+  border: 1px solid var(--border);
+  background: transparent;
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--text-h);
+  min-height: 34px;
+}
+.jlpt-answer-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  max-height: 42vh;
+  overflow-y: auto;
+}
+.jlpt-answer-dot {
+  aspect-ratio: 1;
+  padding: 0;
+  min-height: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.05);
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.jlpt-answer-dot.is-correct {
+  background: #22c55e;
+  border-color: #22c55e;
+  color: #fff;
+}
+.jlpt-answer-dot.is-wrong {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #fff;
+}
+.jlpt-answer-dot.is-current {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+@media (max-width: 900px) {
+  .jlpt-take-body {
+    grid-template-columns: 1fr;
+  }
+  /* 答题卡挪到题目上方并吸顶,做题时始终看得到得分 */
+  .jlpt-answer-card {
+    order: -1;
+    top: 8px;
+    z-index: 5;
+  }
+  .jlpt-grid-toggle {
+    display: block;
+  }
+  .jlpt-answer-grid.is-collapsed {
+    display: none;
+  }
+  .jlpt-answer-grid {
+    grid-template-columns: repeat(8, 1fr);
+    max-height: 32vh;
+  }
+  .jlpt-row {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+  .jlpt-row-main {
+    flex-basis: 100%;
+    order: 3;
+  }
+  .jlpt-progress {
+    width: auto;
+    flex: 1;
+  }
+  .jlpt-row-instruction {
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+  }
+  .jlpt-passage {
+    max-height: 38vh;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .jlpt-row-group {
+    background: rgba(37, 99, 235, 0.12);
+  }
+  .jlpt-passage {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .jlpt-stat,
+  .jlpt-answer-dot {
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .jlpt-fav-button {
+    color: rgba(255, 255, 255, 0.35);
+  }
+  .qbank-figure {
+    background: #f5f5f5;
+  }
+}

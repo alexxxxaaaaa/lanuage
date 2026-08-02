@@ -90,3 +90,29 @@ cd ../client && npm run pages:deploy
 ```
 
 See `DEPLOY.md` for full details.
+
+## JLPT 精练题库上线（qbank）
+
+网站的「JLPT 精练」板块吃的是 `QbankPassage` / `QbankQuestion` 两张全局表，
+数据源是 [`n1-qbank/markdown`](n1-qbank/README.md)（31 套真题 / 3207 题，入 git）。
+题目和媒体走两条通道：
+
+```bash
+cd server
+
+# 1. 建表（本地 SQLite 用 prisma migrate；线上 D1 直接打 migration.sql）
+npx wrangler d1 execute word-sprint-db --remote \
+  --file=./prisma/migrations/20260802000000_qbank/migration.sql
+
+# 2. 题目：markdown → 本地库 → 分片 SQL → D1
+npm run import:qbank             # 3207 题写进 server/prisma/dev.db
+npm run export:qbank-d1-sql      # 生成 d1_qbank/*.sql（31 片，gitignored）
+bash d1_qbank/apply.sh           # 逐片打到线上 D1
+
+# 3. 媒体：听力 mp3 + 情報検索图片 → R2 公共桶 jlpt 的 qbank/ 前缀
+npm run upload:qbank-media       # 1102 个文件 / 约 1.6 GB，可断点续传
+```
+
+行 id 是从「卷 + 卷内题号」推出来的稳定值（`n1-202012-q1`），
+所以 1、2 两步都能重复跑，用户的作答记录和收藏不会被冲掉。
+媒体地址由服务端拼，改域名只要改 `QBANK_MEDIA_BASE`（`server/wrangler.toml`）。

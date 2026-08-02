@@ -13,6 +13,7 @@ export type WorkerBindings = {
   DAILY_AI_TOKEN_BUDGET?: string
   SUBTITLE_PROXY_URL?: string
   SUBTITLE_PROXY_TOKEN?: string
+  QBANK_MEDIA_BASE?: string
 }
 
 const app = createApp()
@@ -34,6 +35,7 @@ export default {
       DAILY_AI_TOKEN_BUDGET: env.DAILY_AI_TOKEN_BUDGET,
       SUBTITLE_PROXY_URL: env.SUBTITLE_PROXY_URL,
       SUBTITLE_PROXY_TOKEN: env.SUBTITLE_PROXY_TOKEN,
+      QBANK_MEDIA_BASE: env.QBANK_MEDIA_BASE,
     }
 
     try {

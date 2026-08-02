@@ -108,6 +108,15 @@
    ],
    "reason": "选项1:两侧文字不同，采纳可信度更高的 mojidict；选项2:两侧文字不同，采纳可信度更高的 mojidict；选项3:两侧文字不同，采纳可信度更高的 mojidict；选项4:两侧文字不同，采纳可信度更高的 mojidict",
    "from": "mojidict"
+  },
+  {
+   "id": 25268,
+   "field": "stemMedia",
+   "value": {
+    "mediaUri": "https://oss.mojidict.com/mojitest/exams/mp3/f5e12188-9b3d-4364-9ce7-1a9f0f00ee845-2.mp3"
+   },
+   "reason": "纳豆缺该题音频（聴解5 双问题项共用的那段），取 mojidict 同卷同题分段；原文相似度 0.723（次名 0.058）",
+   "from": "mojidict"
   }
  ],
  "_source": "mojidict",

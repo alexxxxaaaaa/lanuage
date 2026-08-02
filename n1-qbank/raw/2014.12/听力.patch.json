@@ -84,6 +84,15 @@
    ],
    "reason": "选项2:两侧文字不同，采纳可信度更高的 mojidict",
    "from": "mojidict"
+  },
+  {
+   "id": 10862,
+   "field": "stemMedia",
+   "value": {
+    "mediaUri": "https://oss.mojidict.com/mojitest/exams/mp3/2020-03-17_5e704ac646a06"
+   },
+   "reason": "纳豆缺该题音频（聴解5 双问题项共用的那段），取 mojidict 同卷同题分段；原文相似度 0.706（次名 0.042）",
+   "from": "mojidict"
   }
  ],
  "_source": "mojidict",

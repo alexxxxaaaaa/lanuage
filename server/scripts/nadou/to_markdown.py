@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-把 n1-qbank/raw/<年月>/*.json 转成题库 markdown，格式对齐 server/scripts/importExam.ts
+把 n1-qbank/raw/<年月>/*.json 转成题库 markdown，格式对齐 server/scripts/importQbank.ts
 的解析契约（`## Q<n>` 块 + `### 文章 P<code>` 块 + `- key: value` 字段）。
 
 用法：
@@ -162,6 +162,37 @@ def mondai_of(qs: list):
     if qs and all(q.get("_mondai") for q in qs):
         return [q["_mondai"] for q in qs]
     return None
+
+
+def audio_group(q: dict):
+    """一段听力录音归属「材料」。有 parentId 的（聴解5 的 質問1/質問2）按材料归组，
+    其余各自成组 —— 注意 parentId=0 是「没有父材料」，不能把它们归成一组。"""
+    return q.get("parentId") or f"q{q.get('id')}"
+
+
+def listening_audio_owner(qs: list, mondais: list, lmats: dict) -> dict:
+    """每组录音 → 音频文件所用的题号（聴解N-M），文件名即 `audio/<年月>/<题号>.mp3`。
+
+    三种来源的文件名规则不同，先扫一遍定下来，正式输出时同组的题一起用：
+      * 纳豆：音频挂在题的 stemMedia 上，fetch_audio.py 就是按**那道题**的题号存的，
+        所以必须沿用它 —— 2022.07 的 質問2 带音频、質問1 不带，文件叫 聴解5-3.mp3。
+      * mojidict：音频挂在材料上（一段录音对一个材料），按该材料**第一道题**的题号存，
+        见 fetch_moji_segments.py。
+      * 纳豆缺、从 mojidict 借的（fetch_moji_audio_patch.py）：借来的 stemMedia 写在
+        该组第一道题上，于是落到第一条规则，文件名就是那道题的题号。
+    """
+    owner = {}
+    cur, sub = None, 0
+    for q, mondai in zip(qs, mondais):
+        if mondai != cur:
+            cur, sub = mondai, 0
+        sub += 1
+        g = audio_group(q)
+        if (q.get("stemMedia") or {}).get("mediaUri"):
+            owner.setdefault(g, f"{mondai}-{sub}")
+        elif (lmats.get(q.get("parentId") or 0) or {}).get("mediaId"):
+            owner.setdefault(g, f"{mondai}-{sub}")
+    return owner
 
 
 def reading_from_mondai(qs: list) -> tuple[list, dict, str]:
@@ -465,12 +496,16 @@ def build(ym: str, data: dict) -> tuple[str, dict]:
         parts.append("\n## 四、聴解  聴解1–5\n")
         whole = (d.get("paper") or {}).get("audioUrl") or ""
         if whole:
-            parts.append(f"\n> 整卷听力音频：`{whole}`（本卷音频为整卷一个文件，非每题一段）\n")
+            parts.append(
+                f"\n> 整卷听力音频：`{whole}`"
+                "（含指示语与作答间隔；每题的分段音频见各题的 `- audio:`）\n"
+            )
         # 听力原文：mojidict 的听力材料把日文原文放在 subtitle、译文放在 translation。
-        # 原文有几百字，塞进单行 `- key: value` 会破坏 importExam.ts 的解析契约，
+        # 原文有几百字，塞进单行 `- key: value` 会破坏 importQbank.ts 的解析契约，
         # 所以和阅读一样走文章块，题用 passage 引用。
         lmats = {m["id"]: m for m in (d.get("materialItems") or [])}
         emitted_l, emitted_codes = set(), {}
+        audio_owner = listening_audio_owner(qs, mondais, lmats)
         cur, sub = None, 0
         for q, mondai in zip(qs, mondais):
             if mondai != cur:
@@ -500,7 +535,7 @@ def build(ym: str, data: dict) -> tuple[str, dict]:
             seq = f"{mondai}-{sub}"
             if not 1 <= ans <= len(q["options"]):
                 stats["bad_answer"].append(seq)
-            media = (q.get("stemMedia") or {}).get("mediaUri") or ""
+            audio_seq = audio_owner.get(audio_group(q), "")
             f = OrderedDict()
             f["section"] = "聴解"
             f["listening"] = mondai
@@ -511,8 +546,8 @@ def build(ym: str, data: dict) -> tuple[str, dict]:
             f["answer"] = str(ans)
             f["stem_zh"] = zh
             f["explain"] = ex
-            if media:
-                f["audio"] = f"audio/{ym}/{seq}.mp3"
+            if audio_seq:
+                f["audio"] = f"audio/{ym}/{audio_seq}.mp3"
             if pcode:
                 f["passage"] = pcode
             add_dispute(f, d, q)

@@ -50,6 +50,8 @@ const SINGLETON_PATHS = [
   '/review',
   '/grammar/learn',
   '/grammar/review',
+  // 精练一次只练一组：从目录里点 18 个題型不该开出 18 个 tab。
+  '/jlpt/practice',
 ]
 
 function pathnameOf(p: string): string {
