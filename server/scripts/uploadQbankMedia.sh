@@ -27,37 +27,49 @@ BUCKET="${R2_BUCKET:-jlpt}"
 PREFIX="qbank"
 JOBS=6
 ONLY="all"
+DRY_RUN=0
 LOG=".qbank-upload.log"
 # workspace 会把 wrangler 提到仓库根的 node_modules，两处都找一下；
 # 都没有才退回 npx（每个文件多 1–2 秒，1000 多个文件差别很大）。
-WRANGLER="./node_modules/.bin/wrangler"
-[[ -x "$WRANGLER" ]] || WRANGLER="../node_modules/.bin/wrangler"
+WRANGLER="${WRANGLER:-}"
+if [[ -z "$WRANGLER" ]]; then
+  for candidate in ./node_modules/.bin/wrangler ../node_modules/.bin/wrangler; do
+    [[ -x "$candidate" ]] && WRANGLER="$candidate" && break
+  done
+  [[ -n "$WRANGLER" ]] || WRANGLER="npx wrangler"
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --only) ONLY="$2"; shift 2 ;;
     --jobs) JOBS="$2"; shift 2 ;;
+    --dry-run) DRY_RUN=1; shift ;;
     *) echo "未知参数：$1" >&2; exit 2 ;;
   esac
 done
 
-[[ -x "$WRANGLER" ]] || WRANGLER="npx wrangler"
 touch "$LOG"
 
 # 单个文件的上传，被 xargs 并发调用。
+# 注意变量一律写成 ${VAR}：macOS 自带的 bash 3.2 会把紧跟在 $VAR 后面的全角字符
+# 当成变量名的一部分（"${key}（" 不加花括号就会报 unbound variable）。
 upload_one() {
   local src="$1" key="$2" ctype="$3"
-  if grep -qxF "$key" "$LOG"; then return 0; fi
-  if $WRANGLER r2 object put "$BUCKET/$key" --file="$src" --content-type="$ctype" --remote >/dev/null 2>&1; then
+  if grep -qxF "${key}" "${LOG}"; then return 0; fi
+  if [[ "${DRY_RUN}" == "1" ]]; then
+    echo "  · ${key}  ←  ${src}  [${ctype}]"
+    return 0
+  fi
+  if ${WRANGLER} r2 object put "${BUCKET}/${key}" --file="${src}" --content-type="${ctype}" --remote >/dev/null 2>&1; then
     # 追加写，O_APPEND 下单行不会被并发撕裂
-    echo "$key" >> "$LOG"
-    echo "  ✓ $key"
+    echo "${key}" >> "${LOG}"
+    echo "  ✓ ${key}"
   else
-    echo "  ✗ $key（失败，重跑本脚本会重试）" >&2
+    echo "  ✗ ${key}（失败，重跑本脚本会重试）" >&2
   fi
 }
 export -f upload_one
-export LOG BUCKET WRANGLER
+export LOG BUCKET WRANGLER DRY_RUN
 
 # 列出待传文件，字段以 NUL 分隔（三个一组：源路径、对象名、content-type）
 list_files() {
@@ -89,12 +101,13 @@ for rel in sorted({q['audio'] for q in qs if q.get('audio')}):
 
 TOTAL=$(( $(list_files | tr -dc '\0' | wc -c) / 3 ))
 DONE=$(wc -l < "$LOG" | tr -d ' ')
-echo "待处理 $TOTAL 个文件（已完成 $DONE），并发 $JOBS，桶 $BUCKET/$PREFIX/"
+echo "待处理 ${TOTAL} 个文件（已完成 ${DONE}），并发 ${JOBS}，桶 ${BUCKET}/${PREFIX}/"
+[[ "${DRY_RUN}" == "1" ]] && echo "（--dry-run：只列清单，不真传）"
 
-list_files | xargs -0 -P "$JOBS" -n 3 bash -c 'upload_one "$0" "$1" "$2"'
+list_files | xargs -0 -P "${JOBS}" -n 3 bash -c 'upload_one "$0" "$1" "$2"'
 
 echo
-echo "完成 $(wc -l < "$LOG" | tr -d ' ') / $TOTAL。失败的重跑本脚本即可续传。"
+echo "完成 $(wc -l < "${LOG}" | tr -d ' ') / ${TOTAL}。失败的重跑本脚本即可续传。"
 echo "抽查："
 echo "  curl -s -o /dev/null -w '%{http_code}\\n' -r 0-1 \\"
 echo "    https://pub-942012cb760d44d7a0c78abce8d4d0c5.r2.dev/qbank/audio/2020.12/1-1.mp3"
