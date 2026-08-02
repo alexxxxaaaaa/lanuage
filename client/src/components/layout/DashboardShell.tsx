@@ -1,4 +1,3 @@
-import { Code } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router'
 
@@ -7,12 +6,10 @@ import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { BackstageNote } from '../BackstageNote'
 import { QuickSearchFloat } from '../QuickSearchFloat'
-import { FloatButton } from '../ui/FloatButton'
 import { Modal } from '../ui/Modal'
 import type { AuthUser } from '../../api/auth'
 import { APP_SCROLLER_ID } from '../../lib/scroll'
 import { useSessionSync } from '../../hooks/useSessionSync'
-import { useI18n } from '../../i18n'
 
 const COLLAPSED_STORAGE_KEY = 'ws:sidebar-collapsed'
 
@@ -31,7 +28,6 @@ function readStoredCollapsed(): boolean {
  * scrolling element. `KeepAliveOutlet` restores per-page offsets against it.
  */
 export function DashboardShell({ user }: { user: AuthUser }) {
-  const { t } = useI18n()
   const { pathname } = useLocation()
   const [collapsed, setCollapsed] = useState(readStoredCollapsed)
   const [isBackstageOpen, setIsBackstageOpen] = useState(false)
@@ -92,7 +88,12 @@ export function DashboardShell({ user }: { user: AuthUser }) {
     <div className="fixed inset-0 flex bg-background text-foreground">
       {/* Desktop rail */}
       <div className="hidden md:flex">
-        <Sidebar user={user} collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
+        <Sidebar
+          user={user}
+          collapsed={collapsed}
+          onToggleCollapsed={toggleCollapsed}
+          onOpenBackstage={() => setIsBackstageOpen(true)}
+        />
       </div>
 
       {/* Mobile fullscreen menu */}
@@ -108,7 +109,7 @@ export function DashboardShell({ user }: { user: AuthUser }) {
         <main
           id={APP_SCROLLER_ID}
           ref={mainRef}
-          className="min-h-0 flex-1 overflow-auto overscroll-contain p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pr-[max(1.5rem,env(safe-area-inset-right))] max-md:p-4"
+          className="min-h-0 flex-1 overflow-auto overscroll-contain px-6 pt-2 pb-[max(1.5rem,env(safe-area-inset-bottom))] pr-[max(1.5rem,env(safe-area-inset-right))] max-md:px-4"
         >
           <KeepAliveOutlet
             caps={{ podcast: !!user.canSeePodcast }}
@@ -119,13 +120,6 @@ export function DashboardShell({ user }: { user: AuthUser }) {
 
       {/* The add-word page already is the full version of this popup. */}
       {pathname !== '/words/new' && <QuickSearchFloat />}
-      <FloatButton
-        className="max-md:hidden"
-        icon={<Code className="size-5" />}
-        side="left"
-        tooltip={t('backstage.tooltip')}
-        onPress={() => setIsBackstageOpen(true)}
-      />
       <Modal isOpen={isBackstageOpen} size="full" onClose={() => setIsBackstageOpen(false)}>
         <BackstageNote />
       </Modal>

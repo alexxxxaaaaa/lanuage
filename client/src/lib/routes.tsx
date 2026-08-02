@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   BookOpen,
+  CircleUser,
   FileText,
   FolderTree,
   GraduationCap,
@@ -12,14 +13,14 @@ import {
   PlusCircle,
   RefreshCw,
   Search,
-  Sparkles,
+  Settings,
   SpellCheck,
   Target,
 } from 'lucide-react'
 import type { ReactElement } from 'react'
 
+import { AccountPage } from '../pages/AccountPage'
 import { AddWordPage } from '../pages/AddWordPage'
-import { AiUsagePage } from '../pages/AiUsagePage'
 import { ExamDetailPage } from '../pages/ExamDetailPage'
 import { ExamResultPage } from '../pages/ExamResultPage'
 import { ExamTakePage } from '../pages/ExamTakePage'
@@ -43,6 +44,7 @@ import { PodcastsPage } from '../pages/PodcastsPage'
 import { ReadingPage } from '../pages/ReadingPage'
 import { ReviewGrammarPage } from '../pages/ReviewGrammarPage'
 import { ReviewPage } from '../pages/ReviewPage'
+import { SettingsPage } from '../pages/SettingsPage'
 import { WordSearchPage } from '../pages/WordSearchPage'
 
 /**
@@ -272,11 +274,18 @@ export const ROUTES: readonly RouteDefinition[] = [
     requires: 'podcast',
   },
   {
-    path: '/ai-usage',
-    titleKey: 'aiUsage',
-    element: <AiUsagePage />,
-    icon: Sparkles,
+    path: '/settings',
+    titleKey: 'settings',
+    element: <SettingsPage />,
+    icon: Settings,
     showInSidebar: true,
+  },
+  {
+    // Reached from the sidebar's avatar row rather than a nav entry.
+    path: '/account',
+    titleKey: 'account',
+    element: <AccountPage />,
+    icon: CircleUser,
   },
 ]
 

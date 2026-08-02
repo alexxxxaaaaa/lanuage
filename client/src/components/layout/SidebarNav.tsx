@@ -22,10 +22,10 @@ export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
 
   return (
     <nav
-      className="flex-1 overflow-x-hidden overflow-y-auto py-2"
+      className="flex-1 overflow-x-hidden overflow-y-auto py-1"
       aria-label={t('sidebar.primaryNav')}
     >
-      <ul className="flex flex-col">
+      <ul className="flex flex-col gap-0.5">
         {visibleRoutes.map((route) => {
           const Icon = route.icon
           // `/` would otherwise prefix-match every path, so it is exact-only.
@@ -41,7 +41,7 @@ export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
                 onClick={onNavigate}
                 collapsed={collapsed}
                 active={active}
-                tone="accent"
+                aria-current={active ? 'page' : undefined}
                 icon={Icon ? <Icon className="size-4" aria-hidden /> : null}
                 label={t(`routes.${route.titleKey}`)}
               />

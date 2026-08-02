@@ -47,7 +47,8 @@ const messages: Record<UiLanguage, DictNode> = {
       jlptPractice: '练习',
       podcasts: '播客',
       podcastDetail: '播客详情',
-      aiUsage: 'AI 用量',
+      account: '账户',
+      settings: '设置',
     },
     sidebar: {
       primaryNav: '主导航',
@@ -60,8 +61,13 @@ const messages: Record<UiLanguage, DictNode> = {
       toggleTheme: '切换主题',
       themeLight: '浅色',
       themeDark: '深色',
-      themeSystem: '跟随系统',
       language: '界面语言',
+    },
+    settings: {
+      language: '界面语言',
+      languageDesc: '切换应用的显示语言，选择会保存在本机。',
+      theme: '主题',
+      themeDesc: '在浅色与深色之间切换，选择会保存在本机。',
     },
     auth: {
       title: '登录',
@@ -77,6 +83,7 @@ const messages: Record<UiLanguage, DictNode> = {
       failed: '登录失败，请检查用户名和密码',
     },
     backstage: {
+      label: '代码页',
       tooltip: '代码页 (Z 切换)',
     },
     home: {
@@ -510,7 +517,8 @@ const messages: Record<UiLanguage, DictNode> = {
       jlptPractice: 'Drill',
       podcasts: 'Podcasts',
       podcastDetail: 'Podcast',
-      aiUsage: 'AI Usage',
+      account: 'Account',
+      settings: 'Settings',
     },
     sidebar: {
       primaryNav: 'Primary navigation',
@@ -523,8 +531,13 @@ const messages: Record<UiLanguage, DictNode> = {
       toggleTheme: 'Toggle theme',
       themeLight: 'Light',
       themeDark: 'Dark',
-      themeSystem: 'System',
       language: 'Language',
+    },
+    settings: {
+      language: 'Language',
+      languageDesc: 'Choose the language of the interface. Saved on this device.',
+      theme: 'Theme',
+      themeDesc: 'Switch between light and dark. Saved on this device.',
     },
     auth: {
       title: 'Sign in',
@@ -540,6 +553,7 @@ const messages: Record<UiLanguage, DictNode> = {
       failed: 'Sign in failed. Check your username and password.',
     },
     backstage: {
+      label: 'Code page',
       tooltip: 'Code page (Z to toggle)',
     },
     home: {
@@ -973,7 +987,8 @@ const messages: Record<UiLanguage, DictNode> = {
       jlptPractice: '演習',
       podcasts: 'ポッドキャスト',
       podcastDetail: 'ポッドキャスト詳細',
-      aiUsage: 'AI 使用量',
+      account: 'アカウント',
+      settings: '設定',
     },
     sidebar: {
       primaryNav: 'メインナビゲーション',
@@ -986,8 +1001,13 @@ const messages: Record<UiLanguage, DictNode> = {
       toggleTheme: 'テーマ切替',
       themeLight: 'ライト',
       themeDark: 'ダーク',
-      themeSystem: 'システム',
       language: '表示言語',
+    },
+    settings: {
+      language: '表示言語',
+      languageDesc: 'アプリの表示言語を切り替えます。この端末に保存されます。',
+      theme: 'テーマ',
+      themeDesc: 'ライトとダークを切り替えます。この端末に保存されます。',
     },
     auth: {
       title: 'ログイン',
@@ -1003,6 +1023,7 @@ const messages: Record<UiLanguage, DictNode> = {
       failed: 'ログインに失敗しました。ユーザー名とパスワードをご確認ください。',
     },
     backstage: {
+      label: 'コードページ',
       tooltip: 'コードページ (Z で切替)',
     },
     home: {

@@ -1,7 +1,12 @@
+import { Avatar, Button, NumberField } from '@heroui/react'
+import { LogOut } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { SelectField } from '../components/ui/SelectField'
-import { NumberField } from '@heroui/react'
+import { useNavigate } from 'react-router'
+
 import { getAiUsage, type AiUsageSummary } from '../api/ai'
+import { SelectField } from '../components/ui/SelectField'
+import { useI18n } from '../i18n'
+import { useAuthStore } from '../store/authStore'
 
 const FEATURE_LABELS: Record<string, string> = {
   word_fill: '单词 AI 填充',
@@ -15,39 +20,80 @@ function formatFeature(feature: string) {
   return FEATURE_LABELS[feature] ?? feature
 }
 
-export function AiUsagePage() {
+/** The period each result belongs to, so a stale one reads as "still loading". */
+type UsageState =
+  | { status: 'ok'; days: number; data: AiUsageSummary }
+  | { status: 'error'; days: number }
+
+/**
+ * Everything about the signed-in user in one page: identity, sign out, and the
+ * AI usage report that used to live at its own `/ai-usage` route.
+ */
+export function AccountPage() {
+  const { t } = useI18n()
+  const navigate = useNavigate()
+  const user = useAuthStore((s) => s.user)
   const [days, setDays] = useState(7)
-  const [data, setData] = useState<AiUsageSummary | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [usage, setUsage] = useState<UsageState | null>(null)
   const [pricePerMillionTokens, setPricePerMillionTokens] = useState(2)
 
-  const load = async (nextDays: number) => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      const result = await getAiUsage(nextDays)
-      setData(result)
-    } catch {
-      setError('加载 AI 用量失败')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   useEffect(() => {
-    void load(days)
+    let cancelled = false
+    getAiUsage(days)
+      .then((data) => {
+        if (!cancelled) setUsage({ status: 'ok', days, data })
+      })
+      .catch(() => {
+        if (!cancelled) setUsage({ status: 'error', days })
+      })
+    return () => {
+      cancelled = true
+    }
   }, [days])
+
+  // Loading is "what we hold isn't for the period on screen" rather than its
+  // own flag — one less state to keep in step, and no setState during render.
+  const isLoading = usage?.days !== days
+  const data = usage?.status === 'ok' ? usage.data : null
+  const error = usage?.status === 'error' ? '加载 AI 用量失败' : null
 
   const estimatedCost =
     ((data?.totals.totalTokens ?? 0) / 1_000_000) * pricePerMillionTokens
 
+  const displayName = user?.username || '—'
+  const initials = displayName.slice(0, 2).toUpperCase()
+
   return (
     <section className="page">
+      <div>
+        <p className="eyebrow">Account</p>
+        <h2>{t('routes.account')}</h2>
+      </div>
+
+      <article className="card flex flex-wrap items-center gap-4">
+        <Avatar size="lg">
+          <Avatar.Fallback>{initials}</Avatar.Fallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-lg leading-6 font-semibold">{displayName}</p>
+          <p className="mt-1 truncate text-sm text-muted">Word Sprint</p>
+        </div>
+        <Button
+          variant="danger-soft"
+          onPress={() => {
+            useAuthStore.getState().clearSession()
+            navigate('/login', { replace: true })
+          }}
+        >
+          <LogOut className="size-4" aria-hidden />
+          {t('auth.logout')}
+        </Button>
+      </article>
+
       <div className="section-header">
         <div>
           <p className="eyebrow">AI Usage</p>
-          <h2>AI 使用量</h2>
+          <h3>AI 使用量</h3>
           <p className="muted">模型：{data?.model ?? 'gpt-4.1-mini'}</p>
         </div>
         <label className="session-inline">
@@ -55,7 +101,7 @@ export function AiUsagePage() {
           <SelectField
             value={days}
             onChange={(v) => setDays(v)}
-              className="min-w-[120px]"
+            className="min-w-[120px]"
             options={[
               { value: 7, label: '近 7 天' },
               { value: 30, label: '近 30 天' },
