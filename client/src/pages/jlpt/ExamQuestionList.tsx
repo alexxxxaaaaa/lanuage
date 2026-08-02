@@ -3,15 +3,25 @@ import { Button, Card, Chip } from '@heroui/react'
 
 import { QbankText } from '../../components/QbankText'
 import type { ExamPassage, ExamQuestion } from '../../api/qbankExam'
-import { hasPlaceholderOptions, mondaiLabel, mondaiMeta, questionDomId } from './constants'
+import {
+  hasPlaceholderOptions,
+  isAcceptedAnswer,
+  mondaiLabel,
+  mondaiMeta,
+  questionDomId,
+} from './constants'
+import { DisputeChip, DisputeNotice } from './Dispute'
 import {
   EXPLAIN_BLOCK,
   EXPLAIN_LABEL,
   OPTION,
   OPTION_NUM,
+  OPTION_ROLE_COLOR,
+  OPTION_ROLE_LABEL,
   OPTION_TAG,
   OPTION_TONE,
   PASSAGE_BOX,
+  optionRole,
 } from './styles'
 
 /**
@@ -111,8 +121,12 @@ function QuestionCard({
   isActive: boolean
   onPick?: (questionId: string, selected: number) => void
 }) {
-  const answer = question.answer ?? null
-  const isCorrect = isReview && selected !== null && selected === answer
+  const answer = question.answer ?? 0
+  const altAnswer = question.altAnswer ?? 0
+  const isCorrect = isReview && isAcceptedAnswer(question, selected ?? undefined)
+  // 未交卷时 answer 不下发，altAnswer 也不下发，所以这个标签只在复习态出现；
+  // 精练页的题干标签则是作答前就显示的（那边答案本来就随正文一起下发）。
+  const hasDispute = isReview && altAnswer > 0
 
   return (
     <Card
@@ -125,6 +139,7 @@ function QuestionCard({
         <div className="multiline-text min-w-0 flex-1 text-base/[1.8] text-foreground">
           <QbankText text={question.stemJp} />
         </div>
+        {hasDispute ? <DisputeChip /> : null}
         {isReview ? (
           <Chip color={isCorrect ? 'success' : selected === null ? 'default' : 'danger'} variant="soft">
             {isCorrect ? '✓' : selected === null ? '未答' : '✗'}
@@ -135,15 +150,12 @@ function QuestionCard({
       <ol className="m-0 grid list-none gap-2 p-0">
         {question.options.map((option, i) => {
           const num = i + 1
-          const isAnswer = isReview && num === answer
-          const isWrong = isReview && selected === num && !isAnswer
-          const tone = isAnswer
-            ? OPTION_TONE.answer
-            : isWrong
-              ? OPTION_TONE.wrong
-              : !isReview && selected === num
-                ? OPTION_TONE.picked
-                : OPTION_TONE.idle
+          const role = isReview ? optionRole(num, { answer, altAnswer, selected }) : null
+          const tone = role
+            ? OPTION_TONE[role]
+            : !isReview && selected === num
+              ? OPTION_TONE.picked
+              : OPTION_TONE.idle
           return (
             <li key={i}>
               <Button
@@ -158,14 +170,9 @@ function QuestionCard({
                 ) : (
                   <QbankText className="min-w-0 flex-1 [overflow-wrap:anywhere]" text={option} />
                 )}
-                {isAnswer ? (
-                  <Chip className={OPTION_TAG} color="success" variant="soft">
-                    正确答案
-                  </Chip>
-                ) : null}
-                {isWrong ? (
-                  <Chip className={OPTION_TAG} color="danger" variant="soft">
-                    你的选择
+                {role ? (
+                  <Chip className={OPTION_TAG} color={OPTION_ROLE_COLOR[role]} variant="soft">
+                    {OPTION_ROLE_LABEL[role]}
                   </Chip>
                 ) : null}
               </Button>
@@ -174,7 +181,7 @@ function QuestionCard({
         })}
       </ol>
 
-      {isReview && (question.stemZh || question.explain) ? (
+      {isReview && (question.stemZh || question.explain || hasDispute) ? (
         <div className="grid gap-2.5 border-t border-dashed border-border pt-3.5">
           {question.stemZh ? (
             <div className={EXPLAIN_BLOCK}>
@@ -192,8 +199,12 @@ function QuestionCard({
               <QbankText text={question.explain} />
             </div>
           ) : null}
-          {question.dispute ? (
-            <p className="m-0 text-xs text-warning-soft-foreground">⚠ {question.dispute}</p>
+          {hasDispute ? (
+            <DisputeNotice
+              answer={answer}
+              altAnswer={altAnswer}
+              note={question.disputeNote ?? ''}
+            />
           ) : null}
         </div>
       ) : null}

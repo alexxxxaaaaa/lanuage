@@ -1,6 +1,6 @@
 /**
- * JLPT 板块的公共样式。目录、精练、模拟考试渲染的是同一批题，
- * 版式也该是同一套。
+ * JLPT 板块的公共样式，外加选项在揭晓后怎么着色/挂标签的那点映射。
+ * 目录、精练、模拟考试渲染的是同一批题，版式也该是同一套。
  */
 
 // ===== 目录/列表行 =====
@@ -26,6 +26,8 @@ export const OPTION =
 export const OPTION_TONE = {
   /** 复习态：正确答案 */
   answer: 'border-success bg-success-soft text-success-soft-foreground hover:bg-success-soft',
+  /** 复习态：分歧题里另一来源的答案，同样判对，用另一个色区分开 */
+  alt: 'border-warning bg-warning-soft text-warning-soft-foreground hover:bg-warning-soft',
   /** 复习态：选错的那项 */
   wrong: 'border-danger bg-danger-soft text-danger-soft-foreground hover:bg-danger-soft',
   /** 作答态：当前选中，不透露对错 */
@@ -37,6 +39,36 @@ export const OPTION_NUM =
   'mt-0.5 inline-flex size-[22px] shrink-0 items-center justify-center rounded-full border border-current text-xs'
 
 export const OPTION_TAG = 'ml-auto shrink-0 self-center'
+
+/**
+ * 揭晓后一个选项扮演的角色，决定它的配色和标签。null = 平平无奇的错误选项，
+ * 不着色也不挂标签。
+ *
+ * alt 是「两来源答案不一致」时另一来源给的那个，判分同样算对
+ * （服务端口径见 qbankService.isAcceptedAnswer），所以它绝不能落进 wrong。
+ */
+export type OptionRole = 'answer' | 'alt' | 'wrong'
+
+export function optionRole(
+  option: number,
+  { answer, altAnswer, selected }: { answer: number; altAnswer: number; selected: number | null },
+): OptionRole | null {
+  if (option === answer) return 'answer'
+  if (altAnswer > 0 && option === altAnswer) return 'alt'
+  return option === selected ? 'wrong' : null
+}
+
+export const OPTION_ROLE_LABEL: Record<OptionRole, string> = {
+  answer: '正确答案',
+  alt: '也算正确',
+  wrong: '你的选择',
+}
+
+export const OPTION_ROLE_COLOR = {
+  answer: 'success',
+  alt: 'warning',
+  wrong: 'danger',
+} as const
 
 /** 阅读材料 / 听力原文的框。 */
 export const PASSAGE_BOX =

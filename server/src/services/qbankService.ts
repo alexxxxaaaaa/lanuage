@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma'
 import { getEnv } from '../lib/env'
 import { AppError } from '../errors/AppError'
+import { explainQbankQuestionByAi, getDefaultModel } from './aiService'
 
 /**
  * JLPT 精练题库。题目本身是全局共享的静态数据，用户数据只有
@@ -35,6 +36,11 @@ export function resolveImages(content: string): string {
   return content.replace(/\]\(images\//g, `](${mediaBase()}images/`)
 }
 
+/** 去掉 markdown 图片后剩下的正文。空串 = 这篇材料只有图，纯文本读不出东西。 */
+export function stripImages(content: string): string {
+  return content.replace(/!\[[^\]]*\]\([^)]*\)/g, '').trim()
+}
+
 export function parseOptions(raw: string): string[] {
   try {
     const parsed: unknown = JSON.parse(raw)
@@ -48,6 +54,21 @@ export function parseOptions(raw: string): string[] {
 // D1 的布尔值回来可能是 0/1，也可能已经是 boolean。
 function toBool(v: unknown): boolean {
   return v === true || v === 1
+}
+
+/**
+ * 判分口径。全库有 11 道题两个来源（纳豆 / mojidict）答案不一致，官方答案无从查证，
+ * 所以两个都放行 —— 做题人不该为源站的分歧背锅。altAnswer = 0 即无分歧。
+ *
+ * 精练和整卷模考共用这一处，别在别处再写一遍 `selected === answer`。
+ */
+export function isAcceptedAnswer(
+  question: { answer: number; altAnswer: number },
+  /** 未作答传 undefined，照样是「不正确」。 */
+  selected: number | undefined,
+): boolean {
+  if (selected === undefined) return false
+  return selected === question.answer || (question.altAnswer > 0 && selected === question.altAnswer)
 }
 
 export type SetFilter = {
@@ -299,13 +320,17 @@ export type QuestionDetail = {
   stemZh: string
   options: string[]
   answer: number
+  /** 另一来源的答案，0 = 无分歧。分歧题两个答案都判对。 */
+  altAnswer: number
+  disputeNote: string
   explain: string
   audioUrl: string
-  dispute: string
   passage: { code: string; type: string; content: string } | null
   status: 'correct' | 'wrong' | null
   selected: number | null
   favorite: boolean
+  /** 已生成过的 AI 解析；没生成过是 null，由前端按需触发。 */
+  aiExplain: AiExplain | null
 }
 
 export async function getQuestions(userId: string, ids: string[]): Promise<QuestionDetail[]> {
@@ -320,6 +345,8 @@ export async function getQuestions(userId: string, ids: string[]): Promise<Quest
       passage: { select: { code: true, type: true, content: true } },
       attempts: { where: { userId }, select: { selected: true, isCorrect: true } },
       favorites: { where: { userId }, select: { id: true } },
+      // 缓存是全局的，随正文一起下发，命中的题前端不用再发一次请求。
+      aiExplain: { select: { summary: true, options: true } },
     },
   })
 
@@ -341,15 +368,17 @@ export async function getQuestions(userId: string, ids: string[]): Promise<Quest
         stemZh: q.stemZh,
         options: parseOptions(q.options),
         answer: q.answer,
+        altAnswer: q.altAnswer,
+        disputeNote: q.disputeNote,
         explain: q.explain,
         audioUrl: mediaUrl(q.audioKey),
-        dispute: q.dispute,
         passage: q.passage
           ? { ...q.passage, content: resolveImages(q.passage.content) }
           : null,
         status: attempt ? (toBool(attempt.isCorrect) ? 'correct' : 'wrong') : null,
         selected: attempt?.selected ?? null,
         favorite: q.favorites.length > 0,
+        aiExplain: toAiExplain(q.aiExplain),
       },
     ]
   })
@@ -360,7 +389,7 @@ export async function getQuestions(userId: string, ids: string[]): Promise<Quest
 export async function submitAttempt(userId: string, questionId: string, selected: number) {
   const question = await prisma.qbankQuestion.findUnique({
     where: { id: questionId },
-    select: { answer: true, options: true },
+    select: { answer: true, altAnswer: true, options: true },
   })
   if (!question) throw new AppError('题目不存在', 404)
 
@@ -369,13 +398,13 @@ export async function submitAttempt(userId: string, questionId: string, selected
     throw new AppError('选项不合法', 400)
   }
 
-  const isCorrect = selected === question.answer
+  const isCorrect = isAcceptedAnswer(question, selected)
   await prisma.qbankAttempt.upsert({
     where: { userId_questionId: { userId, questionId } },
     create: { userId, questionId, selected, isCorrect },
     update: { selected, isCorrect, updatedAt: new Date() },
   })
-  return { isCorrect, answer: question.answer }
+  return { isCorrect, answer: question.answer, altAnswer: question.altAnswer }
 }
 
 /**
@@ -413,4 +442,84 @@ export async function setFavorite(userId: string, questionId: string, favorite: 
     await prisma.qbankFavorite.deleteMany({ where: { userId, questionId } })
   }
   return { favorite }
+}
+
+// ===== AI 解析 =====
+
+export type AiExplain = {
+  summary: string
+  /** 与选项一一对应。 */
+  options: string[]
+}
+
+function toAiExplain(row: { summary: string; options: string } | null): AiExplain | null {
+  return row ? { summary: row.summary, options: parseOptions(row.options) } : null
+}
+
+/**
+ * 取（或生成）一道题的 AI 逐选项解析。
+ *
+ * 缓存挂在题上而非 (用户, 题)：题库全局共享，同一道题的解析对谁都一样，
+ * 第一个人付 token，之后所有人零成本命中。refresh 时重算并覆盖那一份。
+ *
+ * 听力题不生成 —— 题干在音频里，文字侧只有設問，AI 看不到该看的东西；
+ * 它的 explain 本来就是完整原文加译文。
+ */
+export async function getAiExplain(
+  userId: string,
+  questionId: string,
+  refresh = false,
+): Promise<AiExplain> {
+  const question = await prisma.qbankQuestion.findUnique({
+    where: { id: questionId },
+    select: {
+      year: true,
+      month: true,
+      seq: true,
+      category: true,
+      stemJp: true,
+      options: true,
+      answer: true,
+      altAnswer: true,
+      passage: { select: { content: true } },
+      aiExplain: { select: { summary: true, options: true } },
+    },
+  })
+  if (!question) throw new AppError('题目不存在', 404)
+  if (question.category === 'listening') {
+    throw new AppError('听力题不生成 AI 解析', 400)
+  }
+
+  const passage = question.passage?.content ?? ''
+  // 情報検索（問題13）的材料是整张图，正文只有一行 markdown 图片语法。AI 看不到图，
+  // 硬生成只会编，而缓存是全局的 —— 编出来的东西所有人都会看到。
+  if (passage && !stripImages(passage)) {
+    throw new AppError('这道题的材料是图片，AI 读不到，暂不支持生成解析', 400)
+  }
+
+  const cached = toAiExplain(question.aiExplain)
+  if (cached && !refresh) return cached
+
+  const options = parseOptions(question.options)
+  const result = await explainQbankQuestionByAi({
+    label: `${question.year}.${String(question.month).padStart(2, '0')} ${question.seq}`,
+    stemJp: question.stemJp,
+    options,
+    answer: question.answer,
+    altAnswer: question.altAnswer,
+    passage: question.passage?.content ?? '',
+    userId,
+  })
+
+  const data = {
+    summary: result.summary,
+    options: JSON.stringify(result.options),
+    model: getDefaultModel(),
+  }
+  await prisma.qbankAiExplain.upsert({
+    where: { questionId },
+    create: { questionId, ...data },
+    update: data,
+  })
+  return result
 }

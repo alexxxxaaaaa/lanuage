@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma'
 import { AppError } from '../errors/AppError'
-import { loadTotals, mediaUrl, parseOptions, resolveImages } from './qbankService'
+import { isAcceptedAnswer, loadTotals, mediaUrl, parseOptions, resolveImages } from './qbankService'
 
 /**
  * 模拟考试：把题库里的一套真题当整卷来考。
@@ -77,9 +77,11 @@ export type ExamQuestion = {
   audioUrl: string
   /** 以下只在 phase = done 时出现。 */
   answer?: number
+  /** 另一来源的答案，0 = 无分歧。分歧题两个答案都判对。 */
+  altAnswer?: number
+  disputeNote?: string
   stemZh?: string
   explain?: string
-  dispute?: string
 }
 
 export type ExamState = {
@@ -156,7 +158,7 @@ function isInPhase(category: string, phase: ExamPhase): boolean {
 
 // ===== 卷内索引（静态数据，进程内缓存） =====
 
-type IndexRow = { id: string; category: string; answer: number }
+type IndexRow = { id: string; category: string; answer: number; altAnswer: number }
 
 const paperIndexCache = new Map<string, IndexRow[]>()
 
@@ -167,7 +169,7 @@ async function loadPaperIndex(level: string, year: number, month: number): Promi
   if (cached) return cached
   const rows = await prisma.qbankQuestion.findMany({
     where: { level, year, month },
-    select: { id: true, category: true, answer: true },
+    select: { id: true, category: true, answer: true, altAnswer: true },
     orderBy: { orderNo: 'asc' },
   })
   if (rows.length === 0) throw new AppError('这套卷子不在题库里', 404)
@@ -180,7 +182,7 @@ function grade(index: IndexRow[], answers: Record<string, number>): ExamScore {
   for (const row of index) {
     const bucket = byCategory.get(row.category) ?? { correct: 0, total: 0 }
     bucket.total += 1
-    if (answers[row.id] === row.answer) bucket.correct += 1
+    if (isAcceptedAnswer(row, answers[row.id])) bucket.correct += 1
     byCategory.set(row.category, bucket)
   }
 
@@ -330,7 +332,13 @@ export async function getExamState(
     passageId: q.passageId,
     audioUrl: mediaUrl(q.audioKey),
     ...(isDone
-      ? { answer: q.answer, stemZh: q.stemZh, explain: q.explain, dispute: q.dispute }
+      ? {
+          answer: q.answer,
+          altAnswer: q.altAnswer,
+          disputeNote: q.disputeNote,
+          stemZh: q.stemZh,
+          explain: q.explain,
+        }
       : {}),
   }))
 
@@ -457,7 +465,9 @@ export async function collectExamWrongQuestions(
 
   const index = await loadPaperIndex(level, year, month)
   const answers = parseAnswers(attempt.answers)
-  const wrong = index.filter((q) => answers[q.id] !== undefined && answers[q.id] !== q.answer)
+  const wrong = index.filter(
+    (q) => answers[q.id] !== undefined && !isAcceptedAnswer(q, answers[q.id]),
+  )
 
   for (let i = 0; i < wrong.length; i += UPSERT_CHUNK) {
     const chunk = wrong.slice(i, i + UPSERT_CHUNK)

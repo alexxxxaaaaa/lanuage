@@ -18,6 +18,9 @@ import { createNodePrismaClient } from '../src/lib/prisma'
 const prisma = createNodePrismaClient()
 const OUT_DIR = resolve(process.cwd(), 'd1_qbank')
 // 建表用的迁移目录名，写进 apply.sh。改了迁移名记得同步这里。
+// 只有这一个进 apply.sh：它全是 CREATE TABLE IF NOT EXISTS，重复跑无害。
+// 后续那些 ALTER TABLE 的迁移（如 20260802140000_qbank_alt_answer）跑第二遍会报
+// duplicate column，所以留给人按根目录 README 的清单一次性打。
 const MIGRATION = '20260802000000_qbank'
 
 function sqlValue(v: unknown): string {

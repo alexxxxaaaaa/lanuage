@@ -156,6 +156,29 @@ export function hasPlaceholderOptions(options: string[]): boolean {
   return options.length > 0 && options.every((o, i) => o.trim() === String(i + 1))
 }
 
+/**
+ * 判分口径，与服务端的 qbankService.isAcceptedAnswer 保持一致：分歧题
+ * （两个题库来源答案不一致，全库 11 道）两个答案都算对。成绩以服务端为准，
+ * 这里只用来算「错题 / 未答」这类前端就地统计的数字。
+ */
+export function isAcceptedAnswer(
+  question: { answer?: number; altAnswer?: number },
+  selected: number | undefined,
+): boolean {
+  if (selected === undefined) return false
+  const alt = question.altAnswer ?? 0
+  return selected === question.answer || (alt > 0 && selected === alt)
+}
+
+/**
+ * 情報検索（問題13）的材料是整张图，正文只有一行 markdown 图片语法。
+ * 这类题不给 AI 解析入口 —— AI 看不到图，生成的只能是编的。
+ * 服务端有同样的守卫（qbankService.getAiExplain），这里只是别让按钮白点一次。
+ */
+export function isImageOnlyPassage(content: string): boolean {
+  return !!content && !content.replace(/!\[[^\]]*\]\([^)]*\)/g, '').trim()
+}
+
 // ===== 模拟考试 =====
 
 /** 官方成绩单的三个分区，与服务端 qbankExamService 的 SECTIONS 一一对应。 */

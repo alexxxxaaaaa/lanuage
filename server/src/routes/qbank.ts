@@ -2,6 +2,7 @@ import { Hono, type Context } from 'hono'
 import {
   MAX_QUESTION_IDS,
   clearAttempts,
+  getAiExplain,
   getOverview,
   getQuestions,
   getSet,
@@ -64,6 +65,16 @@ qbankRouter.delete('/attempts', async (c) => {
   const cleared = await clearAttempts(getUserId(c), parseSetFilter(c.req.query()))
   return c.json({ cleared })
 })
+
+/**
+ * AI 逐选项解析。缓存是全局的（一题一份），所以这个接口对已生成过的题
+ * 直接命中、不花 token；?refresh=1 才会重算并覆盖那一份。
+ */
+qbankRouter.post('/questions/:questionId/ai-explain', async (c) =>
+  c.json(
+    await getAiExplain(getUserId(c), c.req.param('questionId'), c.req.query('refresh') === '1'),
+  ),
+)
 
 qbankRouter.put('/favorites/:questionId', async (c) =>
   c.json(await setFavorite(getUserId(c), c.req.param('questionId'), true)),

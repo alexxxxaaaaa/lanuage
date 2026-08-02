@@ -76,6 +76,8 @@ n1-qbank/
 - options:
   1. …
 - answer: 2                    ← 1-based（接口是 0-based，转换时已 +1）
+- alt_answer: 4                ← 仅分歧题有：另一来源的答案，站点两个都判对
+- dispute_note: …              ← 仅分歧题有，且只有人工写过争点说明的那道才有
 - stem_zh: …                   ← 中文翻译
 - explain: …                   ← 逐选项解析
 - passage: P8-1                ← 读解题引用的文章编号；听力题引用 PL<小节>-<题号>
@@ -89,7 +91,7 @@ n1-qbank/
 ## 筛选
 
 `index.json` 的 `questions[]` 每条带 `year / month / section / mondai / mondai_no / seq / type /
-answer / passage / audio`，四个维度都能直接筛：
+answer / alt_answer / passage / audio`，四个维度都能直接筛：
 
 ```python
 import json
@@ -97,6 +99,7 @@ Q = json.load(open('n1-qbank/index.json'))['questions']
 [q for q in Q if q['section'] == '読解' and q['mondai'] == '13']        # 全库情報検索
 [q for q in Q if q['year'] == 2020 and q['month'] == 12]               # 某一场考试
 [q for q in Q if q['mondai'] == '聴解4']                                # 即時応答
+[q for q in Q if q['alt_answer']]                                      # 全库答案分歧题
 ```
 
 改了 markdown 后跑 `python3 server/scripts/nadou/build_index.py` 重建索引。
@@ -204,15 +207,29 @@ git show ff2dbf1:"N1/整理/2020年12月_N1_题库.md" > /tmp/baseline.md
 另：听力 問題3 概要理解、問題4 即時応答、問題5 第 1 题的选项在真实试卷上本就不印
 （选项由音频念出），源站存的是 `"1"/"2"/"3"` 占位符，**不是数据缺失**。
 
-## 答案分歧（两来源不一致，需以官方答案为准）
+## 答案分歧（两来源不一致，站点两个都判对）
 
-补 2013.07 时顺带用 mojidict 校准了答案基准（两家同为 0-based），6 道重叠题里 5 题吻合，
-剩 1 题两家答案不同，已在 md 中以 `- dispute:` 字段标出：
+全库交叉比对（`compare_sources.py`）跑下来，**11 道题两家答案不同**，分布在 8 套卷。
+官方答案无从查证，所以两边都不改、也不选边：md 里出 `- alt_answer:`，
+网站把 `answer` 和 `alt_answer` 都判作答对，做题人不该为源站的分歧背锅。
 
-| 题 | 纳豆 | mojidict | 备注 |
+| 卷 | 题 | 纳豆 | mojidict |
 |---|---|---|---|
-| 2013.07 問題9 第(1)篇第2题（纳豆 id 10307） | 4 | 2 | 争点在原文的「上書き」是否等同选项4 的「置き換わる」 |
+| 2010.12 | Q50（読解） | 4 | 3 |
+| 2013.07 | Q51（読解） | 4 | 2 |
+| 2014.07 | Q22（文字·語彙） | 1 | 2 |
+| 2015.12 | Q51（読解） | 3 | 1 |
+| 2017.12 | Q37 / Q40（文法） | 4 / 2 | 3 / 3 |
+| 2019.07 | Q40（文法） | 2 | 1 |
+| 2021.07 | 聴解4-8 / 4-9 / 4-12 | 3 / 2 / 1 | 2 / 3 / 2 |
+| 2023.07 | Q37（文法） | 3 | 1 |
 
-分歧记录在 `raw/2013.07/阅读.patch.json` 的 `disputes` 段，新增分歧照此格式追加即可。
+只有 2013.07 Q51 写过人工争点说明（原文的「上書き」是否等同选项4 的「置き換わる」），
+它会以 `- dispute_note:` 进 md 并显示在网站上；其余 10 道没有 —— 通用话术
+（「纳豆=4 / mojidict=2」）由两个答案现算，**不存进数据**，免得多一份要跟着改的副本。
+
+分歧记录在各年月 `raw/<年月>/<部分>.patch.json` 的 `disputes` 段
+（`nadou_answer` / `external_answer` / `match_sim`）。重跑 `compare_sources.py` 会
+按 id 合并、不覆盖已有条目，所以手写的 `note` 不会被冲掉；新增争点说明直接往那里加 `note` 即可。
 
 网站标称「31 套 3215 道」，索引接口实际只返回 29 套；差的 2 套是 2025 年的，尚未上架。

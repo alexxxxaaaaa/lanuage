@@ -69,7 +69,7 @@ type ExpressionTranslateResult = {
 };
 
 const SUPPORTED_LANGUAGES: SupportedLanguage[] = ["en", "jp"];
-function getDefaultModel() {
+export function getDefaultModel() {
   return getEnv("OPENAI_MODEL")?.trim() || "gpt-4.1-mini";
 }
 const MAX_OUTPUT_TOKENS = 180;
@@ -701,6 +701,118 @@ export async function fillGrammarByAi(input: FillGrammarInput): Promise<FillGram
     exampleZh: sanitize(flatten(parsed.exampleZh)),
     note: sanitize(flatten(parsed.note)),
   };
+}
+
+// ===== JLPT 真题逐选项解析 =====
+
+type QbankExplainInput = {
+  /** 卷内题号，只用于日志，如 2020.12 Q37。 */
+  label: string
+  stemJp: string
+  options: string[]
+  answer: number
+  /** 另一来源的答案，0 = 无分歧。非 0 时要求两个答案都给论据。 */
+  altAnswer: number
+  /** 読解题的文章正文，其余部分为空。 */
+  passage: string
+  userId: string
+}
+
+export type QbankExplainResult = {
+  summary: string
+  /** 与选项一一对应。 */
+  options: string[]
+}
+
+/** summary ≤60 字 + 每个选项 ≤45 字，四选一正好卡在 240 字上限内。 */
+const QBANK_EXPLAIN_SUMMARY_CHARS = 60
+const QBANK_EXPLAIN_OPTION_CHARS = 45
+// 中文约 1–1.5 token/字，240 字连 JSON 结构一起给到 500 有富余。
+const MAX_QBANK_EXPLAIN_TOKENS = 500
+// 全库最长的文章 1385 字，这个上限现有数据碰不到，纯粹是防脏数据把 prompt 撑爆。
+const QBANK_PASSAGE_LIMIT = 2000
+
+function buildQbankExplainPrompt(input: QbankExplainInput) {
+  const optionList = input.options.map((o, i) => `${i + 1}. ${o}`).join('\n')
+  const lines = [
+    'Return strict JSON only with keys: summary, options.',
+    `summary: 中文,<=${QBANK_EXPLAIN_SUMMARY_CHARS} 字。点出考点,并说明答案为何成立。`,
+    `options: 长度正好 ${input.options.length} 的字符串数组,与选项 1..${input.options.length} 一一对应。`,
+    `  每条中文 <=${QBANK_EXPLAIN_OPTION_CHARS} 字,说明该项为何对或为何错(错在哪个词/哪条语法/原文哪句)。`,
+    '引用日文时用「」括起,不要重复抄整句选项。不要写「选项1」这类编号,直接说理由。',
+  ]
+  if (input.passage) {
+    lines.push('', `【文章】\n${input.passage.slice(0, QBANK_PASSAGE_LIMIT)}`)
+  }
+  lines.push('', `【题干】\n${input.stemJp}`, '', `【选项】\n${optionList}`)
+  if (input.altAnswer > 0) {
+    // 分歧题：两个答案都判对，解析必须把两边的论据都摆出来，否则用户只看到
+    // 「另一个也算对」却不知道为什么。
+    lines.push(
+      '',
+      `【标准答案】本题两个来源答案不一致：一方给 ${input.answer}，另一方给 ${input.altAnswer}，官方答案无从查证，站点两个都判对。`,
+      `summary 必须点明分歧在哪(争点是哪个词或哪句原文)；选项 ${input.answer} 和选项 ${input.altAnswer} 的条目都要给出支持各自的理由,不要把其中一个判成错的。`,
+    )
+  } else {
+    lines.push('', `【标准答案】${input.answer}`)
+  }
+  return lines.join('\n')
+}
+
+export async function explainQbankQuestionByAi(
+  input: QbankExplainInput,
+): Promise<QbankExplainResult> {
+  const stem = sanitize(input.stemJp)
+  if (!stem) throw new AppError('题干为空,无法生成解析', 400)
+
+  await assertWithinDailyBudget(input.userId)
+
+  const client = getOpenAIClient()
+  const completion = await client.chat.completions.create({
+    model: getDefaultModel(),
+    response_format: { type: 'json_object' },
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You are a JLPT N1 exam tutor. Explain in Simplified Chinese, be concise and specific. Return strict JSON only.',
+      },
+      { role: 'user', content: buildQbankExplainPrompt({ ...input, stemJp: stem }) },
+    ],
+    max_tokens: MAX_QBANK_EXPLAIN_TOKENS,
+    temperature: 0.2,
+  })
+
+  const content = completion.choices[0]?.message?.content
+  if (!content) throw new AppError('AI did not return content', 502)
+
+  const usage = completion.usage
+  await prisma.aiUsageLog.create({
+    data: {
+      word: input.label,
+      language: 'jp',
+      model: getDefaultModel(),
+      feature: 'qbank_explain',
+      promptTokens: usage?.prompt_tokens ?? 0,
+      completionTokens: usage?.completion_tokens ?? 0,
+      totalTokens: usage?.total_tokens ?? 0,
+      userId: input.userId,
+    },
+  })
+
+  const parsed = parseModelJsonObject<{ summary?: unknown; options?: unknown }>(content)
+  const options = Array.isArray(parsed.options)
+    ? parsed.options.map((v) => sanitize(typeof v === 'string' ? v : ''))
+    : []
+  const summary = sanitize(typeof parsed.summary === 'string' ? parsed.summary : '')
+  if (!summary && options.every((o) => !o)) {
+    throw new AppError('AI 返回的解析是空的,请重试', 502)
+  }
+  // 少给的补空、多给的截掉：渲染时按下标对齐选项，长度不对会错位。
+  return {
+    summary,
+    options: input.options.map((_, i) => options[i] ?? ''),
+  }
 }
 
 export async function generateWordQuizByAi(input: QuizWordInput) {

@@ -46,9 +46,12 @@ export type ExamQuestion = {
   passageId: string | null
   audioUrl: string
   answer?: number
+  /** 另一来源给的答案，0 = 无分歧。分歧题两个答案都判对。 */
+  altAnswer?: number
+  /** 人工写的争点说明，多数分歧没有。 */
+  disputeNote?: string
   stemZh?: string
   explain?: string
-  dispute?: string
 }
 
 export type ExamPassage = { id: string; code: string; type: string; content: string }

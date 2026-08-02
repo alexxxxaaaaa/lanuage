@@ -3,7 +3,8 @@
 纳豆（raw/）与 mojidict（crosscheck/moji/）逐题交叉比对。
 
 处理策略：
-  * 答案不一致  → 只记录，不改任何一边（写进 patch 的 disputes 段，md 里出 `- dispute:`）
+  * 答案不一致  → 只记录，不改任何一边（写进 patch 的 disputes 段，md 里出 `- alt_answer:`；
+                  站点把两个答案都判对）
   * 题面不一致  → 按下面的客观规则择优，采纳结果写进 patch 的 overrides 段并注明理由；
                   规则判不出高下的，只记进报告，不动数据。
 
@@ -238,10 +239,12 @@ def write_patch(ym: str, res: dict):
             {"id": o["id"], "field": o["field"], "value": o["value"],
              "reason": o["reason"], "from": "mojidict"})
     for a in res["answer"]:
+        # note 不自动写：留给人工的争点说明，只有它会进 md（见 to_markdown.add_dispute）。
+        # 「纳豆=X / mojidict=Y」那种话术两个答案现算得出，存下来只会变成待腐烂的副本。
         by_section.setdefault(a["section"], {"overrides": [], "disputes": []})["disputes"].append(
             {"id": a["id"], "nadou_answer": a["nadou_answer"],
              "external_answer": a["external_answer"], "external_source": "mojidict",
-             "note": f"两来源答案不同（题面匹配度 {a['match_sim']}），以官方答案为准"})
+             "match_sim": a["match_sim"]})
 
     for section, payload in by_section.items():
         p = os.path.join(RAW, ym, f"{section}.patch.json")

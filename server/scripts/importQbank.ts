@@ -47,10 +47,11 @@ export type ParsedQuestion = {
   stemZh: string
   options: string
   answer: number
+  altAnswer: number
+  disputeNote: string
   explain: string
   audioKey: string
   source: string
-  dispute: string
   passageId: string | null
 }
 
@@ -169,6 +170,14 @@ export function parsePaper(
       warnings.push(`${seq}: answer=${field.answer} 超出选项范围(${options.length})`)
     }
 
+    // 两来源答案不一致的题，另一来源的答案也判对。不合法就当没分歧，
+    // 宁可少放行一个答案，也不要凭一个坏值把别的选项判成对的。
+    let altAnswer = Number(field.alt_answer ?? 0)
+    if (altAnswer && !(altAnswer >= 1 && altAnswer <= options.length && altAnswer !== answer)) {
+      warnings.push(`${seq}: alt_answer=${field.alt_answer} 不合法（answer=${answer}，${options.length} 个选项），已忽略`)
+      altAnswer = 0
+    }
+
     questions.push({
       id: `${prefix}-${seqSlug(seq)}`,
       level,
@@ -184,10 +193,11 @@ export function parsePaper(
       stemZh: field.stem_zh ?? '',
       options: JSON.stringify(options.map((o) => o ?? '')),
       answer,
+      altAnswer,
+      disputeNote: field.dispute_note ?? '',
       explain: field.explain ?? '',
       audioKey: field.audio ? audioKeyFor(field.audio) : '',
       source: field.source ?? 'nadou',
-      dispute: field.dispute ?? '',
       passageId: field.passage ? `${prefix}-${field.passage.toLowerCase()}` : null,
     })
   }

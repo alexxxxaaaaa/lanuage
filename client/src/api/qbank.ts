@@ -45,6 +45,13 @@ export type QbankSetItem = {
   favorite: boolean
 }
 
+/** AI 生成的逐选项解析。缓存是全局的（一题一份），所有人共用。 */
+export type QbankAiExplain = {
+  summary: string
+  /** 与选项一一对应。 */
+  options: string[]
+}
+
 export type QbankQuestion = {
   id: string
   seq: string
@@ -56,13 +63,21 @@ export type QbankQuestion = {
   stemZh: string
   options: string[]
   answer: number
+  /**
+   * 两个题库来源答案不一致时，另一来源给的答案（1-based）；0 = 无分歧。
+   * 分歧题两个答案都判对，说明见 pages/jlpt/Dispute.tsx。
+   */
+  altAnswer: number
+  /** 人工写的争点说明，多数分歧没有。 */
+  disputeNote: string
   explain: string
   audioUrl: string
-  dispute: string
   passage: { code: string; type: string; content: string } | null
   status: 'correct' | 'wrong' | null
   selected: number | null
   favorite: boolean
+  /** 已生成过才有，没有就是还没人点过「AI 解析」。 */
+  aiExplain: QbankAiExplain | null
 }
 
 function filterParams(filter: QbankSetFilter) {
@@ -96,10 +111,23 @@ export async function getQbankQuestions(ids: string[]) {
 }
 
 export async function submitQbankAttempt(questionId: string, selected: number) {
-  const r = await apiClient.post<{ isCorrect: boolean; answer: number }>('/api/qbank/attempts', {
-    questionId,
-    selected,
-  })
+  const r = await apiClient.post<{ isCorrect: boolean; answer: number; altAnswer: number }>(
+    '/api/qbank/attempts',
+    { questionId, selected },
+  )
+  return r.data
+}
+
+/**
+ * 取 AI 逐选项解析。缓存全局共享，别人生成过的题这一下不花 token；
+ * refresh 才会重算，并覆盖所有人看到的那一份。听力题不支持。
+ */
+export async function generateQbankAiExplain(questionId: string, refresh = false) {
+  const r = await apiClient.post<QbankAiExplain>(
+    `/api/qbank/questions/${questionId}/ai-explain`,
+    undefined,
+    { params: refresh ? { refresh: '1' } : {} },
+  )
   return r.data
 }
 

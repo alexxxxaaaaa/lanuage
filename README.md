@@ -108,9 +108,14 @@ See `DEPLOY.md` for full details.
 ```bash
 cd server
 
-# 1. 建表（本地 SQLite 用 prisma migrate；线上 D1 直接打 migration.sql）
+# 1. 建表（本地 SQLite 用 prisma migrate；线上 D1 按顺序打 migration.sql）
+#    下面三个都是一次性的：后两个是 ALTER TABLE，打第二遍会报 duplicate column。
 npx wrangler d1 execute word-sprint-db --remote \
   --file=./prisma/migrations/20260802000000_qbank/migration.sql
+npx wrangler d1 execute word-sprint-db --remote \
+  --file=./prisma/migrations/20260802140000_qbank_alt_answer/migration.sql
+npx wrangler d1 execute word-sprint-db --remote \
+  --file=./prisma/migrations/20260802150000_qbank_ai_explain/migration.sql
 
 # 2. 题目：markdown → 本地库 → 分片 SQL → D1
 npm run import:qbank             # 3207 题写进 server/prisma/dev.db
@@ -122,8 +127,19 @@ npm run upload:qbank-media       # 1102 个文件 / 约 1.6 GB，可断点续传
 ```
 
 行 id 是从「卷 + 卷内题号」推出来的稳定值（`n1-202012-q1`），
-所以 1、2 两步都能重复跑，用户的作答记录和收藏不会被冲掉。
+所以第 2 步能重复跑（`apply.sh` 里只带建表那个迁移，其余全是 `INSERT OR REPLACE`），
+用户的作答记录和收藏不会被冲掉。
 媒体地址由服务端拼，改域名只要改 `QBANK_MEDIA_BASE`（`server/wrangler.toml`）。
+
+两处跟答案有关的口径，改数据或改判分前先看一眼：
+
+- **分歧题两个答案都算对**：全库 11 道题两个来源（纳豆 / mojidict）答案不一致，
+  官方答案无从查证，所以 `answer` 和 `altAnswer` 都判对。判分只有
+  `qbankService.isAcceptedAnswer` 一处，精练和整卷模考共用；
+  已交卷的整卷成绩是当时的快照，不追溯重算。
+- **AI 解析缓存是全局的**：`QbankAiExplain` 一题一行，不带 userId ——
+  第一个点的人付 token，之后所有人零成本命中，「重新生成」会覆盖所有人那一份。
+  听力题（题干在音频里）和情報検索（材料是整张图）不给这个入口。
 
 ### 模拟考试（整卷计时考）
 

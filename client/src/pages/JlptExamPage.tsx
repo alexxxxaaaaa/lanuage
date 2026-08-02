@@ -24,7 +24,13 @@ import { ExamAnswerSheet } from './jlpt/ExamAnswerSheet'
 import { ExamListeningPlayer, type ListeningSegment } from './jlpt/ExamListeningPlayer'
 import { ExamQuestionList } from './jlpt/ExamQuestionList'
 import { ExamScoreCard } from './jlpt/ExamScoreCard'
-import { examModeLabel, formatClock, paperLabel, questionDomId } from './jlpt/constants'
+import {
+  examModeLabel,
+  formatClock,
+  isAcceptedAnswer,
+  paperLabel,
+  questionDomId,
+} from './jlpt/constants'
 
 /**
  * 模拟考试：一套真题从头考到尾。
@@ -448,8 +454,9 @@ function ResultPhase({ state, answers }: { state: ExamState; answers: Record<str
   const [isCollecting, setIsCollecting] = useState(false)
   const [collected, setCollected] = useState(false)
 
+  // 分歧题两个答案都算对，口径与服务端判分一致。
   const wrong = useMemo(
-    () => state.questions.filter((q) => answers[q.id] !== q.answer),
+    () => state.questions.filter((q) => !isAcceptedAnswer(q, answers[q.id])),
     [state.questions, answers],
   )
   const shown = filter === 'wrong' ? wrong : state.questions

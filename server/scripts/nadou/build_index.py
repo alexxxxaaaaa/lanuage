@@ -86,6 +86,8 @@ def main():
                 "mondai_no": rec.get("mondai_no", ""),
                 "type": rec.get("type", ""),
                 "answer": int(rec.get("answer") or 0),
+                # 两来源答案不一致时另一来源的答案，0 = 无分歧。筛分歧题：[q for q in Q if q['alt_answer']]
+                "alt_answer": int(rec.get("alt_answer") or 0),
                 "choices": len(opts),
                 "passage": rec.get("passage", ""),
                 "audio": rec.get("audio", ""),

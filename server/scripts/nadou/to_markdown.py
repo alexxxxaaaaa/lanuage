@@ -369,13 +369,19 @@ def render_question(seq: str, fields: "OrderedDict[str, str]", options: list) ->
 
 
 def add_dispute(f, d, q):
-    """答案分歧标注。三个部分（笔试/読解/聴解）都要挂 —— 分歧不止出现在読解。"""
+    """答案分歧标注。三个部分（笔试/読解/聴解）都要挂 —— 分歧不止出现在読解。
+
+    只写两样：另一来源的答案（alt_answer，站点把两个答案都判对）和人工写的
+    争点说明（dispute_note，多数分歧没有）。「纳豆=X / mojidict=Y」那种话术
+    由两个答案现算，不落进数据，免得多一份要跟着改的副本。
+    """
     dp = (d.get("_disputes") or {}).get(q.get("id"))
-    if dp:
-        f["dispute"] = (
-            f"纳豆={dp['nadou_answer']} / {dp['external_source']}={dp['external_answer']}"
-            "（两来源答案不同，以官方答案为准）"
-        )
+    if not dp:
+        return
+    f["alt_answer"] = str(dp["external_answer"])
+    note = (dp.get("note") or "").strip()
+    if note:
+        f["dispute_note"] = note
 
 
 def build(ym: str, data: dict) -> tuple[str, dict]:
@@ -431,11 +437,11 @@ def build(ym: str, data: dict) -> tuple[str, dict]:
             f["stem_jp"] = to_text(q["stem"])
             f["options"] = None
             f["answer"] = str(ans)
+            add_dispute(f, d, q)
             f["stem_zh"] = zh
             f["explain"] = ex
             if q.get("parentId"):
                 f["passage"] = "P7"
-            add_dispute(f, d, q)
             parts.append("\n" + render_question(f"Q{qno}", f, [to_text(o) for o in q["options"]]) + "\n")
             stats["questions"] += 1
 
@@ -479,6 +485,7 @@ def build(ym: str, data: dict) -> tuple[str, dict]:
             f["stem_jp"] = to_text(q["stem"])
             f["options"] = None
             f["answer"] = str(ans)
+            add_dispute(f, d, q)
             f["stem_zh"] = zh
             f["explain"] = ex
             if pid in mat_info:
@@ -486,7 +493,6 @@ def build(ym: str, data: dict) -> tuple[str, dict]:
             # 从别处补来的题标出来源，免得日后分不清哪几题不是纳豆的
             if q.get("_source"):
                 f["source"] = q["_source"]
-            add_dispute(f, d, q)
             parts.append("\n" + render_question(f"Q{qno}", f, [to_text(o) for o in q["options"]]) + "\n")
             stats["questions"] += 1
     else:
@@ -548,13 +554,13 @@ def build(ym: str, data: dict) -> tuple[str, dict]:
             f["stem_jp"] = to_text(q["stem"])
             f["options"] = None
             f["answer"] = str(ans)
+            add_dispute(f, d, q)
             f["stem_zh"] = zh
             f["explain"] = ex
             if audio_seq:
                 f["audio"] = f"audio/{ym}/{audio_seq}.mp3"
             if pcode:
                 f["passage"] = pcode
-            add_dispute(f, d, q)
             parts.append("\n" + render_question(seq, f, [to_text(o) for o in q["options"]]) + "\n")
             stats["questions"] += 1
     else:

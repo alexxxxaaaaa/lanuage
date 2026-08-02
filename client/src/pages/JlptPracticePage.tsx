@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, ButtonGroup, Card, Chip, ProgressCircle, Spinner, toast } from '@heroui/react'
 import { confirm } from '../components/ui/dialog'
 import { Link, useSearchParams } from 'react-router'
-import { ChevronLeft, ChevronRight, Eye, EyeOff, Star } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Eye, EyeOff, Sparkles, Star } from 'lucide-react'
 import {
   clearQbankAttempts,
+  generateQbankAiExplain,
   getQbankQuestions,
   getQbankSet,
   setQbankFavorite,
@@ -17,15 +18,25 @@ import {
 import { getErrorMessage } from '../api/error'
 import { QbankText } from '../components/QbankText'
 import { usePageActive, usePageTitle } from '../components/layout/pageContext'
-import { hasPlaceholderOptions, mondaiLabel, mondaiMeta, paperLabel } from './jlpt/constants'
+import {
+  hasPlaceholderOptions,
+  isImageOnlyPassage,
+  mondaiLabel,
+  mondaiMeta,
+  paperLabel,
+} from './jlpt/constants'
+import { DisputeChip, DisputeNotice } from './jlpt/Dispute'
 import {
   EXPLAIN_BLOCK,
   EXPLAIN_LABEL,
   OPTION,
   OPTION_NUM,
+  OPTION_ROLE_COLOR,
+  OPTION_ROLE_LABEL,
   OPTION_TAG,
   OPTION_TONE,
   PASSAGE_BOX,
+  optionRole,
 } from './jlpt/styles'
 
 // 正文按需取：当前题往后预取这么多道，够连着做十几题不卡顿，
@@ -93,6 +104,9 @@ export function JlptPracticePage() {
   // 「答案」按钮直接摊开答案的那道题，同时只记一道。偷看不写作答记录：
   // 答题卡里这题仍然算未做，选项也还能点，选了就照常判对错。
   const [peekId, setPeekId] = useState<string | null>(null)
+  // 正在生成 AI 解析的题。按 id 记而不是只记一道：生成时还能翻页，
+  // 先回来的那个不该把另一道的 loading 一起清掉。
+  const [aiPending, setAiPending] = useState<ReadonlySet<string>>(new Set())
   const inFlight = useRef(new Set<string>())
   // 取正文失败的 id。放 state 不放 ref：预取 effect 要靠它跳过，
   // 渲染要靠它显示重试按钮，两边必须看到同一份。
@@ -110,6 +124,7 @@ export function JlptPracticePage() {
     setHidden(new Set())
     setFailed(new Set())
     setPeekId(null)
+    setAiPending(new Set())
     inFlight.current.clear()
     getQbankSet(filter)
       .then(({ items: rows }) => {
@@ -184,6 +199,7 @@ export function JlptPracticePage() {
   const revealed = !!question && question.status !== null && !hidden.has(question.id)
   const isPeeking = !!question && peekId === question.id
   const showAnswer = revealed || isPeeking
+  const isAiPending = !!question && aiPending.has(question.id)
 
   const pick = useCallback(
     async (selected: number) => {
@@ -211,6 +227,28 @@ export function JlptPracticePage() {
   const retry = () => {
     if (!current) return
     setHidden((prev) => new Set(prev).add(current.id))
+  }
+
+  /** refresh 会重算并覆盖所有人看到的那一份，所以只挂在「重新生成」上。 */
+  const runAiExplain = async (refresh = false) => {
+    if (!current) return
+    const id = current.id
+    setAiPending((prev) => new Set(prev).add(id))
+    try {
+      const aiExplain = await generateQbankAiExplain(id, refresh)
+      setDetails((prev) => {
+        const row = prev[id]
+        return row ? { ...prev, [id]: { ...row, aiExplain } } : prev
+      })
+    } catch (e) {
+      toast.danger(getErrorMessage(e, '生成 AI 解析失败'))
+    } finally {
+      setAiPending((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }
   }
 
   const toggleFavorite = async () => {
@@ -302,6 +340,9 @@ export function JlptPracticePage() {
   }
 
   const isListening = question?.category === 'listening'
+  // 听力（题干在音频里）和情報検索（材料是整张图）AI 都看不到该看的东西，不给入口。
+  const canAiExplain =
+    !!question && !isListening && !isImageOnlyPassage(question.passage?.content ?? '')
   // 听力题的「原文」既可能在 explain（纳豆卷），也可能在 passage（2025 两套），
   // 两者都是答案的一部分，作答前不能露。
   const showPassage = question?.passage && (!isListening || showAnswer)
@@ -459,24 +500,25 @@ export function JlptPracticePage() {
                     </p>
                     <QbankText text={question.stemJp} />
                   </div>
+                  {/* 作答前就挂出来：这题的答案本身有争议，值得先知道。 */}
+                  {question.altAnswer > 0 ? <DisputeChip /> : null}
                 </div>
 
                 <ol className="m-0 grid list-none gap-2 p-0">
                   {question.options.map((option, i) => {
                     const num = i + 1
-                    const isAnswer = showAnswer && num === question.answer
-                    const isWrong = showAnswer && question.selected === num && !isAnswer
+                    const role = showAnswer
+                      ? optionRole(num, {
+                          answer: question.answer,
+                          altAnswer: question.altAnswer,
+                          selected: question.selected,
+                        })
+                      : null
                     return (
                       <li key={i}>
                         <Button
                           variant="outline"
-                          className={`${OPTION} ${
-                            isAnswer
-                              ? OPTION_TONE.answer
-                              : isWrong
-                                ? OPTION_TONE.wrong
-                                : OPTION_TONE.idle
-                          }`}
+                          className={`${OPTION} ${role ? OPTION_TONE[role] : OPTION_TONE.idle}`}
                           isDisabled={revealed}
                           onPress={() => void pick(num)}
                         >
@@ -489,14 +531,13 @@ export function JlptPracticePage() {
                               text={option}
                             />
                           )}
-                          {isAnswer ? (
-                            <Chip className={OPTION_TAG} color="success" variant="soft">
-                              正确答案
-                            </Chip>
-                          ) : null}
-                          {isWrong ? (
-                            <Chip className={OPTION_TAG} color="danger" variant="soft">
-                              你的选择
+                          {role ? (
+                            <Chip
+                              className={OPTION_TAG}
+                              color={OPTION_ROLE_COLOR[role]}
+                              variant="soft"
+                            >
+                              {OPTION_ROLE_LABEL[role]}
                             </Chip>
                           ) : null}
                         </Button>
@@ -536,10 +577,51 @@ export function JlptPracticePage() {
                         <QbankText text={question.explain} />
                       </div>
                     ) : null}
-                    {question.dispute ? (
-                      <p className="m-0 text-xs text-warning-soft-foreground">
-                        ⚠ {question.dispute}
-                      </p>
+                    {question.aiExplain || isAiPending ? (
+                      <div className={EXPLAIN_BLOCK}>
+                        <div className="mb-0.5 flex items-center gap-2">
+                          <p className={`${EXPLAIN_LABEL} mb-0`}>AI 解析</p>
+                          {question.aiExplain && !isAiPending ? (
+                            <Button
+                              className="h-auto px-1.5 py-0 text-xs font-normal"
+                              size="sm"
+                              variant="ghost"
+                              onPress={() => void runAiExplain(true)}
+                            >
+                              重新生成
+                            </Button>
+                          ) : null}
+                        </div>
+                        {isAiPending ? (
+                          <p className="muted m-0 flex items-center gap-2 text-sm">
+                            <Spinner size="sm" />
+                            正在生成…
+                          </p>
+                        ) : (
+                          <>
+                            {question.aiExplain?.summary ? (
+                              <p className="m-0">{question.aiExplain.summary}</p>
+                            ) : null}
+                            <ol className="m-0 mt-1 grid list-none gap-1 p-0">
+                              {question.aiExplain?.options.map((text, i) =>
+                                text ? (
+                                  <li key={i} className="flex gap-2">
+                                    <span className={OPTION_NUM}>{i + 1}</span>
+                                    <span className="min-w-0 flex-1">{text}</span>
+                                  </li>
+                                ) : null,
+                              )}
+                            </ol>
+                          </>
+                        )}
+                      </div>
+                    ) : null}
+                    {question.altAnswer > 0 ? (
+                      <DisputeNotice
+                        answer={question.answer}
+                        altAnswer={question.altAnswer}
+                        note={question.disputeNote}
+                      />
                     ) : null}
                   </div>
                 ) : null}
@@ -562,6 +644,19 @@ export function JlptPracticePage() {
                     {isPeeking ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
                     {isPeeking ? '收起答案' : '答案'}
                   </Button>
+                  {/* 听力题不生成：题干在音频里，文字侧只有設問，AI 看不到该看的。 */}
+                  {canAiExplain ? (
+                    <Button
+                      // 没揭晓就生成等于剧透，所以跟着解析区一起解锁；
+                      // 已经有解析了就停用，重算走下面那块里的「重新生成」。
+                      isDisabled={!showAnswer || isAiPending || !!question.aiExplain}
+                      onPress={() => void runAiExplain()}
+                    >
+                      <ButtonGroup.Separator />
+                      <Sparkles aria-hidden />
+                      {isAiPending ? '生成中…' : 'AI 解析'}
+                    </Button>
+                  ) : null}
                 </ButtonGroup>
                 <ButtonGroup size="sm" variant="outline">
                   <Button isDisabled={index === 0} onPress={() => setIndex((i) => i - 1)}>

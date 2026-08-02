@@ -238,15 +238,21 @@ model QbankQuestion {
   stemZh    String        @default("") // 笔试=中文翻译；听力=日文設問（源站如此）
   options   String        @default("[]") // JSON 字符串数组
   answer    Int // 1-based
+  // 两来源（纳豆 / mojidict）答案不一致时，另一来源的答案，1-based；0 = 无分歧。
+  // 官方答案无从查证，所以两个都判对，见 qbankService.isAcceptedAnswer。
+  altAnswer Int           @default(0)
+  // 分歧的人工争点说明，可为空 —— 「纳豆=4 / mojidict=2」那种话术前端按
+  // answer/altAnswer 现算，不入库，免得多一份要跟着改的副本。
+  disputeNote String      @default("")
   explain   String        @default("") // 逐选项解析；听力是原文+译文
   audioKey  String        @default("") // 相对媒体根，如 audio/2020.12/1-1.mp3
   source    String        @default("nadou") // nadou | mojidict
-  dispute   String        @default("") // 两来源答案不一致时的说明
   passageId String?
   passage   QbankPassage? @relation(fields: [passageId], references: [id], onDelete: SetNull)
 
   attempts  QbankAttempt[]
   favorites QbankFavorite[]
+  aiExplain QbankAiExplain?
 
   @@unique([level, year, month, seq])
   @@index([category, mondaiNo, year, month, orderNo])
@@ -266,6 +272,19 @@ model QbankAttempt {
 
   @@unique([userId, questionId])
   @@index([userId, isCorrect])
+}
+
+// AI 逐选项解析。题库是全局共享的，同一道题对谁都是同一份分析，所以缓存挂在题上、
+// 不挂 (用户, 题)：第一个点的人付 token，之后所有人直接读。听力题不生成
+// （它的 explain 本来就是原文+译文，题干在音频里）。
+model QbankAiExplain {
+  questionId String        @id
+  question   QbankQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  summary    String // 一句话点题
+  options    String        @default("[]") // JSON 字符串数组，与选项一一对应
+  model      String        @default("")
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
 }
 
 model QbankFavorite {
