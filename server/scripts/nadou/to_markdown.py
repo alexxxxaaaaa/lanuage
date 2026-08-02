@@ -63,8 +63,12 @@ _CUR_YM = ""  # build() 期间的年月，供 to_text 生成图片的本地相�
 
 
 def img_local(url: str, ym: str) -> str:
-    """远端图片 → 仓库内相对路径。命名规则与 fetch_images.py 必须一致。"""
-    name = url.split("/")[-1].split("?")[0]
+    """远端图片 → 仓库内相对路径。命名规则与 fetch_images.py 必须一致。
+
+    连续的点要压成一个：源站有 `stem_1..png` 这种名字，带 `..` 的对象名会被
+    Cloudflare 的路径穿越防护拦掉（传 R2 时报 403 挑战页），别的都传得上去。
+    """
+    name = re.sub(r"\.{2,}", ".", url.split("/")[-1].split("?")[0])
     return f"images/{ym}/{name}"
 
 
