@@ -111,10 +111,7 @@ export function DashboardShell({ user }: { user: AuthUser }) {
           ref={mainRef}
           className="min-h-0 flex-1 overflow-auto overscroll-contain px-6 pt-2 pb-[max(1.5rem,env(safe-area-inset-bottom))] pr-[max(1.5rem,env(safe-area-inset-right))] max-md:px-4"
         >
-          <KeepAliveOutlet
-            caps={{ podcast: !!user.canSeePodcast }}
-            scrollRef={mainRef}
-          />
+          <KeepAliveOutlet scrollRef={mainRef} />
         </main>
       </div>
 

@@ -65,11 +65,6 @@ export interface RouteDefinition {
   /** Excluded from the breadcrumb chain when false. */
   breadcrumb?: false
   /**
-   * Feature flag the user must hold for this route to render or appear in the
-   * sidebar. Currently only podcasts are gated.
-   */
-  requires?: 'podcast'
-  /**
    * Set to false for pages that must start clean on every visit rather than
    * being kept alive in the background (see `KeepAliveOutlet`).
    */
@@ -223,14 +218,12 @@ export const ROUTES: readonly RouteDefinition[] = [
     element: <PodcastsPage />,
     icon: Headphones,
     showInSidebar: true,
-    requires: 'podcast',
   },
   {
     path: '/podcasts/:id',
     titleKey: 'podcastDetail',
     element: <PodcastDetailPage />,
     parent: '/podcasts',
-    requires: 'podcast',
   },
   {
     path: '/settings',
@@ -245,18 +238,6 @@ export const ROUTES: readonly RouteDefinition[] = [
 export const SIDEBAR_ROUTES: readonly RouteDefinition[] = ROUTES.filter(
   (r) => r.showInSidebar,
 )
-
-/** Feature flags a user can hold; mirrors the `requires` field above. */
-export interface RouteCapabilities {
-  podcast: boolean
-}
-
-export function isRouteVisible(
-  route: RouteDefinition,
-  caps: RouteCapabilities,
-): boolean {
-  return route.requires ? caps[route.requires] : true
-}
 
 // ---------------------------------------------------------------------------
 // Compiled lookup tables — built once at module load.

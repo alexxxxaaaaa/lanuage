@@ -13,7 +13,6 @@ model User {
   id                String             @id @default(uuid())
   username          String             @unique
   passwordHash      String
-  canSeePodcast     Boolean            @default(false)
   createdAt         DateTime           @default(now())
   folders           Folder[]
   notes             Note[]
@@ -92,7 +91,11 @@ model AiUsageLog {
   language         String
   model            String
   feature          String   @default("other")
+  // promptTokens is the whole prompt; the two cache columns are a breakdown of
+  // it, not extras on top. Billing carves them out — see config/aiPricing.ts.
   promptTokens     Int      @default(0)
+  cachedTokens     Int      @default(0)
+  cacheWriteTokens Int      @default(0)
   completionTokens Int      @default(0)
   totalTokens      Int      @default(0)
   createdAt        DateTime @default(now())

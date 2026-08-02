@@ -122,7 +122,6 @@ export async function getUserById(id: string) {
     id: user.id,
     username: user.username,
     createdAt: user.createdAt,
-    canSeePodcast: user.canSeePodcast,
     isAdmin: isUserAdmin(user.username),
   }
 }

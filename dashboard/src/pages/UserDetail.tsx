@@ -12,7 +12,6 @@ import {
   Space,
   Spin,
   Statistic,
-  Switch,
   Table,
   Tabs,
   Tag,
@@ -163,18 +162,6 @@ export default function UserDetailPage() {
                 </code>
                 <Button size="small" type="text" icon={<CopyOutlined />} onClick={copyHash} />
               </Space>
-            </Descriptions.Item>
-            <Descriptions.Item label="播客权限">
-              <Switch
-                checked={detail.canSeePodcast}
-                onChange={async (checked) => {
-                  await adminApi.updateUserPermissions(detail.id, {
-                    canSeePodcast: checked,
-                  })
-                  setDetail((d) => (d ? { ...d, canSeePodcast: checked } : d))
-                  message.success(checked ? '已开放播客' : '已关闭播客')
-                }}
-              />
             </Descriptions.Item>
           </Descriptions>
 

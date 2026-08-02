@@ -35,11 +35,27 @@ export type AiQuizResult = {
  */
 export type AiUsageSummary = {
   model: string
+  /**
+   * List price of `model` in USD per 1M tokens, or null when the server holds
+   * no price for it. The bill itself is computed server-side — this is here so
+   * the card can show the rate it was charged at, not to multiply by.
+   */
+  rates: {
+    input: number
+    cachedInput: number
+    cacheWrite: number
+    output: number
+  } | null
   days: number
   totals: {
     calls: number
+    /** The whole prompt; `cachedTokens` is a subset of it, not an extra. */
     promptTokens: number
+    cachedTokens: number
     completionTokens: number
+    costUsd: number
+    /** Calls on a model with no price on file — excluded from `costUsd`. */
+    unpricedCalls: number
   }
 }
 

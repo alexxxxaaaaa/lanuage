@@ -2,8 +2,7 @@ import { Link, useLocation } from 'react-router'
 
 import { SidebarRow } from './SidebarRow'
 import { useI18n } from '../../i18n'
-import { SIDEBAR_ROUTES, isRouteVisible } from '../../lib/routes'
-import { useAuthStore } from '../../store/authStore'
+import { SIDEBAR_ROUTES } from '../../lib/routes'
 
 type SidebarNavProps = {
   collapsed?: boolean
@@ -14,11 +13,6 @@ type SidebarNavProps = {
 export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
   const { t } = useI18n()
   const { pathname } = useLocation()
-  const canSeePodcast = useAuthStore((s) => !!s.user?.canSeePodcast)
-
-  const visibleRoutes = SIDEBAR_ROUTES.filter((route) =>
-    isRouteVisible(route, { podcast: canSeePodcast }),
-  )
 
   return (
     <nav
@@ -26,7 +20,7 @@ export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
       aria-label={t('sidebar.primaryNav')}
     >
       <ul className="flex flex-col gap-0.5">
-        {visibleRoutes.map((route) => {
+        {SIDEBAR_ROUTES.map((route) => {
           const Icon = route.icon
           // `/` would otherwise prefix-match every path, so it is exact-only.
           const active =

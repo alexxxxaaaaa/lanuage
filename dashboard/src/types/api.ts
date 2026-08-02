@@ -35,7 +35,6 @@ export interface AdminUserRow {
   id: string
   username: string
   passwordHash?: string
-  canSeePodcast: boolean
   createdAt: string
   folderCount: number
   noteCount: number
@@ -50,10 +49,6 @@ export interface AdminUserDetail extends AdminUserRow {
   aiTotalTokens: number
   aiPromptTokens: number
   aiCompletionTokens: number
-}
-
-export interface AdminUserPermissions {
-  canSeePodcast?: boolean
 }
 
 export interface AdminFolderRow {

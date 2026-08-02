@@ -69,7 +69,6 @@ export async function listUsers(params: {
         id: true,
         username: true,
         passwordHash: includeHash,
-        canSeePodcast: true,
         createdAt: true,
         _count: {
           select: {
@@ -91,7 +90,6 @@ export async function listUsers(params: {
       id: u.id,
       username: u.username,
       passwordHash: includeHash ? u.passwordHash : undefined,
-      canSeePodcast: u.canSeePodcast,
       createdAt: u.createdAt,
       folderCount: u._count.folders,
       noteCount: u._count.notes,
@@ -130,7 +128,6 @@ export async function getUserDetail(id: string) {
     id: user.id,
     username: user.username,
     passwordHash: user.passwordHash,
-    canSeePodcast: user.canSeePodcast,
     createdAt: user.createdAt,
     folderCount: user._count.folders,
     noteCount: user._count.notes,
@@ -142,20 +139,6 @@ export async function getUserDetail(id: string) {
     aiPromptTokens: aiTotals._sum.promptTokens ?? 0,
     aiCompletionTokens: aiTotals._sum.completionTokens ?? 0,
   }
-}
-
-export async function updateUserPermissions(
-  id: string,
-  data: { canSeePodcast?: boolean },
-) {
-  const user = await prisma.user.findUnique({ where: { id } })
-  if (!user) throw new AppError('用户不存在', 404)
-  const patch: { canSeePodcast?: boolean } = {}
-  if (typeof data.canSeePodcast === 'boolean') {
-    patch.canSeePodcast = data.canSeePodcast
-  }
-  const updated = await prisma.user.update({ where: { id }, data: patch })
-  return { id: updated.id, canSeePodcast: updated.canSeePodcast }
 }
 
 export async function resetUserPassword(id: string, newPassword: string) {

@@ -1,9 +1,16 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { Navigate, useLocation, useRoutes, type RouteObject } from 'react-router'
 
 import { PageActiveContext } from './pageContext'
-import { ROUTES, isRouteVisible, matchRoute, type RouteCapabilities } from '../../lib/routes'
+import { ROUTES, matchRoute } from '../../lib/routes'
 import { useActiveSessions } from '../../store/useActiveSessions'
+
+/** `ROUTES` in the shape `useRoutes` wants. Every page is reachable by every
+ *  signed-in account, so this is a constant rather than a per-user table. */
+const ROUTE_OBJECTS: RouteObject[] = ROUTES.map((r) => ({
+  path: r.path,
+  element: r.element,
+}))
 
 /**
  * How many pages stay mounted in the background. Each kept page holds its own
@@ -60,18 +67,16 @@ function upsert(entries: Entry[], key: string, location: string): Entry[] {
 /** One kept-alive page, resolved against its own frozen location. */
 function KeepAlivePage({
   location,
-  routes,
   isActive,
 }: {
   location: string
-  routes: RouteObject[]
   isActive: boolean
 }) {
   // Passing an explicit location makes react-router install a matching
   // LocationContext for this subtree, so a background page keeps reading its
   // own params from `useParams` / `useSearchParams` rather than the address
   // bar's.
-  const element = useRoutes(routes, location)
+  const element = useRoutes(ROUTE_OBJECTS, location)
   return (
     <div style={{ display: isActive ? 'block' : 'none' }}>
       <PageActiveContext.Provider value={isActive}>{element}</PageActiveContext.Provider>
@@ -88,28 +93,16 @@ function KeepAlivePage({
  * one page on screen at a time, exactly like a conventional console.
  */
 export function KeepAliveOutlet({
-  caps,
   scrollRef,
 }: {
-  caps: RouteCapabilities
   /** The shell's scrolling element, so scroll offsets restore per page. */
   scrollRef: RefObject<HTMLElement | null>
 }) {
   const { pathname, search, hash } = useLocation()
   const fullPath = pathname + search + hash
 
-  const routes = useMemo<RouteObject[]>(
-    () =>
-      ROUTES.filter((r) => isRouteVisible(r, caps)).map((r) => ({
-        path: r.path,
-        element: r.element,
-      })),
-    [caps],
-  )
-
   const match = matchRoute(pathname)
-  const allowed = match !== null && isRouteVisible(match.route, caps)
-  const keepAlive = allowed && match.route.keepAlive !== false
+  const keepAlive = match !== null && match.route.keepAlive !== false
 
   const [entries, setEntries] = useState<Entry[]>([])
   const [seenPath, setSeenPath] = useState<string | null>(null)
@@ -170,7 +163,7 @@ export function KeepAliveOutlet({
     }
   }, [])
 
-  if (!allowed) return <Navigate to="/" replace />
+  if (match === null) return <Navigate to="/" replace />
 
   return (
     <>
@@ -178,17 +171,16 @@ export function KeepAliveOutlet({
         <KeepAlivePage
           key={entry.key}
           location={entry.location}
-          routes={routes}
           isActive={entry.key === activeKey}
         />
       ))}
       {/* Routes opted out of keep-alive render fresh on every visit and are
           torn down as soon as the user leaves. */}
-      {!keepAlive && <FreshPage location={fullPath} routes={routes} />}
+      {!keepAlive && <FreshPage location={fullPath} />}
     </>
   )
 }
 
-function FreshPage({ location, routes }: { location: string; routes: RouteObject[] }) {
-  return useRoutes(routes, location)
+function FreshPage({ location }: { location: string }) {
+  return useRoutes(ROUTE_OBJECTS, location)
 }

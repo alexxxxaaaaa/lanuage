@@ -4,7 +4,6 @@ export type AuthUser = {
   id: string
   username: string
   createdAt?: string
-  canSeePodcast?: boolean
   isAdmin?: boolean
 }
 

@@ -7,8 +7,8 @@ import { useAuthStore } from '../store/authStore'
 /**
  * Session-scoped background work for a signed-in shell:
  *
- *  1. Re-reads `/me` on mount so server-side permission changes (podcast
- *     access, admin flag) take effect without a re-login.
+ *  1. Re-reads `/me` on mount so a server-side change to the account (the
+ *     admin flag) takes effect without a re-login.
  *  2. Refreshes today's review queue when the calendar day rolls over. With
  *     keep-alive pages the app can stay mounted for days, so the cached queue
  *     would otherwise be 24h stale when the user comes back next morning.

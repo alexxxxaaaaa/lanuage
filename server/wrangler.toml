@@ -15,7 +15,7 @@ migrations_dir = "prisma/migrations"
 #   - JWT_SECRET, OPENAI_API_KEY: set via `wrangler secret put`
 #   - OPENAI_MODEL: non-sensitive, can live here
 [vars]
-OPENAI_MODEL = "gpt-4.1-mini"
+OPENAI_MODEL = "gpt-5.6-luna"
 DAILY_AI_TOKEN_BUDGET = "50000"
 # Subtitle proxy: a separate Node service that fetches YouTube from a
 # non-Cloudflare IP. The auth token goes via `wrangler secret put

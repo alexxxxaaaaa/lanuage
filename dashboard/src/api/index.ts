@@ -7,7 +7,6 @@ import type {
   AdminNoteRow,
   AdminStats,
   AdminUserDetail,
-  AdminUserPermissions,
   AdminUserRow,
   AdminWordRow,
   Paged,
@@ -33,14 +32,6 @@ export const adminApi = {
   resetUserPassword: (id: string, password: string) =>
     http
       .post<{ ok: boolean }>(`/api/admin/users/${id}/reset-password`, { password })
-      .then((r) => r.data),
-
-  updateUserPermissions: (id: string, data: AdminUserPermissions) =>
-    http
-      .patch<{ id: string; canSeePodcast: boolean }>(
-        `/api/admin/users/${id}/permissions`,
-        data,
-      )
       .then((r) => r.data),
 
   deleteUser: (id: string) =>

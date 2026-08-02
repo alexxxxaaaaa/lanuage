@@ -184,24 +184,6 @@ export default function UsersPage() {
             render: (v: number) => <Tag>{v}</Tag>,
           },
           {
-            title: '播客',
-            dataIndex: 'canSeePodcast',
-            width: 90,
-            render: (v: boolean, row) => (
-              <Switch
-                size="small"
-                checked={v}
-                onChange={async (checked) => {
-                  await adminApi.updateUserPermissions(row.id, { canSeePodcast: checked })
-                  setData((rows) =>
-                    rows.map((r) => (r.id === row.id ? { ...r, canSeePodcast: checked } : r)),
-                  )
-                  message.success(checked ? '已开放播客' : '已关闭播客')
-                }}
-              />
-            ),
-          },
-          {
             title: '操作',
             width: 260,
             fixed: 'right',

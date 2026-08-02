@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { prisma } from "../lib/prisma";
 import { getEnv } from "../lib/env";
+import { estimateCallCostUsd, getModelRates } from "../config/aiPricing";
 import { AppError } from "../errors/AppError";
 
 type SupportedLanguage = "en" | "jp";
@@ -70,7 +71,7 @@ type ExpressionTranslateResult = {
 
 const SUPPORTED_LANGUAGES: SupportedLanguage[] = ["en", "jp"];
 export function getDefaultModel() {
-  return getEnv("OPENAI_MODEL")?.trim() || "gpt-4.1-mini";
+  return getEnv("OPENAI_MODEL")?.trim() || "gpt-5.6-luna";
 }
 const MAX_OUTPUT_TOKENS = 180;
 const MAX_OUTPUT_TOKENS_EXTENDED = 400;
@@ -119,8 +120,83 @@ function getOpenAIClient() {
   return openaiClient;
 }
 
-function sanitize(input?: string) {
+function sanitize(input?: string | null) {
   return (input ?? "").trim();
+}
+
+/** What the usage row records about *why* a call happened. */
+type UsageLogFields = {
+  /** The user's input, verbatim — the admin usage table lists this. */
+  word: string;
+  language: string;
+  feature: string;
+  userId: string;
+};
+
+type JsonCompletionInput = {
+  system: string;
+  user: string;
+  /** Ceiling on generated tokens. Reasoning is off, so this is all answer. */
+  maxOutputTokens: number;
+  log: UsageLogFields;
+};
+
+/**
+ * One JSON-mode completion, with its token usage written to `AiUsageLog`.
+ *
+ * Every AI feature in this file goes through here, so the model, the request
+ * shape and the billing record are decided once instead of eight times over.
+ *
+ * Two request choices are forced by the gpt-5.6 family and worth spelling out:
+ *
+ *  - `reasoning_effort: 'none'`. These models reason by default (`medium`),
+ *    and reasoning tokens come out of the same `max_completion_tokens` budget
+ *    as the answer. Every task here is a short, fully-specified extraction
+ *    into a fixed JSON shape, and the budgets are 130–500 tokens — any
+ *    reasoning at all would consume the response and return nothing.
+ *  - No `temperature`. The family rejects every value but the default, so the
+ *    old per-feature 0.1/0.2/0.3 tuning is gone rather than merely unused.
+ *
+ * Usage is logged before the content is inspected: an empty reply still spent
+ * tokens, and a call that vanishes from the ledger is a call the daily budget
+ * stops counting.
+ *
+ * Returns the raw content, or null when the model returned none.
+ */
+async function completeJson(input: JsonCompletionInput): Promise<string | null> {
+  const model = getDefaultModel();
+  const completion = await getOpenAIClient().chat.completions.create({
+    model,
+    response_format: { type: "json_object" },
+    reasoning_effort: "none",
+    max_completion_tokens: input.maxOutputTokens,
+    messages: [
+      { role: "system", content: input.system },
+      { role: "user", content: input.user },
+    ],
+  });
+
+  const usage = completion.usage;
+  await prisma.aiUsageLog.create({
+    data: {
+      ...input.log,
+      model,
+      promptTokens: usage?.prompt_tokens ?? 0,
+      cachedTokens: usage?.prompt_tokens_details?.cached_tokens ?? 0,
+      cacheWriteTokens: usage?.prompt_tokens_details?.cache_write_tokens ?? 0,
+      completionTokens: usage?.completion_tokens ?? 0,
+      totalTokens: usage?.total_tokens ?? 0,
+    },
+  });
+
+  return sanitize(completion.choices[0]?.message?.content) || null;
+}
+
+/** `completeJson` for callers with no fallback for an empty reply. */
+async function completeJsonOrThrow(input: JsonCompletionInput): Promise<string> {
+  const content = await completeJson(input);
+  if (!content) throw new AppError("AI did not return content", 502);
+  return content;
 }
 
 function parseModelJsonObject<T>(content: string): T {
@@ -421,44 +497,21 @@ export async function fillWordByAi(input: FillWordInput) {
 
   await assertWithinDailyBudget(input.userId);
 
-  const client = getOpenAIClient();
-  const completion = await client.chat.completions.create({
-    model: getDefaultModel(),
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are a concise vocabulary assistant. Always return strict JSON object with requested keys.",
-      },
-      {
-        role: "user",
-        content: isTranslateMode
-          ? buildTranslatePrompt(word, target)
-          : buildPrompt(word, target),
-      },
-    ],
-    max_tokens: tokenBudget,
-    temperature: 0.2,
-  });
+  const usageLog = {
+    word,
+    language: target,
+    feature: "word_fill",
+    userId: input.userId,
+  };
 
-  const content = completion.choices[0]?.message?.content;
-  if (!content) {
-    throw new AppError("AI did not return content", 502);
-  }
-
-  const usage = completion.usage;
-  await prisma.aiUsageLog.create({
-    data: {
-      word,
-      language: target,
-      model: getDefaultModel(),
-      feature: "word_fill",
-      promptTokens: usage?.prompt_tokens ?? 0,
-      completionTokens: usage?.completion_tokens ?? 0,
-      totalTokens: usage?.total_tokens ?? 0,
-      userId: input.userId,
-    },
+  const content = await completeJsonOrThrow({
+    system:
+      "You are a concise vocabulary assistant. Always return strict JSON object with requested keys.",
+    user: isTranslateMode
+      ? buildTranslatePrompt(word, target)
+      : buildPrompt(word, target),
+    maxOutputTokens: tokenBudget,
+    log: usageLog,
   });
 
   const firstResult = safeParseJson(content, word);
@@ -472,45 +525,20 @@ export async function fillWordByAi(input: FillWordInput) {
     return firstResult;
   }
 
-  const retryCompletion = await client.chat.completions.create({
-    model: getDefaultModel(),
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are a concise vocabulary assistant. Return strict JSON only.",
-      },
-      {
-        role: "user",
-        content: isTranslateMode
-          ? buildTranslatePrompt(word, target) +
-            "\n注意: 第一次返回有字段缺失,请确保 meaning 和 example 都不为空。"
-          : buildPromptRetry(word, target),
-      },
-    ],
-    max_tokens: tokenBudget,
-    temperature: 0.1,
+  // A second pass at the same prompt, sharpened. An empty reply here is not
+  // fatal — the first result is already usable, just thin.
+  const retryContent = await completeJson({
+    system: "You are a concise vocabulary assistant. Return strict JSON only.",
+    user: isTranslateMode
+      ? buildTranslatePrompt(word, target) +
+        "\n注意: 第一次返回有字段缺失,请确保 meaning 和 example 都不为空。"
+      : buildPromptRetry(word, target),
+    maxOutputTokens: tokenBudget,
+    log: usageLog,
   });
-
-  const retryContent = retryCompletion.choices[0]?.message?.content;
   if (!retryContent) {
     return firstResult;
   }
-
-  const retryUsage = retryCompletion.usage;
-  await prisma.aiUsageLog.create({
-    data: {
-      word,
-      language: target,
-      model: getDefaultModel(),
-      feature: "word_fill",
-      promptTokens: retryUsage?.prompt_tokens ?? 0,
-      completionTokens: retryUsage?.completion_tokens ?? 0,
-      totalTokens: retryUsage?.total_tokens ?? 0,
-      userId: input.userId,
-    },
-  });
 
   const retryResult = safeParseJson(retryContent, word);
   retryResult.note = normalizeEnglishAdjectiveNote(retryResult);
@@ -566,34 +594,14 @@ export async function generateExampleOnlyByAi(input: ExampleOnlyInput) {
 
   await assertWithinDailyBudget(input.userId);
 
-  const client = getOpenAIClient();
-  const completion = await client.chat.completions.create({
-    model: getDefaultModel(),
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content: "You return strict JSON with only the requested key.",
-      },
-      { role: "user", content: buildExampleOnlyPrompt({ ...input, word }) },
-    ],
-    max_tokens: MAX_EXAMPLE_ONLY_TOKENS,
-    temperature: 0.2,
-  });
-
-  const content = completion.choices[0]?.message?.content;
-  if (!content) throw new AppError("AI did not return content", 502);
-
-  const usage = completion.usage;
-  await prisma.aiUsageLog.create({
-    data: {
+  const content = await completeJsonOrThrow({
+    system: "You return strict JSON with only the requested key.",
+    user: buildExampleOnlyPrompt({ ...input, word }),
+    maxOutputTokens: MAX_EXAMPLE_ONLY_TOKENS,
+    log: {
       word,
       language: input.language,
-      model: getDefaultModel(),
       feature: "example_only",
-      promptTokens: usage?.prompt_tokens ?? 0,
-      completionTokens: usage?.completion_tokens ?? 0,
-      totalTokens: usage?.total_tokens ?? 0,
       userId: input.userId,
     },
   });
@@ -645,34 +653,14 @@ export async function fillGrammarByAi(input: FillGrammarInput): Promise<FillGram
 
   await assertWithinDailyBudget(input.userId);
 
-  const client = getOpenAIClient();
-  const completion = await client.chat.completions.create({
-    model: getDefaultModel(),
-    response_format: { type: 'json_object' },
-    messages: [
-      {
-        role: 'system',
-        content: 'You are a Japanese N1 grammar assistant. Return strict JSON only.',
-      },
-      { role: 'user', content: buildGrammarPrompt(pattern) },
-    ],
-    max_tokens: MAX_GRAMMAR_FILL_TOKENS,
-    temperature: 0.2,
-  });
-
-  const content = completion.choices[0]?.message?.content;
-  if (!content) throw new AppError('AI did not return content', 502);
-
-  const usage = completion.usage;
-  await prisma.aiUsageLog.create({
-    data: {
+  const content = await completeJsonOrThrow({
+    system: 'You are a Japanese N1 grammar assistant. Return strict JSON only.',
+    user: buildGrammarPrompt(pattern),
+    maxOutputTokens: MAX_GRAMMAR_FILL_TOKENS,
+    log: {
       word: pattern,
       language: 'jp',
-      model: getDefaultModel(),
       feature: 'grammar_fill',
-      promptTokens: usage?.prompt_tokens ?? 0,
-      completionTokens: usage?.completion_tokens ?? 0,
-      totalTokens: usage?.total_tokens ?? 0,
       userId: input.userId,
     },
   });
@@ -767,35 +755,15 @@ export async function explainQbankQuestionByAi(
 
   await assertWithinDailyBudget(input.userId)
 
-  const client = getOpenAIClient()
-  const completion = await client.chat.completions.create({
-    model: getDefaultModel(),
-    response_format: { type: 'json_object' },
-    messages: [
-      {
-        role: 'system',
-        content:
-          'You are a JLPT N1 exam tutor. Explain in Simplified Chinese, be concise and specific. Return strict JSON only.',
-      },
-      { role: 'user', content: buildQbankExplainPrompt({ ...input, stemJp: stem }) },
-    ],
-    max_tokens: MAX_QBANK_EXPLAIN_TOKENS,
-    temperature: 0.2,
-  })
-
-  const content = completion.choices[0]?.message?.content
-  if (!content) throw new AppError('AI did not return content', 502)
-
-  const usage = completion.usage
-  await prisma.aiUsageLog.create({
-    data: {
+  const content = await completeJsonOrThrow({
+    system:
+      'You are a JLPT N1 exam tutor. Explain in Simplified Chinese, be concise and specific. Return strict JSON only.',
+    user: buildQbankExplainPrompt({ ...input, stemJp: stem }),
+    maxOutputTokens: MAX_QBANK_EXPLAIN_TOKENS,
+    log: {
       word: input.label,
       language: 'jp',
-      model: getDefaultModel(),
       feature: 'qbank_explain',
-      promptTokens: usage?.prompt_tokens ?? 0,
-      completionTokens: usage?.completion_tokens ?? 0,
-      totalTokens: usage?.total_tokens ?? 0,
       userId: input.userId,
     },
   })
@@ -824,39 +792,14 @@ export async function generateWordQuizByAi(input: QuizWordInput) {
 
   await assertWithinDailyBudget(input.userId);
 
-  const client = getOpenAIClient();
-  const completion = await client.chat.completions.create({
-    model: getDefaultModel(),
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content: "You create concise, accurate vocabulary quiz JSON only.",
-      },
-      {
-        role: "user",
-        content: buildQuizPrompt(input),
-      },
-    ],
-    max_tokens: MAX_QUIZ_OUTPUT_TOKENS,
-    temperature: 0.3,
-  });
-
-  const content = completion.choices[0]?.message?.content;
-  if (!content) {
-    throw new AppError("AI did not return quiz content", 502);
-  }
-
-  const usage = completion.usage;
-  await prisma.aiUsageLog.create({
-    data: {
+  const content = await completeJsonOrThrow({
+    system: "You create concise, accurate vocabulary quiz JSON only.",
+    user: buildQuizPrompt(input),
+    maxOutputTokens: MAX_QUIZ_OUTPUT_TOKENS,
+    log: {
       word,
       language: input.language,
-      model: getDefaultModel(),
       feature: "word_quiz",
-      promptTokens: usage?.prompt_tokens ?? 0,
-      completionTokens: usage?.completion_tokens ?? 0,
-      totalTokens: usage?.total_tokens ?? 0,
       userId: input.userId,
     },
   });
@@ -876,39 +819,14 @@ export async function generateExpressionCasualByAi(
 
   await assertWithinDailyBudget(input.userId);
 
-  const client = getOpenAIClient();
-  const completion = await client.chat.completions.create({
-    model: getDefaultModel(),
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content: "You output concise spoken expression JSON only.",
-      },
-      {
-        role: "user",
-        content: buildExpressionCasualPrompt({ zhText, language }),
-      },
-    ],
-    max_tokens: MAX_EXPRESSION_OUTPUT_TOKENS,
-    temperature: 0.3,
-  });
-
-  const content = completion.choices[0]?.message?.content;
-  if (!content) {
-    throw new AppError("AI did not return expression content", 502);
-  }
-
-  const usage = completion.usage;
-  await prisma.aiUsageLog.create({
-    data: {
+  const content = await completeJsonOrThrow({
+    system: "You output concise spoken expression JSON only.",
+    user: buildExpressionCasualPrompt({ zhText, language }),
+    maxOutputTokens: MAX_EXPRESSION_OUTPUT_TOKENS,
+    log: {
       word: zhText,
       language: language ?? "multi",
-      model: getDefaultModel(),
       feature: "expression_casual",
-      promptTokens: usage?.prompt_tokens ?? 0,
-      completionTokens: usage?.completion_tokens ?? 0,
-      totalTokens: usage?.total_tokens ?? 0,
       userId: input.userId,
     },
   });
@@ -927,42 +845,14 @@ export async function translateExpressionToZhByAi(
 
   await assertWithinDailyBudget(input.userId);
 
-  const client = getOpenAIClient();
-  const completion = await client.chat.completions.create({
-    model: getDefaultModel(),
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content: "You output concise Chinese translation JSON only.",
-      },
-      {
-        role: "user",
-        content: buildExpressionTranslatePrompt({
-          text,
-          language: input.language,
-        }),
-      },
-    ],
-    max_tokens: MAX_EXPRESSION_OUTPUT_TOKENS,
-    temperature: 0.3,
-  });
-
-  const content = completion.choices[0]?.message?.content;
-  if (!content) {
-    throw new AppError("AI did not return translate content", 502);
-  }
-
-  const usage = completion.usage;
-  await prisma.aiUsageLog.create({
-    data: {
+  const content = await completeJsonOrThrow({
+    system: "You output concise Chinese translation JSON only.",
+    user: buildExpressionTranslatePrompt({ text, language: input.language }),
+    maxOutputTokens: MAX_EXPRESSION_OUTPUT_TOKENS,
+    log: {
       word: text,
       language: input.language,
-      model: getDefaultModel(),
       feature: "expression_translate",
-      promptTokens: usage?.prompt_tokens ?? 0,
-      completionTokens: usage?.completion_tokens ?? 0,
-      totalTokens: usage?.total_tokens ?? 0,
       userId: input.userId,
     },
   });
@@ -990,79 +880,102 @@ export async function getAiUsageSummary(userId: string, days = 7) {
   since.setDate(since.getDate() - (safeDays - 1));
   since.setHours(0, 0, 0, 0);
 
-  const logs = await prisma.aiUsageLog.findMany({
-    where: { userId, createdAt: { gte: since } },
-    orderBy: { createdAt: "desc" },
-    take: 200,
-  });
+  const where = { userId, createdAt: { gte: since } };
 
-  const totals = logs.reduce(
-    (
-      acc: {
-        calls: number;
-        promptTokens: number;
-        completionTokens: number;
-        totalTokens: number;
+  // Two reads, on purpose. The ledger backs every total on the card, so it has
+  // to span the whole window — a `take` here would quietly bill only the most
+  // recent slice of a busy period. The call list is a display of recent
+  // activity and stays paged. Dropping `word` from the wide read is what keeps
+  // it cheap; it is the only long column and the ledger never shows it.
+  const [ledger, logs] = await Promise.all([
+    prisma.aiUsageLog.findMany({
+      where,
+      select: {
+        model: true,
+        feature: true,
+        promptTokens: true,
+        cachedTokens: true,
+        cacheWriteTokens: true,
+        completionTokens: true,
+        totalTokens: true,
+        createdAt: true,
       },
-      item: {
-        promptTokens: number;
-        completionTokens: number;
-        totalTokens: number;
-      },
-    ) => {
-      acc.calls += 1;
-      acc.promptTokens += item.promptTokens;
-      acc.completionTokens += item.completionTokens;
-      acc.totalTokens += item.totalTokens;
-      return acc;
-    },
-    { calls: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-  );
+    }),
+    prisma.aiUsageLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    }),
+  ]);
 
+  const totals = {
+    calls: 0,
+    promptTokens: 0,
+    cachedTokens: 0,
+    cacheWriteTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    costUsd: 0,
+    /** Calls on a model we hold no price for. Counted, never billed as zero. */
+    unpricedCalls: 0,
+  };
   const byDayMap = new Map<string, { calls: number; totalTokens: number }>();
-  for (const item of logs) {
-    const key = item.createdAt.toISOString().slice(0, 10);
-    const current = byDayMap.get(key) ?? { calls: 0, totalTokens: 0 };
-    current.calls += 1;
-    current.totalTokens += item.totalTokens;
-    byDayMap.set(key, current);
+  const byFeatureMap = new Map<string, { calls: number; totalTokens: number }>();
+
+  for (const row of ledger) {
+    totals.calls += 1;
+    totals.promptTokens += row.promptTokens;
+    totals.cachedTokens += row.cachedTokens;
+    totals.cacheWriteTokens += row.cacheWriteTokens;
+    totals.completionTokens += row.completionTokens;
+    totals.totalTokens += row.totalTokens;
+
+    // Priced per row rather than per model total: the rate card a request
+    // lands on depends on that request's own prompt size.
+    const cost = estimateCallCostUsd(row.model, row);
+    if (cost === null) totals.unpricedCalls += 1;
+    else totals.costUsd += cost;
+
+    const day = row.createdAt.toISOString().slice(0, 10);
+    const dayBucket = byDayMap.get(day) ?? { calls: 0, totalTokens: 0 };
+    dayBucket.calls += 1;
+    dayBucket.totalTokens += row.totalTokens;
+    byDayMap.set(day, dayBucket);
+
+    const feature = row.feature || "other";
+    const featureBucket = byFeatureMap.get(feature) ?? { calls: 0, totalTokens: 0 };
+    featureBucket.calls += 1;
+    featureBucket.totalTokens += row.totalTokens;
+    byFeatureMap.set(feature, featureBucket);
   }
 
   const byDay = Array.from(byDayMap.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, value]) => ({ date, ...value }));
 
-  const byFeatureMap = new Map<
-    string,
-    { calls: number; totalTokens: number }
-  >();
-  for (const item of logs as Array<(typeof logs)[number] & { feature?: string }>) {
-    const key = item.feature || "other";
-    const current = byFeatureMap.get(key) ?? { calls: 0, totalTokens: 0 };
-    current.calls += 1;
-    current.totalTokens += item.totalTokens;
-    byFeatureMap.set(key, current);
-  }
   const byFeature = Array.from(byFeatureMap.entries())
     .sort((a, b) => b[1].totalTokens - a[1].totalTokens)
     .map(([feature, value]) => ({ feature, ...value }));
 
+  const model = getDefaultModel();
+
   return {
-    model: getDefaultModel(),
+    model,
+    // Shipped alongside the numbers so the UI can print the rate card it was
+    // billed at without keeping a second copy of the price table.
+    rates: getModelRates(model),
     days: safeDays,
     totals,
     byDay,
     byFeature,
-    logs: logs.map(
-      (item: (typeof logs)[number] & { feature?: string }) => ({
-        id: item.id,
-        word: item.word,
-        language: item.language,
-        model: item.model,
-        feature: item.feature ?? "other",
-        totalTokens: item.totalTokens,
-        createdAt: item.createdAt,
-      }),
-    ),
+    logs: logs.map((item) => ({
+      id: item.id,
+      word: item.word,
+      language: item.language,
+      model: item.model,
+      feature: item.feature,
+      totalTokens: item.totalTokens,
+      createdAt: item.createdAt,
+    })),
   };
 }
