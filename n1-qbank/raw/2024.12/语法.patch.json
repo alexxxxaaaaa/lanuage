@@ -1,0 +1,85 @@
+{
+ "disputes": [],
+ "overrides": [
+  {
+   "id": 51305,
+   "field": "stem",
+   "value": "宝くじ売り場があるよ、買ってみない?\nどうせ当たらないんだから、買う(　)無駄だったよ。\n",
+   "reason": "两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 51307,
+   "field": "stem",
+   "value": "息子はサッカーの練習でよほど疲れていたのか、家に(　)食事もとらず、寝てしまった。\r",
+   "reason": "两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 51308,
+   "field": "stem",
+   "value": "ウェブサイトごとに異なるパスワードを設定するのは面倒だが、第三者が不正にアクセスされる(　)、やむを得ない。\r",
+   "reason": "两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 51310,
+   "field": "stem",
+   "value": "引っ越しを控えているので、なるべく余計な出費を(　)、友人に誘われたスキー旅行に行くことにした。\r",
+   "reason": "两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 51310,
+   "field": "options",
+   "value": [
+    "抑えたら抑えたで\n",
+    "<p>抑えられるものなら</p>\n",
+    "<p>抑えるには抑えずに</p>\n",
+    "<p>抑えたいところだが</p>\n"
+   ],
+   "reason": "选项1:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 51311,
+   "field": "options",
+   "value": [
+    "<p>解けるとは</p>\n",
+    "解けるものなら\r",
+    "<p>解いたまでだ</p>\n",
+    "解いてみせた\n"
+   ],
+   "reason": "选项2:两侧文字不同，采纳可信度更高的 mojidict；选项4:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 51313,
+   "field": "stem",
+   "value": "子どもは生まれてくる家庭環境を選べない。だからこそ、親の経済状況によって、子どもの教育機会が奪われること(　)。\r",
+   "reason": "两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 51315,
+   "field": "stem",
+   "value": "昨日はとても寒く、積り___　___　_★_　___はずっと雪が降っていた。\n",
+   "reason": "两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 51321,
+   "field": "options",
+   "value": [
+    "<p>気を使えはしない</p>\n",
+    "<p>気を使ってなどいない</p>\n",
+    "<p>気を使わせられはしない</p>\n",
+    "気をつかわせてなどいない\r"
+   ],
+   "reason": "选项4:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  }
+ ],
+ "_source": "mojidict",
+ "_note": "compare_sources.py 生成的交叉比对结果"
+}

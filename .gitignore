@@ -1,6 +1,8 @@
 node_modules
 dist
 .DS_Store
+__pycache__/
+*.pyc
 
 client/node_modules
 client/dist
@@ -35,3 +37,7 @@ server/data/grammarQuestions/_generated_insert.sql
 N1/**/*.pdf
 N1/**/*.png
 N1/**/.DS_Store
+
+# n1-qbank 全部入 git，包括听力音频（约 1.6 GB / 931 个 mp3）。
+# 有意为之：题库要自包含，不依赖 R2 等外部存储的可用性。
+# 注意最大单文件 2025.12/full.mp3 约 64 MB，超过 GitHub 50 MB 的警告线（未超 100 MB 硬限制）。

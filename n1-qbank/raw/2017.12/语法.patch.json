@@ -1,0 +1,83 @@
+{
+ "disputes": [
+  {
+   "id": 11826,
+   "nadou_answer": 4,
+   "external_answer": 3,
+   "external_source": "mojidict",
+   "note": "两来源答案不同（题面匹配度 1.0），以官方答案为准"
+  },
+  {
+   "id": 11829,
+   "nadou_answer": 2,
+   "external_answer": 3,
+   "external_source": "mojidict",
+   "note": "两来源答案不同（题面匹配度 1.0），以官方答案为准"
+  }
+ ],
+ "overrides": [
+  {
+   "id": 11816,
+   "field": "stem",
+   "value": "水泳の水川陽（みずかわよう）選手。父親が有名な水泳選手である（　　）、彼は周囲からの大きなプレッシャーに苦しんできたが、それを乗り越え、見事オリンピック出場を決めた。",
+   "reason": "两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 11817,
+   "field": "stem",
+   "value": "姉「あれ？出かけるの？」\r\n妹「うん、ちょっと新宿まで。」\r\n姉「あ、新宿に（　　）、帰りにみるく屋のチーズケーキ、買ってきてくれない？」\r\n妹「うん、いいよ。」",
+   "reason": "两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 11819,
+   "field": "stem",
+   "value": "（社内メール）\n営業部各位\n第三回プレゼン勉強会を開催します。参加希望者は1月15日までに、人事課村田までお知らせ（　　）。",
+   "reason": "两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 11825,
+   "field": "stem",
+   "value": "「乗りかかった船」ということわざは、乗った船が岸を離れれば途中で降りることができない___&nbsp; <u>★</u>&nbsp; ___  ___ことのたとえである。",
+   "reason": "两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 11826,
+   "field": "stem",
+   "value": "年をとって人生を振り返ったときに<u>&nbsp;&nbsp;&nbsp;&nbsp;</u>&nbsp;&nbsp;<u>&nbsp;&nbsp;&nbsp;&nbsp;</u>&nbsp;&nbsp;<u>★</u>&nbsp;&nbsp;<u>&nbsp;&nbsp;&nbsp;&nbsp;</u>したくない。",
+   "reason": "两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 11827,
+   "field": "stem",
+   "value": "NPO法人「音楽の夢」では、音楽を通じてさまざまな教育プロジェクトを展開していくことに<u>&nbsp;&nbsp;&nbsp;&nbsp;</u>&nbsp;&nbsp;<u>&nbsp;&nbsp;&nbsp;&nbsp;</u>&nbsp;&nbsp;<u>★</u>&nbsp;&nbsp;<u>&nbsp;&nbsp;&nbsp;&nbsp;</u>活動をしています。」",
+   "reason": "两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 11829,
+   "field": "stem",
+   "value": "県立高校の校長が、同校に在学する知人の娘の成績証明書を偽造したことが明らかになり、教育関係者からは<u>&nbsp;&nbsp;&nbsp;&nbsp;</u>&nbsp;&nbsp;<u>&nbsp;&nbsp;&nbsp;&nbsp;</u>&nbsp;&nbsp;<u>★</u>&nbsp;&nbsp;<u>&nbsp;&nbsp;&nbsp;&nbsp;</u>と怒りの声が上がった。",
+   "reason": "两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 11835,
+   "field": "options",
+   "value": [
+    "玲子は会いたくなって",
+    "玲子は母親に会いたくなって",
+    "<p>母親に会いたくなって</p>\n",
+    "母親は玲子に会いたくなって"
+   ],
+   "reason": "选项1:两侧文字不同，采纳可信度更高的 mojidict；选项2:两侧文字不同，采纳可信度更高的 mojidict；选项4:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  }
+ ],
+ "_source": "mojidict",
+ "_note": "compare_sources.py 生成的交叉比对结果"
+}

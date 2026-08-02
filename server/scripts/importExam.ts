@@ -2,8 +2,9 @@
  * 把「真题题库 markdown」解析并导入本地数据库（ExamPaper / ExamPassage / ExamQuestion）。
  *
  * 用法（需先在 server/.env 里配置 DATABASE_URL，例如 file:./dev.db）：
- *   npm run import:exam -- --file ../N1/整理/2020年12月_N1_题库.md --year 2020 --month 12
+ *   npm run import:exam -- --file ../n1-qbank/markdown/2020年12月_N1_题库.md --year 2020 --month 12
  *   # year/month 省略时，会尝试从文件名（如「2020年12月」）解析
+ *   # 题库共 31 套，见 n1-qbank/README.md；批量导入可循环 markdown/ 下的全部文件
  *
  * 幂等：按 (level, year, month) 找/建试卷，重导时先清空该卷的旧题目与文章再写入。
  */
@@ -35,7 +36,7 @@ function parseArgs() {
     return i >= 0 && i + 1 < args.length ? args[i + 1] : undefined
   }
   return {
-    file: get('file') ?? '../N1/整理/2020年12月_N1_题库.md',
+    file: get('file') ?? '../n1-qbank/markdown/2020年12月_N1_题库.md',
     year: get('year') ? Number(get('year')) : undefined,
     month: get('month') ? Number(get('month')) : undefined,
     level: get('level') ?? 'N1',

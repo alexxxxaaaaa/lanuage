@@ -1,0 +1,62 @@
+{
+ "disputes": [],
+ "overrides": [
+  {
+   "id": 32598,
+   "field": "stem",
+   "value": "建物の入りロは、夜間は<u>施錠</u>されている。",
+   "reason": "两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 32607,
+   "field": "options",
+   "value": [
+    "<p>掛け合わなくて</p>\n",
+    "張り合わなくて",
+    "<p>かみ合わなくて</p>\n",
+    "<p>釣り合わなくて</p>\n"
+   ],
+   "reason": "选项2:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 32612,
+   "field": "options",
+   "value": [
+    "<p>分割</p>",
+    "分別",
+    "<p>分担</p>\n",
+    "<p>分類</p>"
+   ],
+   "reason": "选项2:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 32617,
+   "field": "options",
+   "value": [
+    "<p>この機械は、最新の物で性能はいいが、電力の<span style=\"text-decoration:underline;\">要請</span>が大きいのが難点だ。</p>",
+    "<p>被災地からの<span style=\"text-decoration:underline;\">要請</span>で、国から医療チームが派遣されることになった。</p>",
+    "今回の仕事は特別な資格の<u>要請</u>はないので、どなたでも応募できます。",
+    "<p>高級ワインを何本も飲んで、レストランから高額な<span style=\"text-decoration:underline;\">要請</span>があった。</p>"
+   ],
+   "reason": "选项3:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 32618,
+   "field": "options",
+   "value": [
+    "<p>憧れの歌手に会ったとき、緊張して動作が<span style=\"text-decoration:underline;\">ぎこちなくなって</span>しまった。</p>",
+    "この道は路面の状態が悪くて<u>ぎこちない</u>ので、運転しにくい。",
+    "今年は天候が悪く、稲や野菜の生育が<u>ぎこちない</u>そうだ。",
+    "<p>風邪でのどの調子がよくないのか、声がぎこちなくて聞き取りにくい。</p>"
+   ],
+   "reason": "选项2:两侧文字不同，采纳可信度更高的 mojidict；选项3:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  }
+ ],
+ "_source": "mojidict",
+ "_note": "compare_sources.py 生成的交叉比对结果"
+}

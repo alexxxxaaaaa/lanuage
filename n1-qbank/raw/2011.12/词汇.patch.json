@@ -1,0 +1,62 @@
+{
+ "disputes": [],
+ "overrides": [
+  {
+   "id": 26547,
+   "field": "options",
+   "value": [
+    "<p>はいらん</p>\n",
+    "<p>はいけん</p>\n",
+    "<p>えつらん</p>\n",
+    "えっけん\t"
+   ],
+   "reason": "选项4:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 26548,
+   "field": "stem",
+   "value": "首相は自身の発言についての<u>釈明</u>に追われた。",
+   "reason": "两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 26560,
+   "field": "options",
+   "value": [
+    "<p>的確な</p>",
+    "<p>平凡<span style=\"text-wrap-mode: wrap;\">な</span></p>",
+    "積極てきな",
+    "<p>否定的な</p>"
+   ],
+   "reason": "选项3:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 26572,
+   "field": "options",
+   "value": [
+    "<p>この文章は<u>質素</u>で、とてもわかりやすい。</p>\n",
+    "もうすこし値段の<u>質素</u>なツアーはありませんか。",
+    "<p>経験は<u>質素</u>でも、やる気のある人を採用したい。</p>\n",
+    "<p>無駄なものは買わずに、<u>質素</u>な生活を送っている。</p>\n"
+   ],
+   "reason": "选项2:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 26573,
+   "field": "options",
+   "value": [
+    "<p>相手チームのわずかなすきを<u>見失わず</u>、点を取った。</p>\n",
+    "<p>何度もチェックしたはずなのに、間違いを<u>見失って</u>いた。</p>\n",
+    "<p>先生は、最後まで私たちを<u>見失わず</u>に指導してくれた。</p>\n",
+    "よそ見をしながら歩いていたから、友達を<u>見失って</u>しまった。"
+   ],
+   "reason": "选项4:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  }
+ ],
+ "_source": "mojidict",
+ "_note": "compare_sources.py 生成的交叉比对结果"
+}

@@ -1,0 +1,31 @@
+{
+ "disputes": [],
+ "overrides": [
+  {
+   "id": 11787,
+   "field": "options",
+   "value": [
+    "<p>自問</p>\n",
+    "<p>打診</p>\n",
+    "試行",
+    "<p>探索</p>\n"
+   ],
+   "reason": "选项3:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 11800,
+   "field": "options",
+   "value": [
+    "うわさの<u>拠点</u>を追究しても、何も解決はしないだろう。",
+    "<p>日本近代文学の<u>拠点</u>となった作品として、この小説は高く評価された。</p>\n",
+    "<p>この都市は、広場を<u>拠点</u>にして道が放射状に伸びている。</p>\n",
+    "<p>A社は、地元の京都を<u>拠点</u>に全国各地でビジネスを展開している。</p>\n"
+   ],
+   "reason": "选项1:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  }
+ ],
+ "_source": "mojidict",
+ "_note": "compare_sources.py 生成的交叉比对结果"
+}

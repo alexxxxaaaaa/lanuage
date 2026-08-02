@@ -1,0 +1,88 @@
+{
+ "disputes": [],
+ "overrides": [
+  {
+   "id": 27543,
+   "field": "stem",
+   "value": "本書の改定（　　　　）は、９月上旬に発売の予定です。",
+   "reason": "两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 27545,
+   "field": "options",
+   "value": [
+    "<p>悩ましい</p>\n",
+    "<p>疑わしい</p>\n",
+    "まぎらわしい",
+    "わずらわしい"
+   ],
+   "reason": "选项3:两侧文字不同，采纳可信度更高的 mojidict；选项4:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 27550,
+   "field": "stem",
+   "value": "この部屋にある家具は、どれも<u>簡素な</u>デザインのものだった。",
+   "reason": "两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 27554,
+   "field": "stem",
+   "value": "&nbsp;免除",
+   "reason": "两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 27554,
+   "field": "options",
+   "value": [
+    "<p>会費を2年間滞納すると、自動的に会から<u>免除</u>されます。</p>\n",
+    "３年後にもう一度試験をうけないと、この資格は<u>免除</u>されます。",
+    "<p>入学試験の成績優秀者は、入学金が<u>免除</u>になります。</p>\n",
+    "うがいをすれば、風邪の<u>免除</u>になります。"
+   ],
+   "reason": "选项2:两侧文字不同，采纳可信度更高的 mojidict；选项4:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 27555,
+   "field": "options",
+   "value": [
+    "<p>2年の<span style=\"text-decoration:underline;\">ブランク</span>があり心配だったが、先月から職場に復帰した。</p>",
+    "１５分ほど<u>ブランク</u>にしませんか。みんな疲れたようだし。",
+    "<p>プレゼンの最中は緊張しちゃって、頭が<span style=\"text-decoration:underline;\">ブランク</span>だったよ。</p>",
+    "<p>大事なデータを<span style=\"text-decoration:underline;\">ブランク</span>してしまった。</p>"
+   ],
+   "reason": "选项2:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 27556,
+   "field": "options",
+   "value": [
+    "昨日、会社を<u>怠って</u>映画を見に行ってしまった。",
+    "<p>忙しいときは料理を<u>怠って</u>、買ってきた弁当で済ますこともある。</p>\n",
+    "<p>彼はどんな苦労も<u>怠らずに</u>、いつも積極的に仕事に取り組んでいる。</p>\n",
+    "<p>成功を勝ち取るためには、日々の努力を<u>怠って</u>はいけない。</p>\n"
+   ],
+   "reason": "选项1:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  },
+  {
+   "id": 27559,
+   "field": "options",
+   "value": [
+    "この商品は<u>有数</u>ですので、売り切れの場合もごさいます。",
+    "<p>この国は世界でも<u>有数</u>の小麦生産国だ。</p>\n",
+    "<p>会議で反対意見を述べた人は<u>有数</u>のみだった。</p>\n",
+    "いくつもの案の比較、検討し、その中から<u>有数</u>の案を選んだ。"
+   ],
+   "reason": "选项1:两侧文字不同，采纳可信度更高的 mojidict；选项4:两侧文字不同，采纳可信度更高的 mojidict",
+   "from": "mojidict"
+  }
+ ],
+ "_source": "mojidict",
+ "_note": "compare_sources.py 生成的交叉比对结果"
+}
