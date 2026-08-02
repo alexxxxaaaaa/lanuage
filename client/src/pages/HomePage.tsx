@@ -1,35 +1,95 @@
+import { Avatar, Button, Card, Chip, Separator, toast } from '@heroui/react'
+import { Info, LogOut, Shuffle } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { Button, toast } from '@heroui/react'
+import { Link, useNavigate } from 'react-router'
+
+import { AiUsageCard } from '../components/AiUsageCard'
+import { WeeklyReviewModal } from '../components/WeeklyReviewModal'
 import { Modal } from '../components/ui/Modal'
 import { SelectField } from '../components/ui/SelectField'
+import { Stat } from '../components/ui/Stat'
 import { TabsView } from '../components/ui/TabsView'
 import { alertDialog } from '../components/ui/dialog'
-import { Link, useNavigate } from 'react-router'
-import { useI18n } from '../i18n'
-import {
-  getTodayLearnedStats,
-  getTomorrowReviewStats,
-  markWordMastered,
-} from '../api/review'
+import { getTodayLearnedStats, markWordMastered } from '../api/review'
 import { getTodayNewWords } from '../api/words'
-import type { Word } from '../types'
+import { useI18n, type UiLanguage } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
-import { WeeklyReviewModal } from '../components/WeeklyReviewModal'
+import { useAuthStore } from '../store/authStore'
+import type { Word } from '../types'
 
-const LEARN_LIMIT_OPTIONS: { value: number | null; label: string }[] = [
-  { value: 5, label: '5 个' },
-  { value: 10, label: '10 个' },
-  { value: 15, label: '15 个' },
-  { value: 20, label: '20 个' },
-  { value: 30, label: '30 个' },
-  { value: 50, label: '50 个' },
-  { value: 100, label: '100 个' },
-  { value: null, label: '全部' },
-]
+/** `null` is "no cap" — the learn session then covers every new word. */
+const LEARN_LIMITS: readonly (number | null)[] = [5, 10, 15, 20, 30, 50, 100, null]
 
+/** UI language → the BCP 47 tag `toLocaleDateString` wants for the header date. */
+const DATE_LOCALES: Record<UiLanguage, string> = {
+  zh: 'zh-CN',
+  en: 'en-US',
+  jp: 'ja-JP',
+}
+
+/** The shape both preview lists boil down to — a due item or a new word. */
+type PreviewWord = {
+  id: string
+  word: string
+  reading?: string | null
+  meaning?: string | null
+  language: string
+}
+
+function WordPreviewList({
+  items,
+  busyId,
+  onMaster,
+}: {
+  items: PreviewWord[]
+  busyId: string | null
+  onMaster: (id: string, word: string) => void
+}) {
+  const { t } = useI18n()
+
+  return (
+    <ul className="m-0 flex list-none flex-col gap-2 p-0 text-left">
+      {items.map((item) => (
+        <li
+          key={item.id}
+          className="flex flex-col gap-1.5 rounded-xl border border-border bg-foreground/2 px-3.5 py-3"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <strong>{item.word}</strong>
+            {item.reading ? <span className="muted">{item.reading}</span> : null}
+            <Chip color="accent" size="sm" variant="soft">
+              {item.language.toUpperCase()}
+            </Chip>
+          </div>
+          {item.meaning ? (
+            <p className="muted m-0 text-[13px]">{item.meaning}</p>
+          ) : null}
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              isDisabled={busyId === item.id}
+              onPress={() => onMaster(item.id, item.word)}
+            >
+              {busyId === item.id ? t('home.marking') : t('home.markMastered')}
+            </Button>
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/**
+ * The dashboard: who is signed in, what is due today, the folders to work
+ * through, and what the AI features have cost. Everything that used to live on
+ * a separate account page is folded in here — this is the only page a session
+ * has to start from.
+ */
 export function HomePage() {
   const navigate = useNavigate()
-  const { t } = useI18n()
+  const { t, language } = useI18n()
+  const user = useAuthStore((state) => state.user)
   const folders = useAppStore((state) => state.folders)
   const isLoadingFolders = useAppStore((state) => state.isLoadingFolders)
   const dueReviews = useAppStore((state) => state.dueReviews)
@@ -37,18 +97,32 @@ export function HomePage() {
   const isLoadingReviews = useAppStore((state) => state.isLoadingReviews)
   const error = useAppStore((state) => state.error)
   const folderList = Array.isArray(folders) ? folders : []
-  const dueCount = Array.isArray(dueReviews) ? dueReviews.length : 0
-  const dueCountByFolder = useMemo(() => {
-    const map = new Map<string, number>()
-    if (!Array.isArray(dueReviews)) return map
-    for (const item of dueReviews) {
-      const id = item.word.folder.id
-      map.set(id, (map.get(id) ?? 0) + 1)
+  // Always show the full due pool here; `todayReviews` is narrowed by the
+  // per-session folder filter chosen on the review page, which would hide the
+  // other folders' words from a dashboard that is meant to cover everything.
+  const dueListItems = useMemo(
+    () => (Array.isArray(dueReviews) ? dueReviews : []),
+    [dueReviews],
+  )
+  const dueCount = dueListItems.length
+  // One pass feeds both the per-folder counts on the cards and the tabbed
+  // preview list in the modal.
+  const dueByFolder = useMemo(() => {
+    const map = new Map<string, { name: string; items: PreviewWord[] }>()
+    for (const item of dueListItems) {
+      const { folder } = item.word
+      const group = map.get(folder.id) ?? { name: folder.name, items: [] }
+      group.items.push({ ...item.word, id: item.wordId })
+      map.set(folder.id, group)
     }
     return map
-  }, [dueReviews])
+  }, [dueListItems])
+  const totalWords = folderList.reduce(
+    (sum, folder) => sum + (folder._count?.words ?? 0),
+    0,
+  )
+
   const [todayLearned, setTodayLearned] = useState({ en: 0, jp: 0, total: 0 })
-  const [tomorrowReview, setTomorrowReview] = useState({ en: 0, jp: 0, total: 0 })
   const [showDueList, setShowDueList] = useState(false)
   // When set, opens the new-learn preview modal scoped to that folder.
   const [learnFolderId, setLearnFolderId] = useState<string | null>(null)
@@ -57,7 +131,7 @@ export function HomePage() {
   const [weeklyOpen, setWeeklyOpen] = useState(false)
 
   // Auto-open the weekly review modal on Fridays, once per week. localStorage
-  // key includes ISO week so the "dismissed" state resets each Friday.
+  // key includes the date so the "dismissed" state resets each Friday.
   useEffect(() => {
     const now = new Date()
     if (now.getDay() !== 5) return // 5 = Friday
@@ -69,40 +143,21 @@ export function HomePage() {
     setWeeklyOpen(true)
     localStorage.setItem(key, '1')
   }, [])
-  // Always show full due pool on Home; todayReviews is filtered by reviewFolderId
-  // (the per-session filter chosen in the Review page) which would hide other folders.
-  const dueListItems = useMemo(
-    () => (Array.isArray(dueReviews) ? dueReviews : []),
-    [dueReviews],
-  )
-
-  // Group due items by folder for tabbed display.
-  const dueGroups = useMemo(() => {
-    const map = new Map<string, { folderId: string; folderName: string; items: typeof dueListItems }>()
-    for (const item of dueListItems) {
-      const folderId = item.word.folder?.id ?? item.word.folderId ?? 'unknown'
-      const folderName = item.word.folder?.name ?? item.word.language.toUpperCase()
-      const group = map.get(folderId) ?? { folderId, folderName, items: [] }
-      group.items.push(item)
-      map.set(folderId, group)
-    }
-    return Array.from(map.values())
-  }, [dueListItems])
 
   const newWordsForLearnFolder = useMemo(() => {
     if (!learnFolderId) return [] as Word[]
     const filtered = todayNewWords.filter(
       (w) => (w.folder?.id ?? w.folderId) === learnFolderId,
     )
-    // Modal previews exactly what the upcoming /learn session will cover, so
-    // it must respect the same `Learn Count` cap the learn page applies.
+    // The modal previews exactly what the upcoming /learn session will cover,
+    // so it must respect the same `Learn Count` cap the learn page applies.
     return sessionLimit === null ? filtered : filtered.slice(0, sessionLimit)
   }, [todayNewWords, learnFolderId, sessionLimit])
 
-  const learnFolderName = useMemo(() => {
-    if (!learnFolderId) return ''
-    return folderList.find((f) => f.id === learnFolderId)?.name ?? ''
-  }, [folderList, learnFolderId])
+  const learnFolderName = learnFolderId
+    ? (folderList.find((f) => f.id === learnFolderId)?.name ?? '')
+    : ''
+
   useEffect(() => {
     useAppStore.getState().clearError()
     void useAppStore.getState().fetchFolders()
@@ -110,20 +165,13 @@ export function HomePage() {
     void getTodayNewWords().then((list) => {
       setTodayNewWords(Array.isArray(list) ? list : [])
     })
-    void Promise.all([getTodayLearnedStats(), getTomorrowReviewStats()]).then(
-      ([todayStats, tomorrowStats]) => {
-        setTodayLearned({
-          en: todayStats?.en ?? 0,
-          jp: todayStats?.jp ?? 0,
-          total: todayStats?.total ?? 0,
-        })
-        setTomorrowReview({
-          en: tomorrowStats?.en ?? 0,
-          jp: tomorrowStats?.jp ?? 0,
-          total: tomorrowStats?.total ?? 0,
-        })
-      },
-    )
+    void getTodayLearnedStats().then((stats) => {
+      setTodayLearned({
+        en: stats?.en ?? 0,
+        jp: stats?.jp ?? 0,
+        total: stats?.total ?? 0,
+      })
+    })
   }, [])
 
   const handleMarkMastered = async (wordId: string, wordLabel: string) => {
@@ -146,7 +194,7 @@ export function HomePage() {
       toast.success(t('home.markedMastered', { word: wordLabel }))
     } catch {
       toast.danger(t('home.markMasteredFailed'))
-      // Server rejected — reload authoritative state so local optimistic
+      // Server rejected — reload authoritative state so the local optimistic
       // removal doesn't outlive reality.
       const [, list] = await Promise.all([
         useAppStore.getState().fetchTodayReviews(),
@@ -158,315 +206,269 @@ export function HomePage() {
     }
   }
 
-  const handleStartLearnByFolder = (folderId: string) => {
-    setLearnFolderId(folderId)
-  }
-
   const handleStartReviewByFolder = (folderId: string) => {
     useAppStore.getState().setReviewFolderId(folderId)
     void useAppStore.getState().fetchTodayReviews()
     navigate('/review')
   }
 
-  const handleLearnLimitChange = (value: string) => {
-    const next = value === 'all' ? null : Number(value)
-    useAppStore.getState().setSessionLimit(next)
-  }
+  const displayName = user?.username || '—'
+  const todayLabel = useMemo(
+    () =>
+      new Date().toLocaleDateString(DATE_LOCALES[language], {
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long',
+      }),
+    [language],
+  )
 
   return (
     <section className="page">
-      <div className="card py-12 text-center">
-        <p className="eyebrow">Today Review</p>
-        <div className="flex flex-wrap items-center justify-center gap-2.5">
-          <h2>{t('home.title')}</h2>
-          <Button variant="outline"
-            type="button"
-            onPress={() => setWeeklyOpen(true)}
+      <Card>
+        {/* Identity only — sign out is the one thing here that isn't about
+            today's session, so it sits apart as a quiet icon. */}
+        <Card.Header className="flex-row items-center gap-4">
+          <Avatar size="lg">
+            <Avatar.Fallback>{displayName.slice(0, 2).toUpperCase()}</Avatar.Fallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <Card.Title className="truncate text-lg">{displayName}</Card.Title>
+            <Card.Description>{todayLabel}</Card.Description>
+          </div>
+          <Button
+            isIconOnly
+            variant="ghost"
+            aria-label={t('auth.logout')}
+            render={(props) => <button {...props} title={t('auth.logout')} />}
+            onPress={() => {
+              useAuthStore.getState().clearSession()
+              navigate('/login', { replace: true })
+            }}
           >
-            本周回顾
+            <LogOut className="size-4" aria-hidden />
           </Button>
-          <Button variant="outline"
-            type="button"
+        </Card.Header>
+
+        <Separator />
+
+        {/* Same 4-column stat grid and footer-of-controls as the AI usage card
+            below, so the two read as one dashboard rather than two layouts. */}
+        <Card.Content className="grid grid-cols-2 gap-5 sm:grid-cols-4">
+          <Stat
+            accent
+            label={t('home.dueLabel')}
+            value={isLoadingReviews ? '—' : dueCount}
+          />
+          <Stat
+            label={t('home.learnedTodayLabel')}
+            value={todayLearned.total}
+            hint={t('home.langSplit', { en: todayLearned.en, jp: todayLearned.jp })}
+          />
+        </Card.Content>
+
+        <Card.Footer className="flex-wrap gap-2">
+          {dueCount > 0 ? (
+            <Button size="sm" variant="outline" onPress={() => setShowDueList(true)}>
+              {t('home.showDueList', { count: dueCount })}
+            </Button>
+          ) : null}
+          <Button size="sm" variant="outline" onPress={() => setWeeklyOpen(true)}>
+            {t('home.weeklyReview')}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
             onPress={() =>
               void alertDialog.info({
                 title: t('home.algoTitle'),
-                okText: t('expression.save'),
-                content: (
-                  <div>
-                    <p>{t('home.algoBrief')}</p>
-                  </div>
-                ),
+                content: t('home.algoBrief'),
               })
             }
           >
+            <Info className="size-4" aria-hidden />
             {t('home.algoInfo')}
           </Button>
-        </div>
-        <p className="hero-count">{isLoadingReviews ? '...' : dueCount}</p>
-        {todayLearned.total > 0 ? (
-          <p className="muted">
-            {t('home.todayLearned', {
-              en: todayLearned.en,
-              jp: todayLearned.jp,
-              total: todayLearned.total,
-            })}
-          </p>
-        ) : null}
-        {tomorrowReview.total > 0 ? (
-          <p className="muted">
-            {t('home.tomorrowReview', {
-              en: tomorrowReview.en,
-              jp: tomorrowReview.jp,
-              total: tomorrowReview.total,
-            })}
-          </p>
-        ) : null}
+        </Card.Footer>
+      </Card>
 
-        {dueListItems.length > 0 ? (
-          <div className="mt-4 flex flex-col items-center gap-3">
-            <Button variant="outline" size="sm" className="self-center"
-              type="button"
-              onPress={() => setShowDueList(true)}
-            >
-              {t('home.showDueList', { count: dueListItems.length })}
-            </Button>
+      {error ? <p className="error-text">{error}</p> : null}
+
+      <Card>
+        <Card.Header className="flex-row flex-wrap items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <Card.Title className="text-base">{t('routes.folders')}</Card.Title>
+            <Card.Description>
+              {t('home.librarySummary', {
+                folders: folderList.length,
+                words: totalWords,
+              })}
+            </Card.Description>
           </div>
-        ) : null}
+          {/* One control for every card: the cap is a single global setting,
+              so showing it per folder only suggested otherwise. */}
+          <label className="session-inline">
+            <span>{t('home.learnLimit')}</span>
+            <SelectField
+              aria-label={t('home.learnLimit')}
+              className="min-w-[104px]"
+              value={sessionLimit === null ? 'all' : String(sessionLimit)}
+              onChange={(value) =>
+                useAppStore
+                  .getState()
+                  .setSessionLimit(value === 'all' ? null : Number(value))
+              }
+              options={LEARN_LIMITS.map((limit) => ({
+                value: limit === null ? 'all' : String(limit),
+                label: limit === null ? t('home.all') : `${limit}${t('home.unit')}`,
+              }))}
+            />
+          </label>
+        </Card.Header>
 
-        <Modal
-          title={t('home.dueListTitle', { count: dueListItems.length })}
-          isOpen={showDueList}
-          onClose={() => setShowDueList(false)}
-          size="md"
-        >
-          {dueListItems.length === 0 ? (
-            <p className="muted">{t('home.dueListEmpty')}</p>
+        <Card.Content>
+          {folderList.length === 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-foreground/3 px-4 py-5">
+              <span className="muted">{t('home.noFolders')}</span>
+              <Button size="sm" variant="secondary" onPress={() => navigate('/folders')}>
+                {t('home.manageFolders')}
+              </Button>
+            </div>
           ) : (
-            <>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-              <Button variant="outline" size="sm"
-                type="button"
-                render={(props) => <button {...props} title="打乱今日复习顺序(下次刷新会重置)" />}
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(232px,1fr))] gap-3">
+              {folderList.map((folder) => {
+                const due = dueByFolder.get(folder.id)?.items.length ?? 0
+                return (
+                  // `secondary` lifts the tile off the card it sits in — nested
+                  // `default` cards would be the same surface twice over.
+                  <Card key={folder.id} variant="secondary" className="gap-2.5">
+                    <Link
+                      to={`/folders/${folder.id}`}
+                      className="flex min-w-0 flex-col gap-1.5 text-inherit no-underline"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Card.Title className="min-w-0 flex-1 truncate text-base font-semibold">
+                          {folder.name}
+                        </Card.Title>
+                        <Chip size="sm" variant="secondary">
+                          {folder.language.toUpperCase()}
+                        </Chip>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Card.Description>
+                          {t('home.wordCount', { count: folder._count?.words ?? 0 })}
+                        </Card.Description>
+                        {due > 0 ? (
+                          <Chip color="accent" size="sm" variant="soft">
+                            {t('home.dueChip', { count: due })}
+                          </Chip>
+                        ) : null}
+                      </div>
+                    </Link>
+                    <Card.Footer className="mt-auto gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        isDisabled={isLoadingFolders || isLoadingReviews}
+                        onPress={() => setLearnFolderId(folder.id)}
+                      >
+                        {t('home.learnNew')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        isDisabled={isLoadingFolders || isLoadingReviews || due === 0}
+                        onPress={() => handleStartReviewByFolder(folder.id)}
+                      >
+                        {t('home.review')}
+                      </Button>
+                    </Card.Footer>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </Card.Content>
+      </Card>
+
+      <AiUsageCard />
+
+      <Modal
+        title={t('home.dueListTitle', { count: dueCount })}
+        isOpen={showDueList}
+        onClose={() => setShowDueList(false)}
+        size="md"
+      >
+        {dueCount === 0 ? (
+          <p className="muted">{t('home.dueListEmpty')}</p>
+        ) : (
+          <>
+            <div className="mb-2 flex justify-end">
+              <Button
+                size="sm"
+                variant="ghost"
+                render={(props) => <button {...props} title={t('home.shuffleTip')} />}
                 onPress={() => useAppStore.getState().shuffleTodayReviews()}
               >
-                🔀 打乱顺序
+                <Shuffle className="size-4" aria-hidden />
+                {t('home.shuffle')}
               </Button>
             </div>
             <TabsView
-              items={dueGroups.map((group) => ({
-                key: group.folderId,
-                label: `${group.folderName}（${group.items.length}）`,
+              items={Array.from(dueByFolder, ([folderId, group]) => ({
+                key: folderId,
+                label: `${group.name}（${group.items.length}）`,
                 children: (
-                  <ul className="m-0 flex w-full max-w-[560px] list-none flex-col gap-2 p-0 text-left">
-                    {group.items.map((item) => (
-                      <li key={item.wordId} className="flex flex-col gap-1.5 rounded-xl border border-border bg-foreground/2 px-3.5 py-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <strong>{item.word.word}</strong>
-                          {item.word.reading ? (
-                            <span className="muted">{item.word.reading}</span>
-                          ) : null}
-                          <span className="folder-language">
-                            {item.word.language.toUpperCase()}
-                          </span>
-                        </div>
-                        {item.word.meaning ? (
-                          <p className="muted m-0 text-[13px]">
-                            {item.word.meaning}
-                          </p>
-                        ) : null}
-                        <div className="flex justify-end gap-2">
-                          <Button variant="outline" size="sm"
-                            type="button"
-                            isDisabled={masteringWordId === item.wordId}
-                            onPress={() =>
-                              void handleMarkMastered(item.wordId, item.word.word)
-                            }
-                          >
-                            {masteringWordId === item.wordId
-                              ? t('home.marking')
-                              : t('home.markMastered')}
-                          </Button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                  <WordPreviewList
+                    items={group.items}
+                    busyId={masteringWordId}
+                    onMaster={(id, word) => void handleMarkMastered(id, word)}
+                  />
                 ),
               }))}
             />
-            </>
-          )}
-        </Modal>
+          </>
+        )}
+      </Modal>
 
-        <Modal
-          title={
-            learnFolderName
-              ? `${t('home.newListTitle', { count: newWordsForLearnFolder.length })} · ${learnFolderName}`
-              : t('home.newListTitle', { count: newWordsForLearnFolder.length })
-          }
-          isOpen={learnFolderId !== null}
-          onClose={() => setLearnFolderId(null)}
-          footer={
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <Button variant="outline" size="sm" type="button" onPress={() => setLearnFolderId(null)}>
-                {t('expression.collapseCreate')}
-              </Button>
-              <Button
-                type="button"
-                isDisabled={newWordsForLearnFolder.length === 0}
-                onPress={() => {
-                  if (!learnFolderId) return
-                  useAppStore.getState().setReviewFolderId(learnFolderId)
-                  setLearnFolderId(null)
-                  navigate('/learn')
-                }}
-              >
-                {t('home.learnNew')}
-              </Button>
-            </div>
-          }
-          size="md"
-        >
-          {newWordsForLearnFolder.length === 0 ? (
-            <p className="muted">{t('home.newListEmpty')}</p>
-          ) : (
-            <ul className="m-0 flex w-full max-w-[560px] list-none flex-col gap-2 p-0 text-left">
-              {newWordsForLearnFolder.map((w) => (
-                <li key={w.id} className="flex flex-col gap-1.5 rounded-xl border border-border bg-foreground/2 px-3.5 py-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <strong>{w.word}</strong>
-                    {w.reading ? <span className="muted">{w.reading}</span> : null}
-                    <span className="folder-language">{w.language.toUpperCase()}</span>
-                  </div>
-                  {w.meaning ? (
-                    <p className="muted m-0 text-[13px]">{w.meaning}</p>
-                  ) : null}
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" size="sm"
-                      type="button"
-                      isDisabled={masteringWordId === w.id}
-                      onPress={() => void handleMarkMastered(w.id, w.word)}
-                    >
-                      {masteringWordId === w.id
-                        ? t('home.marking')
-                        : t('home.markMastered')}
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Modal>
-        {/* <div className="hero-actions">
-          <Button
-            type="button"
-            onPress={handleStartLearnAll}
-            isDisabled={isLoadingReviews}
-          >
-            全部分类开始学习
-          </Button>
-          <Button variant="outline"
-            type="button"
-            onPress={handleStartReviewAll}
-            isDisabled={isLoadingReviews || dueCount === 0}
-          >
-            全部分类开始复习
-          </Button>
-          <Link className="button button--outline" to="/folders">
-            查看分类
-          </Link>
-          <Button variant="outline"
-            type="button"
-            isDisabled={isLoadingReviews || isLoadingFolders}
-            onPress={() => {
-              void useAppStore.getState().fetchFolders()
-              void useAppStore.getState().fetchTodayReviews()
-            }}
-          >
-            刷新数据
-          </Button>
-        </div> */}
-
-        {error ? <p className="error-text">{error}</p> : null}
-      </div>
-
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
-        <Link className="flex items-center gap-3 rounded-[14px] border border-border bg-surface px-4.5 py-4 text-foreground no-underline transition-[transform,box-shadow,border-color] duration-150 hover:-translate-y-px hover:border-accent hover:shadow-[0_6px_20px_rgba(37,99,235,0.1)]" to="/folders">
-          <div className="inline-flex size-11 items-center justify-center rounded-[10px] bg-accent/8 text-[26px]">📚</div>
-          <div className="flex flex-1 flex-col gap-0.5">
-            <strong className="text-[15px]">{t('routes.folders')}</strong>
-            <span className="muted text-xs leading-[1.4]">按语言/教材分类管理单词</span>
+      <Modal
+        title={
+          learnFolderName
+            ? `${t('home.newListTitle', { count: newWordsForLearnFolder.length })} · ${learnFolderName}`
+            : t('home.newListTitle', { count: newWordsForLearnFolder.length })
+        }
+        isOpen={learnFolderId !== null}
+        onClose={() => setLearnFolderId(null)}
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="tertiary" onPress={() => setLearnFolderId(null)}>
+              {t('common.close')}
+            </Button>
+            <Button
+              isDisabled={newWordsForLearnFolder.length === 0}
+              onPress={() => {
+                if (!learnFolderId) return
+                useAppStore.getState().setReviewFolderId(learnFolderId)
+                setLearnFolderId(null)
+                navigate('/learn')
+              }}
+            >
+              {t('home.learnNew')}
+            </Button>
           </div>
-          <span className="text-lg font-semibold text-accent">→</span>
-        </Link>
-        <Link className="flex items-center gap-3 rounded-[14px] border border-border bg-surface px-4.5 py-4 text-foreground no-underline transition-[transform,box-shadow,border-color] duration-150 hover:-translate-y-px hover:border-accent hover:shadow-[0_6px_20px_rgba(37,99,235,0.1)]" to="/notes">
-          <div className="inline-flex size-11 items-center justify-center rounded-[10px] bg-accent/8 text-[26px]">📝</div>
-          <div className="flex flex-1 flex-col gap-0.5">
-            <strong className="text-[15px]">{t('routes.notes')}</strong>
-            <span className="muted text-xs leading-[1.4]">摘录文章 / 课文，挑词加入词库</span>
-          </div>
-          <span className="text-lg font-semibold text-accent">→</span>
-        </Link>
-        <Link className="flex items-center gap-3 rounded-[14px] border border-border bg-surface px-4.5 py-4 text-foreground no-underline transition-[transform,box-shadow,border-color] duration-150 hover:-translate-y-px hover:border-accent hover:shadow-[0_6px_20px_rgba(37,99,235,0.1)]" to="/expressions">
-          <div className="inline-flex size-11 items-center justify-center rounded-[10px] bg-accent/8 text-[26px]">💬</div>
-          <div className="flex flex-1 flex-col gap-0.5">
-            <strong className="text-[15px]">{t('routes.expressions')}</strong>
-            <span className="muted text-xs leading-[1.4]">收集口语化短句和场景表达</span>
-          </div>
-          <span className="text-lg font-semibold text-accent">→</span>
-        </Link>
-      </div>
-
-      <div className="folder-grid mt-1">
-        {folderList.map((folder) => (
-          <article key={folder.id} className="card folder-card">
-            <Link className="folder-card-link" to={`/folders/${folder.id}`}>
-              <div className="folder-top">
-                <strong>{folder.name}</strong>
-                <span className="folder-language">{folder.language.toUpperCase()}</span>
-              </div>
-              <p className="muted">
-                {t('home.wordsAndDue', {
-                  words: folder._count?.words ?? 0,
-                  due: dueCountByFolder.get(folder.id) ?? 0,
-                })}
-              </p>
-            </Link>
-            <div className="folder-card-actions flex-wrap items-center justify-between">
-              <label className="session-inline justify-between">
-                <span className="muted">{t('home.learnLimit')}</span>
-                <SelectField
-                  className="min-w-[100px]"
-                  value={sessionLimit === null ? 'all' : String(sessionLimit)}
-                  onChange={(v) => handleLearnLimitChange(v)}
-                  options={LEARN_LIMIT_OPTIONS.map((option) => ({
-                    value: option.value === null ? 'all' : String(option.value),
-                    label:
-                      option.value === null
-                        ? t('home.all')
-                        : `${option.value}${t('home.unit')}`,
-                  }))}
-                />
-              </label>
-              <div>
-                <Button variant="outline" size="sm"
-                  type="button"
-                  isDisabled={isLoadingFolders || isLoadingReviews}
-                  onPress={() => handleStartLearnByFolder(folder.id)}
-                >
-                {t('home.learnNew')}
-              </Button>
-              <Button variant="outline" size="sm"
-                type="button"
-                isDisabled={isLoadingFolders || isLoadingReviews}
-                onPress={() => handleStartReviewByFolder(folder.id)}
-              >
-                {t('home.review')}
-              </Button>
-              </div>
-            </div>
-          </article>
-        ))}
-      </div>
+        }
+        size="md"
+      >
+        {newWordsForLearnFolder.length === 0 ? (
+          <p className="muted">{t('home.newListEmpty')}</p>
+        ) : (
+          <WordPreviewList
+            items={newWordsForLearnFolder}
+            busyId={masteringWordId}
+            onMaster={(id, word) => void handleMarkMastered(id, word)}
+          />
+        )}
+      </Modal>
 
       <WeeklyReviewModal open={weeklyOpen} onClose={() => setWeeklyOpen(false)} />
     </section>

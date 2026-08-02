@@ -12,12 +12,6 @@ type TodayLearnedStatsResponse = {
   total: number
 }
 
-type TomorrowReviewStatsResponse = {
-  en: number
-  jp: number
-  total: number
-}
-
 export async function getTodayReviews(params?: { folderId?: string }) {
   const response = await apiClient.get<ReviewTodayResponse>('/api/review/today', {
     params,
@@ -64,10 +58,5 @@ export async function markWordMastered(wordId: string) {
 
 export async function getTodayLearnedStats() {
   const response = await apiClient.get<TodayLearnedStatsResponse>('/api/review/today-learned')
-  return response.data
-}
-
-export async function getTomorrowReviewStats() {
-  const response = await apiClient.get<TomorrowReviewStatsResponse>('/api/review/tomorrow')
   return response.data
 }

@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router'
 import { SidebarRow } from './SidebarRow'
 import type { AuthUser } from '../../api/auth'
 
-const ACCOUNT_PATH = '/account'
+const HOME_PATH = '/'
 
 type SidebarAccountProps = {
   user: AuthUser
@@ -14,8 +14,9 @@ type SidebarAccountProps = {
 
 /**
  * The sidebar's account entry: an ordinary nav row that happens to show
- * initials instead of an icon. It links to `/account`, where identity, sign
- * out and the AI usage report live.
+ * initials instead of an icon. It links to `/`, which is both the dashboard
+ * and the account page — identity, sign out and AI usage all live there, so
+ * there is no separate "Home" nav item below.
  *
  * The initials badge is hand-rolled rather than HeroUI's `<Avatar>` on
  * purpose. Avatar is a 32px disc with a solid `bg-default`, which next to the
@@ -26,19 +27,22 @@ type SidebarAccountProps = {
  */
 export function SidebarAccount({ user, collapsed = false, onNavigate }: SidebarAccountProps) {
   const { pathname } = useLocation()
-  const active = pathname === ACCOUNT_PATH
+  const active = pathname === HOME_PATH
 
   const displayName = user.username || '—'
 
   return (
     <SidebarRow
       as={Link}
-      to={ACCOUNT_PATH}
+      to={HOME_PATH}
       onClick={onNavigate}
       collapsed={collapsed}
       active={active}
       aria-current={active ? 'page' : undefined}
       title={collapsed ? displayName : undefined}
+      // Sets this row apart from the nav list below it — it is the account, not
+      // one more destination in the same group.
+      className="mb-2"
       icon={
         <span
           aria-hidden

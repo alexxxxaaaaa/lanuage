@@ -1,16 +1,12 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   BookOpen,
-  CircleUser,
   FileText,
   FolderTree,
   GraduationCap,
   Headphones,
-  House,
-  ListChecks,
   MessagesSquare,
   NotebookPen,
-  PlusCircle,
   RefreshCw,
   Search,
   Settings,
@@ -19,7 +15,6 @@ import {
 } from 'lucide-react'
 import type { ReactElement } from 'react'
 
-import { AccountPage } from '../pages/AccountPage'
 import { AddWordPage } from '../pages/AddWordPage'
 import { ExamDetailPage } from '../pages/ExamDetailPage'
 import { ExamResultPage } from '../pages/ExamResultPage'
@@ -62,9 +57,12 @@ export interface RouteDefinition {
   titleKey: string
   /** The page to render. */
   element: ReactElement
-  /** Sidebar icon. Also used as the fallback icon elsewhere. */
+  /** Sidebar icon — only routes with `showInSidebar` need one. */
   icon?: LucideIcon
-  /** Whether this route gets a sidebar entry. */
+  /**
+   * Whether this route gets a sidebar entry. `/` is reached from the account
+   * row at the top of the rail instead, so it deliberately has none.
+   */
   showInSidebar?: boolean
   /**
    * Explicit parent for the breadcrumb chain. When omitted, the chain walks
@@ -88,11 +86,11 @@ export interface RouteDefinition {
 
 export const ROUTES: readonly RouteDefinition[] = [
   {
+    // Dashboard *and* account page: identity, sign out and AI usage live here
+    // alongside the day's review numbers.
     path: '/',
     titleKey: 'home',
     element: <HomePage />,
-    icon: House,
-    showInSidebar: true,
   },
 
   // --- 词汇 -----------------------------------------------------------------
@@ -115,7 +113,6 @@ export const ROUTES: readonly RouteDefinition[] = [
     path: '/words/new',
     titleKey: 'addWord',
     element: <AddWordPage />,
-    icon: PlusCircle,
     parent: '/folders',
   },
   {
@@ -180,21 +177,18 @@ export const ROUTES: readonly RouteDefinition[] = [
     path: '/grammar/learn',
     titleKey: 'grammarLearn',
     element: <LearnGrammarPage />,
-    icon: GraduationCap,
     parent: '/grammar',
   },
   {
     path: '/grammar/review',
     titleKey: 'grammarReview',
     element: <ReviewGrammarPage />,
-    icon: RefreshCw,
     parent: '/grammar',
   },
   {
     path: '/grammar/questions',
     titleKey: 'grammarQuestions',
     element: <GrammarQuestionsPage />,
-    icon: ListChecks,
     parent: '/grammar',
   },
   {
@@ -279,13 +273,6 @@ export const ROUTES: readonly RouteDefinition[] = [
     element: <SettingsPage />,
     icon: Settings,
     showInSidebar: true,
-  },
-  {
-    // Reached from the sidebar's avatar row rather than a nav entry.
-    path: '/account',
-    titleKey: 'account',
-    element: <AccountPage />,
-    icon: CircleUser,
   },
 ]
 

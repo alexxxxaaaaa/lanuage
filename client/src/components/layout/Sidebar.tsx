@@ -113,15 +113,18 @@ export function Sidebar({
       data-collapsed={isCollapsed || undefined}
       aria-label={t('sidebar.primaryNav')}
       className={
-        'h-full shrink-0 p-4 pl-[max(1rem,env(safe-area-inset-left))] ' +
+        'h-full shrink-0 p-3 pl-[max(0.75rem,env(safe-area-inset-left))] ' +
         'transition-[width] duration-200 ease-out ' +
         (isCollapsed ? 'w-21' : 'w-64')
       }
     >
       {/* Opaque `bg-surface`, not frosted glass: the shell background is a
           flat colour and nothing scrolls behind the rail, so a backdrop blur
-          would cost a compositor layer and render nothing. */}
-      <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border/60 bg-surface p-1 shadow-overlay">
+          would cost a compositor layer and render nothing.
+
+          `p-1.5` is what keeps a selected row's tint clear of the 24px corner
+          curve — see the step table in `SidebarRow`. */}
+      <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border border-border/60 bg-surface p-1.5 shadow-overlay">
         {rows}
       </div>
     </aside>

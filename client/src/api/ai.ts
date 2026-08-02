@@ -28,6 +28,11 @@ export type AiQuizResult = {
   explanation: string
 }
 
+/**
+ * Only the fields the UI reads. `/api/ai/usage` also returns per-day,
+ * per-feature and per-call breakdowns; the dashboard shows totals alone, so
+ * they are deliberately left off the type rather than typed-and-unused.
+ */
 export type AiUsageSummary = {
   model: string
   days: number
@@ -35,27 +40,7 @@ export type AiUsageSummary = {
     calls: number
     promptTokens: number
     completionTokens: number
-    totalTokens: number
   }
-  byDay: Array<{
-    date: string
-    calls: number
-    totalTokens: number
-  }>
-  byFeature: Array<{
-    feature: string
-    calls: number
-    totalTokens: number
-  }>
-  logs: Array<{
-    id: string
-    word: string
-    language: string
-    model: string
-    feature: string
-    totalTokens: number
-    createdAt: string
-  }>
 }
 
 export type AiExpressionCasualResult = {
