@@ -1,0 +1,155 @@
+/* ---------------------------------------------------------------------------
+   Project palette.
+
+   A lower-saturation take on HeroUI v3's default theme. We override the
+   semantic variables rather than the components that read them, so every
+   HeroUI part (Card, Chip, Button, Input, …) and every `bg-*`/`text-*` utility
+   in our own markup moves together.
+
+   Two rules govern this file:
+
+   1. It must be imported INTO `@layer base`. HeroUI ships its variables as
+      `@import "./variables.css" layer(theme)` where the file itself opens an
+      `@layer base` — i.e. they live in the nested `theme.base` layer. The
+      top-level `base` layer outranks all of `theme`, so these blocks win
+      without needing a specificity hack. An unlayered `:root` would also win,
+      but it would win over the `.dark` block too and flatten dark mode.
+
+   2. Every variable set under `:root` must be set again under `.dark`.
+      `:root` matches <html> in both themes and sits in a stronger layer than
+      HeroUI's own `.dark` block, so a variable we only set once here is a
+      variable that no longer changes with the theme.
+
+   Colours are oklch(L C H / A): lightness, chroma (saturation), hue, alpha.
+   Desaturating is a matter of pulling C down while leaving L and H alone,
+   which is why the blues still read as the same blue — just quieter.
+
+   Translucent tokens are written as literal oklch with an alpha rather than
+   `color-mix(… var(--foreground) …)`. Both compile, but a color-mix inside a
+   custom property makes the build emit a `--surface-secondary: var(--foreground)`
+   fallback for browsers without color-mix, and a nested card falling back to
+   solid ink is a far worse failure than a flat one. The mixes are against a
+   known constant per theme (eclipse / snow) anyway, so there is nothing to
+   compute.
+--------------------------------------------------------------------------- */
+@layer base {
+  :root {
+    /* --- Geometry -------------------------------------------------------
+       HeroUI derives every radius from `--radius` (fields get 1.5×). 10px
+       lands buttons and inputs in the same family as the 20px cards. */
+    --radius: 0.625rem;
+
+    /* Fields are borderless by default in HeroUI and lean on a drop shadow.
+       That reads as "no field at all" on a white card, so they get a hairline
+       back — see `--field-border` below. */
+    --field-border-width: 1px;
+
+    /* --- Brand ----------------------------------------------------------
+       Gold is the second brand colour next to the theme blue: #ffcc00 is
+       oklch(0.863 0.174 91.8), here with the chroma pulled back so it sits
+       beside the desaturated accent instead of shouting over it. It carries
+       progress and mastery — the "you got there" colour, where accent is the
+       "do this next" colour. */
+    --gold: oklch(0.855 0.128 91);
+    --gold-foreground: oklch(0.29 0.032 85);
+    --gold-hover: oklch(0.802 0.124 90);
+    --gold-soft: oklch(0.855 0.128 91 / 0.24);
+    --gold-soft-hover: oklch(0.855 0.128 91 / 0.32);
+    /* Raw gold on a light surface is unreadable as text; this is the same hue
+       walked down in lightness until it holds its own against a white card. */
+    --gold-soft-foreground: oklch(0.5 0.088 88);
+
+    /* --- Canvas and surfaces --------------------------------------------
+       The canvas is a touch darker and a touch cooler than HeroUI's default
+       so that a card can be near-white and still read as a separate plane.
+       Cards no longer carry a border, so this contrast is what separates
+       them. */
+    --background: oklch(0.958 0.0028 265);
+    --surface: oklch(0.999 0.0006 265);
+    --overlay: oklch(0.996 0.001 265);
+
+    /* Nested surfaces are translucent washes of the text colour rather than
+       fixed greys. A fixed grey only separates from ONE parent — the tiles
+       inside a card looked identical to the card because both resolved to
+       roughly white. A wash is always exactly N% darker than whatever it is
+       sitting on, so the same token works on the canvas, on a card, and
+       inside a modal. */
+    --surface-secondary: oklch(0.2103 0.0059 285.89 / 0.045);
+    --surface-tertiary: oklch(0.2103 0.0059 285.89 / 0.08);
+
+    --muted: oklch(0.552 0.009 275);
+    --default: oklch(0.925 0.002 275);
+
+    /* --- Semantic colours (desaturated) ---------------------------------
+       Same hues as HeroUI's defaults, chroma cut by roughly 40%. */
+    --accent: oklch(0.588 0.113 253);
+    --success: oklch(0.695 0.102 152);
+    --warning: oklch(0.79 0.104 74);
+    --danger: oklch(0.625 0.142 26);
+
+    --border: oklch(0.912 0.003 275);
+    --separator: oklch(0.928 0.003 275);
+
+    /* Fields sit *inside* cards, so they get the same wash treatment as
+       nested surfaces plus a hairline — a white input on a white card was the
+       clearest case of "component background too close to card background". */
+    --field-background: oklch(0.2103 0.0059 285.89 / 0.035);
+    --field-border: oklch(0.2103 0.0059 285.89 / 0.11);
+
+    /* Softer and wider than the default stack: with the border gone the
+       shadow is doing the lifting, and a tight dark shadow would just read as
+       a smudged outline. */
+    --surface-shadow:
+      0 1px 2px 0 rgb(22 24 32 / 0.05), 0 6px 16px -6px rgb(22 24 32 / 0.1);
+    --overlay-shadow:
+      0 2px 8px 0 rgb(22 24 32 / 0.05), 0 18px 40px -12px rgb(22 24 32 / 0.16);
+    --field-shadow: 0 1px 2px 0 rgb(22 24 32 / 0.04);
+
+    --backdrop: rgb(24 26 34 / 0.42);
+  }
+
+  .dark,
+  [data-theme='dark'] {
+    /* Gold has to climb in lightness and drop further in chroma on a dark
+       canvas, otherwise it burns. */
+    --gold: oklch(0.862 0.118 91);
+    --gold-foreground: oklch(0.24 0.028 85);
+    --gold-hover: oklch(0.885 0.11 91);
+    --gold-soft: oklch(0.862 0.118 91 / 0.18);
+    --gold-soft-hover: oklch(0.862 0.118 91 / 0.24);
+    --gold-soft-foreground: oklch(0.868 0.11 91);
+
+    /* Lifted off pure black, with the surface raised to match — the gap
+       between the two is what replaces the card border here, since dark mode
+       carries no shadow. */
+    --background: oklch(0.138 0.004 275);
+    --surface: oklch(0.216 0.005 275);
+    --overlay: oklch(0.236 0.005 275);
+
+    --surface-secondary: oklch(0.9911 0 0 / 0.07);
+    --surface-tertiary: oklch(0.9911 0 0 / 0.11);
+
+    --muted: oklch(0.702 0.011 275);
+    --default: oklch(0.278 0.005 275);
+
+    /* Lifted a little in L versus the light values: the same chroma reads as
+       flatter against a dark background. */
+    --accent: oklch(0.662 0.106 253);
+    --success: oklch(0.72 0.098 152);
+    --warning: oklch(0.822 0.096 78);
+    --danger: oklch(0.645 0.132 25);
+
+    --border: oklch(0.268 0.005 275);
+    --separator: oklch(0.248 0.005 275);
+
+    --field-background: oklch(0.9911 0 0 / 0.08);
+    --field-border: oklch(0.9911 0 0 / 0.13);
+
+    /* Dark mode separates planes by lightness, not by shadow. */
+    --surface-shadow: 0 0 0 0 transparent inset;
+    --overlay-shadow: 0 18px 40px -12px rgb(0 0 0 / 0.55);
+    --field-shadow: 0 0 0 0 transparent inset;
+
+    --backdrop: rgb(6 7 10 / 0.62);
+  }
+}

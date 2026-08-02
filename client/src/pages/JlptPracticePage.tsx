@@ -551,7 +551,7 @@ export function JlptPracticePage() {
                 </ol>
 
                 {showAnswer ? (
-                  <div className="grid gap-2.5 border-t border-dashed border-border pt-3.5">
+                  <div className="grid gap-2.5 border-t border-separator pt-3.5">
                     {revealed ? (
                       <div className="flex items-center gap-3">
                         <Chip
@@ -635,7 +635,7 @@ export function JlptPracticePage() {
                 <ButtonGroup size="sm" variant="outline">
                   <Button onPress={() => void toggleFavorite()}>
                     <Star
-                      className={question.favorite ? 'fill-current text-amber-500' : ''}
+                      className={question.favorite ? 'fill-current text-gold' : ''}
                       aria-hidden
                     />
                     {question.favorite ? '已收藏' : '收藏'}

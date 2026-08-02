@@ -182,7 +182,7 @@ function QuestionCard({
       </ol>
 
       {isReview && (question.stemZh || question.explain || hasDispute) ? (
-        <div className="grid gap-2.5 border-t border-dashed border-border pt-3.5">
+        <div className="grid gap-2.5 border-t border-separator pt-3.5">
           {question.stemZh ? (
             <div className={EXPLAIN_BLOCK}>
               <p className={EXPLAIN_LABEL}>

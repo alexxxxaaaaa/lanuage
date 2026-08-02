@@ -9,29 +9,35 @@
    pages expect. Shrinks toward zero as pages migrate. */
 @import './App.css' layer(components);
 
+/* ---------------------------------------------------------------------------
+   Project theme.
+
+   The palette is HeroUI v3's default with the saturation pulled back and a
+   second brand colour (gold) added — see `theme.css` for the values and for
+   why it has to land in `layer(base)` rather than at the top level.
+--------------------------------------------------------------------------- */
+@import './theme.css' layer(base);
+
 /* ThemeProvider sets `class="dark"` on <html>; tell Tailwind v4 to treat it as
    the dark variant so `dark:` utilities track the same signal HeroUI does. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ---------------------------------------------------------------------------
-   Project theme.
-
-   The palette comes straight from HeroUI v3's default theme, which ships both
-   a light and a dark set of the same semantic variables (--background,
-   --surface, --muted, --accent, --border, …). We deliberately do NOT override
-   them here: an unlayered `:root` block outranks every @layer, so the old
-   light-only overrides silently beat HeroUI's `.dark` block and made dark mode
-   impossible. Anything project-specific goes through @theme below instead.
---------------------------------------------------------------------------- */
-
-/* Tokens consumed by our own utilities (`shadow-card`, `text-heading`, …).
+/* Tokens consumed by our own utilities (`shadow-card`, `bg-gold`, …).
    `--shadow-card` reads HeroUI's own surface shadow so it flattens out in dark
-   mode instead of stamping a light-mode drop shadow onto dark cards. */
+   mode instead of stamping a light-mode drop shadow onto dark cards. The gold
+   family mirrors the shape of HeroUI's semantic colours (base / hover / soft /
+   soft-foreground) so it can be used anywhere `accent` can. */
 @theme inline {
   --font-sans: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
     sans-serif;
   --shadow-card: var(--surface-shadow);
   --color-heading: var(--foreground);
+  --color-gold: var(--gold);
+  --color-gold-foreground: var(--gold-foreground);
+  --color-gold-hover: var(--gold-hover);
+  --color-gold-soft: var(--gold-soft);
+  --color-gold-soft-hover: var(--gold-soft-hover);
+  --color-gold-soft-foreground: var(--gold-soft-foreground);
 }
 
 @layer base {
@@ -82,8 +88,26 @@
     @apply flex flex-col gap-5;
   }
 
+  /* HeroUI's <Card> renders `.card` too, so this block lands on every HeroUI
+     card as well as on our legacy `<div className="card">`. That is fine for
+     geometry — one card shape across the app is the point — but it must NOT
+     set a background: `.card` and `.card--secondary` have equal specificity
+     and ours is emitted later, so a `background` here silently beat
+     `card--secondary` and rendered every nested card as the same surface as
+     the card holding it. That, plus the border below it, is what made the
+     wordlist tiles on the dashboard invisible as separate cards.
+
+     Nested cards now separate by surface colour alone (see `--surface-*` in
+     theme.css), which is how HeroUI intends it — hence no border here
+     either. */
   .card {
-    @apply min-w-0 max-w-full rounded-[20px] border border-border bg-surface p-6 shadow-card;
+    @apply min-w-0 max-w-full rounded-[14px] p-4 md:rounded-[20px] md:p-6;
+  }
+
+  /* Legacy cards are plain divs with no `card--*` modifier, so they need the
+     default surface spelled out. `[data-slot='card']` is HeroUI's own root. */
+  .card:not([data-slot='card']) {
+    @apply bg-surface shadow-card;
   }
 
   .muted {
@@ -268,17 +292,17 @@
      pseudo-elements, which no utility class can reach — so this one stays a
      component class rather than a wall of `[&::-webkit-slider-thumb]:` hacks. */
   .podcast-progress {
-    @apply h-1 max-w-80 min-w-[140px] flex-[1_1_200px] cursor-pointer appearance-none rounded-full bg-black/8 outline-none;
+    @apply h-1 max-w-80 min-w-[140px] flex-[1_1_200px] cursor-pointer appearance-none rounded-full bg-foreground/10 outline-none;
 
     &::-webkit-slider-runnable-track,
     &::-moz-range-track {
       @apply h-1 bg-transparent;
     }
     &::-webkit-slider-thumb {
-      @apply -mt-[5px] size-3.5 cursor-pointer appearance-none rounded-full border-2 border-white bg-accent shadow-[0_1px_3px_rgba(0,0,0,0.2)];
+      @apply -mt-[5px] size-3.5 cursor-pointer appearance-none rounded-full border-2 border-surface bg-accent shadow-[0_1px_3px_var(--backdrop)];
     }
     &::-moz-range-thumb {
-      @apply size-3.5 cursor-pointer rounded-full border-2 border-white bg-accent shadow-[0_1px_3px_rgba(0,0,0,0.2)];
+      @apply size-3.5 cursor-pointer rounded-full border-2 border-surface bg-accent shadow-[0_1px_3px_var(--backdrop)];
     }
   }
 

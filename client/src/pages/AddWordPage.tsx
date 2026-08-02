@@ -393,7 +393,7 @@ export function AddWordPage() {
           </div>
 
           {successMessage ? (
-            <p className="mx-0 mt-3 mb-0 rounded-[10px] border border-green-600/25 bg-green-600/10 px-3.5 py-2.5 text-sm text-green-800">{successMessage}</p>
+            <p className="mx-0 mt-3 mb-0 rounded-[10px] bg-success-soft px-3.5 py-2.5 text-sm text-success-soft-foreground">{successMessage}</p>
           ) : null}
           {error ? <p className="error-text">{error}</p> : null}
         </form>

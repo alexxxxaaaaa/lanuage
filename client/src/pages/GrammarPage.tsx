@@ -170,8 +170,8 @@ export function GrammarPage() {
             })}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <label className="session-inline" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="session-inline">
             <span className="muted">{t('grammar.learnCountLabel')}</span>
             <SelectField
               value={learnCount === null ? 'all' : String(learnCount)}
@@ -197,14 +197,14 @@ export function GrammarPage() {
             }
           >
             {t('grammar.learnNewBtn')}
-            {counts.unlearned > 0 ? <span className={`${BADGE} bg-white/25`}>{counts.unlearned}</span> : null}
+            {counts.unlearned > 0 ? <span className={`${BADGE} bg-accent-foreground/25`}>{counts.unlearned}</span> : null}
           </Button>
           <Button variant="outline"
             type="button"
             onPress={() => navigate('/grammar/review')}
           >
             {t('grammar.reviewBtn')}
-            {counts.due > 0 ? <span className={`${BADGE} bg-black/8 text-inherit`}>{counts.due}</span> : null}
+            {counts.due > 0 ? <span className={`${BADGE} bg-foreground/10 text-inherit`}>{counts.due}</span> : null}
           </Button>
           <Button variant="outline" size="sm"
             type="button"
@@ -221,8 +221,13 @@ export function GrammarPage() {
         </div>
       </div>
 
-      <div className="card" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div className="relative flex-[1_1_240px]">
+      {/* `flex-row` is not redundant: HeroUI's own `.card` block sets
+          `flex-direction: column`, and this bar shares that class name. Without
+          it the row ran as a column, which turned `flex-[1_1_240px]` on the
+          search box into a 240px *height* — and dropped the absolutely
+          positioned magnifier, pinned to 50% of that box, below the field. */}
+      <div className="card flex flex-row flex-wrap items-center gap-3">
+        <div className="relative min-w-[220px] flex-[1_1_240px]">
           <Search className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" />
           <Input
             className="w-full pl-9"
@@ -235,7 +240,7 @@ export function GrammarPage() {
           value={level || undefined}
           onChange={(v) => setLevel(v ?? '')}
           placeholder={t('grammar.levelAll')}
-              className="min-w-[120px]"
+          className="min-w-[120px]"
           options={levels.map((lv) => ({ value: lv, label: lv }))}
         />
         <div className="flex flex-wrap gap-1.5">
@@ -356,15 +361,15 @@ export function GrammarPage() {
 
       <ul className="m-0 flex list-none flex-col gap-3 p-0">
         {filtered.map((g) => (
-          <li key={g.id} className="rounded-[14px] border border-border bg-white px-5 py-4.5 transition-[border-color,box-shadow] duration-150 hover:border-accent/35 hover:shadow-[0_6px_18px_rgba(15,23,42,0.06)]">
+          <li key={g.id} className="rounded-[14px] bg-surface px-5 py-4.5 shadow-card transition-shadow duration-150 hover:shadow-overlay">
             <header className="mb-2.5 flex items-center justify-between gap-3">
               <div className="flex min-w-0 flex-wrap items-baseline gap-2.5">
                 <Link to={`/grammar/${g.id}`} className="text-xl font-bold text-foreground no-underline [word-break:keep-all] hover:text-accent">
                   {g.pattern}
                 </Link>
-                <span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold tracking-[0.04em] text-blue-700">{g.level}</span>
+                <span className="inline-flex items-center rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold tracking-[0.04em] text-accent-soft-foreground">{g.level}</span>
                 {g.isLearned ? (
-                  <span className="inline-flex items-center rounded-full bg-emerald-500/12 px-2 py-0.5 text-xs font-semibold text-emerald-800">{t('grammar.learnedPill')}</span>
+                  <span className="inline-flex items-center rounded-full bg-success-soft px-2 py-0.5 text-xs font-semibold text-success-soft-foreground">{t('grammar.learnedPill')}</span>
                 ) : null}
               </div>
               <div className="flex shrink-0 gap-1.5">
@@ -374,7 +379,7 @@ export function GrammarPage() {
                   variant="outline"
                   className={`shrink-0 text-xs ${
                     g.isLearned
-                      ? 'border-emerald-500/30 bg-emerald-500/8 text-emerald-800'
+                      ? 'border-success/30 bg-success-soft text-success-soft-foreground'
                       : ''
                   }`}
                   onPress={() => void toggleLearned(g)}
@@ -402,18 +407,18 @@ export function GrammarPage() {
             </header>
             {g.connection ? (
               <p className="my-1.5 flex gap-2 text-sm/[1.6]">
-                <span className="min-w-16 shrink-0 pt-0.5 text-xs text-black/45">{t('grammar.labelConnection')}</span>
+                <span className="min-w-16 shrink-0 pt-0.5 text-xs text-muted">{t('grammar.labelConnection')}</span>
                 <span className="multiline-text">{g.connection}</span>
               </p>
             ) : null}
             {g.meaning ? (
               <p className="my-1.5 flex gap-2 text-sm/[1.6]">
-                <span className="min-w-16 shrink-0 pt-0.5 text-xs text-black/45">{t('grammar.labelMeaning')}</span>
+                <span className="min-w-16 shrink-0 pt-0.5 text-xs text-muted">{t('grammar.labelMeaning')}</span>
                 <span className="font-medium text-foreground">{g.meaning}</span>
               </p>
             ) : null}
             {g.example ? (
-              <div className="mt-2.5 flex flex-col gap-1 border-t border-dashed border-black/8 pt-2.5 text-[13.5px]/[1.65]">
+              <div className="mt-2.5 flex flex-col gap-1 border-t border-separator pt-2.5 text-[13.5px]/[1.65]">
                 <p className="multiline-text">{g.example}</p>
                 {g.exampleZh ? (
                   <p className="muted multiline-text">{g.exampleZh}</p>

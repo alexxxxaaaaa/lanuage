@@ -172,7 +172,7 @@ export function GrammarDetailPage() {
           ) : (
             <>
               <Button type="button" onPress={() => setIsEditing(true)}>编辑</Button>
-              <Button type="button" onPress={() => void handleDelete()} style={{ color: '#c33' }}>
+              <Button type="button" variant="danger-soft" onPress={() => void handleDelete()}>
                 删除
               </Button>
             </>
@@ -292,7 +292,7 @@ export function GrammarDetailPage() {
             ) : questions.length === 0 ? (
               <p className="muted">这条语法还没有题目</p>
             ) : (
-              <div className="flex flex-col gap-3 border-t border-black/6 px-4.5 pt-1 pb-4.5">
+              <div className="flex flex-col gap-3 border-t border-separator px-4.5 pt-1 pb-4.5">
                 {questions.map((q) => (
                   <GrammarQuestionCard key={q.id} question={q} />
                 ))}

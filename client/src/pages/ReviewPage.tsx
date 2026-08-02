@@ -21,19 +21,23 @@ import { Button } from '@heroui/react'
 // FSRS rating buttons. min-h-0 sheds the global 44px button floor so the
 // written padding decides the height.
 const RATING_BTN =
-  'min-h-0 min-w-23 cursor-pointer rounded-xl border px-5.5 py-2.5 text-[15px] font-semibold tracking-[0.02em] transition-[background-color,border-color,transform,box-shadow] duration-150 disabled:cursor-not-allowed disabled:opacity-50 not-disabled:hover:-translate-y-px not-disabled:hover:shadow-[0_6px_14px_rgba(15,23,42,0.08)] not-disabled:active:translate-y-0'
+  'min-h-0 min-w-23 cursor-pointer rounded-xl border px-5.5 py-2.5 text-[15px] font-semibold tracking-[0.02em] transition-[background-color,border-color,transform,box-shadow] duration-150 disabled:cursor-not-allowed disabled:opacity-50 not-disabled:hover:-translate-y-px not-disabled:hover:shadow-card not-disabled:active:translate-y-0'
+// Semantic tokens rather than palette steps: these follow the theme's
+// saturation and stay legible in dark mode, where `bg-red-100` was a light
+// wash carrying dark text on a dark card.
 const RATING_TONE = {
-  again: 'border-red-600/20 bg-red-100 text-red-800 not-disabled:hover:bg-red-200',
-  hard: 'border-yellow-500/30 bg-amber-100 text-amber-900 not-disabled:hover:bg-amber-200',
-  easy: 'border-emerald-500/30 bg-emerald-100 text-emerald-800 not-disabled:hover:bg-emerald-200',
-  skip: 'border-black/8 bg-gray-100 text-gray-600 not-disabled:hover:bg-gray-200',
+  again:
+    'border-danger/25 bg-danger-soft text-danger-soft-foreground not-disabled:hover:bg-danger-soft-hover',
+  hard: 'border-gold/30 bg-gold-soft text-gold-soft-foreground not-disabled:hover:bg-gold-soft-hover',
+  easy: 'border-success/25 bg-success-soft text-success-soft-foreground not-disabled:hover:bg-success-soft-hover',
+  skip: 'border-transparent bg-default text-muted not-disabled:hover:bg-default-hover',
 } as const
 
 // Step indicator above the card (看词 → 回想 → 评分).
 const STEP_PILL =
   'inline-flex items-center rounded-full border px-2.5 py-1.5 text-xs font-bold'
-const STEP_ACTIVE = 'border-accent bg-accent text-white'
-const STEP_DONE = 'border-emerald-500/28 bg-emerald-500/14 text-emerald-800'
+const STEP_ACTIVE = 'border-accent bg-accent text-accent-foreground'
+const STEP_DONE = 'border-success/25 bg-success-soft text-success-soft-foreground'
 
 type AgainEntry = {
   wordId: string
@@ -663,12 +667,14 @@ export function ReviewPage() {
             const correct = sessionStats.easy + sessionStats.hard
             const rate = Math.round((correct / done) * 100)
             return (
-              <div className="mx-auto mt-4 max-w-[420px] rounded-xl bg-indigo-500/6 px-4 py-3.5 text-left">
+              <div className="mx-auto mt-4 max-w-[420px] rounded-xl bg-accent-soft px-4 py-3.5 text-left">
                 <div className="mb-2.5 flex items-baseline gap-2">
-                  <span className="text-[32px] leading-none font-bold text-indigo-600">{rate}%</span>
+                  <span className="text-[32px] leading-none font-bold text-accent-soft-foreground">{rate}%</span>
                   <span className="muted">{t('review.accuracySummary', { count: done })}</span>
                 </div>
-                <ul className="m-0 flex list-none flex-wrap gap-4 p-0 text-[13px] text-foreground [&>li]:inline-flex [&>li]:items-center [&>li]:gap-1.5 [&_strong]:font-semibold [&_strong]:text-foreground [&_.dot]:inline-block [&_.dot]:size-2 [&_.dot]:rounded-full [&_.dot-easy]:bg-green-500 [&_.dot-hard]:bg-amber-500 [&_.dot-again]:bg-red-500">
+                {/* Legend dots reuse the same three tones as the rating
+                    buttons, so the summary reads as a tally of them. */}
+                <ul className="m-0 flex list-none flex-wrap gap-4 p-0 text-[13px] text-foreground [&>li]:inline-flex [&>li]:items-center [&>li]:gap-1.5 [&_strong]:font-semibold [&_strong]:text-foreground [&_.dot]:inline-block [&_.dot]:size-2 [&_.dot]:rounded-full [&_.dot-easy]:bg-success [&_.dot-hard]:bg-gold [&_.dot-again]:bg-danger">
                   <li>
                     <span className="dot dot-easy" aria-hidden></span>
                     Easy <strong>{sessionStats.easy}</strong>
@@ -687,8 +693,8 @@ export function ReviewPage() {
           })()}
 
           {againEntries.length > 0 ? (
-            <div className="mx-auto mt-4 max-w-[520px] rounded-xl border border-danger/18 bg-danger/6 px-4 py-3.5 text-left">
-              <div className="mb-2.5 flex flex-col gap-0.5 [&>strong]:text-sm [&>strong]:text-red-700 [&>.muted]:text-xs">
+            <div className="mx-auto mt-4 max-w-[520px] rounded-xl bg-danger-soft px-4 py-3.5 text-left">
+              <div className="mb-2.5 flex flex-col gap-0.5 [&>strong]:text-sm [&>strong]:text-danger-soft-foreground [&>.muted]:text-xs">
                 <strong>{t('review.againRescueTitle', { count: againEntries.length })}</strong>
                 <span className="muted">{t('review.againRescueHint')}</span>
               </div>
@@ -696,7 +702,7 @@ export function ReviewPage() {
                 {againEntries.map((entry) => {
                   const draft = correctionDraft[entry.wordId]
                   return (
-                    <li key={entry.wordId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white/60 px-2.5 py-2">
+                    <li key={entry.wordId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-surface/70 px-2.5 py-2">
                       <div className="flex min-w-0 flex-[1_1_160px] items-baseline gap-1.5 [&>strong]:text-[15px] [&>strong]:text-foreground">
                         <strong>{entry.word}</strong>
                         {entry.meaning ? (
@@ -819,7 +825,7 @@ export function ReviewPage() {
                   ? STEP_ACTIVE
                   : idx < stepIndex
                     ? STEP_DONE
-                    : 'border-border bg-white text-muted'
+                    : 'border-border bg-surface text-muted'
               }`}
             >
               {idx + 1}. {step.label}
@@ -987,7 +993,7 @@ export function ReviewPage() {
               <div className="flex flex-col items-center gap-4 py-4">
                 <button
                   type="button"
-                  className="inline-flex size-24 min-h-0 cursor-pointer items-center justify-center rounded-full border-none bg-linear-135 from-accent to-blue-700 p-0 text-[38px] text-white shadow-[0_8px_24px_rgba(37,99,235,0.32)] transition-[transform,box-shadow] duration-150 hover:scale-104 hover:shadow-[0_12px_30px_rgba(37,99,235,0.42)] active:scale-97"
+                  className="inline-flex size-24 min-h-0 cursor-pointer items-center justify-center rounded-full border-none bg-linear-135 from-accent to-accent-hover p-0 text-[38px] text-accent-foreground shadow-[0_8px_24px_-8px_var(--accent)] transition-[transform,box-shadow] duration-150 hover:scale-104 hover:shadow-[0_12px_30px_-8px_var(--accent)] active:scale-97"
                   onClick={(e) => {
                     e.stopPropagation()
                     speak(
@@ -999,7 +1005,7 @@ export function ReviewPage() {
                 >
                   <Volume2 />
                 </button>
-                <small className="text-xs tracking-[0.02em] text-black/40">P 再听 · 空格翻卡看答案</small>
+                <small className="text-xs tracking-[0.02em] text-muted">P 再听 · 空格翻卡看答案</small>
               </div>
             ) : null}
           </span>

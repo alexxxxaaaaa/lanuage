@@ -53,7 +53,7 @@ function WordPreviewList({
       {items.map((item) => (
         <li
           key={item.id}
-          className="flex flex-col gap-1.5 rounded-xl border border-border bg-foreground/2 px-3.5 py-3"
+          className="flex flex-col gap-1.5 rounded-xl bg-surface-secondary px-3.5 py-3"
         >
           <div className="flex flex-wrap items-center gap-2">
             <strong>{item.word}</strong>
@@ -337,7 +337,7 @@ export function HomePage() {
 
         <Card.Content>
           {folderList.length === 0 ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-foreground/3 px-4 py-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-surface-secondary px-4 py-5">
               <span className="muted">{t('home.noFolders')}</span>
               <Button size="sm" variant="secondary" onPress={() => navigate('/folders')}>
                 {t('home.manageFolders')}
@@ -350,7 +350,13 @@ export function HomePage() {
                 return (
                   // `secondary` lifts the tile off the card it sits in — nested
                   // `default` cards would be the same surface twice over.
-                  <Card key={folder.id} variant="secondary" className="gap-2.5">
+                  // `shadow-none`: the tile separates by surface colour, and a
+                  // drop shadow inside a card only muddies the edge.
+                  <Card
+                    key={folder.id}
+                    variant="secondary"
+                    className="gap-2.5 shadow-none"
+                  >
                     <Link
                       to={`/folders/${folder.id}`}
                       className="flex min-w-0 flex-col gap-1.5 text-inherit no-underline"

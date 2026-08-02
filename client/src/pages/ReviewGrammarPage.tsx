@@ -221,7 +221,7 @@ export function ReviewGrammarPage() {
           if (!questions) return <p className="muted">练习加载中...</p>
           if (questions.length === 0) return null
           return (
-            <div className="mt-4 flex flex-col gap-3 border-t border-black/8 pt-3.5 [&>.eyebrow]:mx-0 [&>.eyebrow]:mt-0 [&>.eyebrow]:mb-1">
+            <div className="mt-4 flex flex-col gap-3 border-t border-separator pt-3.5 [&>.eyebrow]:mx-0 [&>.eyebrow]:mt-0 [&>.eyebrow]:mb-1">
               <p className="eyebrow">练习</p>
               {questions.map((q) => (
                 <GrammarQuestionCard
@@ -272,7 +272,7 @@ export function ReviewGrammarPage() {
             <span className="rating-caption">想了一会儿才想起</span>
           </div>
           <div className="rating-action">
-            <Button className="bg-green-600 text-white hover:bg-green-700"
+            <Button className="bg-success text-success-foreground hover:bg-success-hover"
               type="button"
               isDisabled={isSubmitting || !isFlipped}
               onPress={() => void handleRate('easy')}

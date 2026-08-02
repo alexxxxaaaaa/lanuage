@@ -215,7 +215,7 @@ export const SearchSuggest = forwardRef<SearchSuggestHandle, Props>(function Sea
       />
       {showDropdown ? (
         <div
-          className="absolute top-[calc(100%+4px)] right-0 left-0 z-100 max-h-90 min-w-[280px] overflow-y-auto rounded-[10px] border border-border bg-surface shadow-[0_10px_25px_rgba(15,23,42,0.12)]"
+          className="absolute top-[calc(100%+4px)] right-0 left-0 z-100 max-h-90 min-w-[280px] overflow-y-auto rounded-[10px] border border-border bg-overlay shadow-overlay"
           // Prevent input blur before click handler fires.
           onMouseDown={(e) => e.preventDefault()}
         >
@@ -234,8 +234,8 @@ export const SearchSuggest = forwardRef<SearchSuggestHandle, Props>(function Sea
                 {showDictHeader ? <div className={SECTION_LABEL}>字典</div> : null}
                 <button
                   type="button"
-                  className={`flex w-full min-w-0 cursor-pointer flex-col gap-0.5 border-none bg-transparent px-3 py-2 text-left font-[inherit] text-inherit hover:bg-indigo-500/8 ${
-                    isHighlighted ? 'bg-indigo-500/8' : ''
+                  className={`flex w-full min-w-0 cursor-pointer flex-col gap-0.5 border-none bg-transparent px-3 py-2 text-left font-[inherit] text-inherit hover:bg-accent-soft ${
+                    isHighlighted ? 'bg-accent-soft' : ''
                   }`}
                   onMouseEnter={() => setHighlight(baseIdx)}
                   onClick={() => commit(item.data.word)}

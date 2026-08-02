@@ -36,14 +36,17 @@ function DailyBars({ data }: { data: WeeklyReviewSummary['perDay'] }) {
         const label = WEEKDAYS[dt.getDay()]
         return (
           <div key={d.date} className="flex h-full flex-col items-center gap-1">
-            <div className="flex w-full flex-1 flex-col-reverse overflow-hidden rounded bg-foreground/5">
+            {/* Two series, two brand colours — accent for words, gold for
+                grammar. Keeps the chart inside the app's palette instead of
+                introducing a third and fourth hue. */}
+            <div className="flex w-full flex-1 flex-col-reverse overflow-hidden rounded bg-surface-tertiary">
               <div
-                className="bg-indigo-500 transition-[height] duration-150"
+                className="bg-accent transition-[height] duration-150"
                 style={{ height: `${(d.wordEvents / max) * 100}%` }}
                 title={`词 ${d.wordEvents}`}
               />
               <div
-                className="bg-emerald-500 transition-[height] duration-150"
+                className="bg-gold transition-[height] duration-150"
                 style={{ height: `${(d.grammarEvents / max) * 100}%` }}
                 title={`语法 ${d.grammarEvents}`}
               />
@@ -174,9 +177,9 @@ export function WeeklyReviewModal({ open, onClose }: Props) {
           <Section
             meta={
               <>
-                <span className="mr-1 ml-2 inline-block size-2 rounded-full bg-indigo-500 align-middle" />
+                <span className="mr-1 ml-2 inline-block size-2 rounded-full bg-accent align-middle" />
                 单词
-                <span className="mr-1 ml-2 inline-block size-2 rounded-full bg-emerald-500 align-middle" />
+                <span className="mr-1 ml-2 inline-block size-2 rounded-full bg-gold align-middle" />
                 语法
               </>
             }

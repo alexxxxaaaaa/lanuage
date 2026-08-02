@@ -91,12 +91,15 @@ a {
   gap: 6px;
 }
 
+/* Fields read `--field-background`, not `--surface`. They almost always sit
+   inside a card, and a field painted with the card's own surface colour is a
+   field you cannot see. */
 .recall-input {
   flex: 1;
   padding: 12px 14px;
   border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid var(--field-border);
+  background: var(--field-background);
   font-size: 16px;
   color: var(--foreground);
   font-family: inherit;
@@ -105,7 +108,7 @@ a {
 .recall-input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .recall-input:disabled {
@@ -126,13 +129,15 @@ a {
 }
 
 .recall-feedback-correct {
-  background: rgba(16, 185, 129, 0.08);
-  border-color: rgba(16, 185, 129, 0.3);
+  background: var(--success-soft);
+  border-color: color-mix(in oklab, var(--success) 28%, transparent);
+  color: var(--success-soft-foreground);
 }
 
 .recall-feedback-wrong {
-  background: rgba(239, 68, 68, 0.08);
-  border-color: rgba(239, 68, 68, 0.3);
+  background: var(--danger-soft);
+  border-color: color-mix(in oklab, var(--danger) 28%, transparent);
+  color: var(--danger-soft-foreground);
 }
 
 .recall-reveal {
@@ -155,9 +160,9 @@ a {
 .lang-picker select {
   height: 36px;
   padding: 0 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 10px;
-  background: var(--surface);
+  background: var(--field-background);
   color: var(--muted);
   font-size: 13px;
   cursor: pointer;
@@ -167,8 +172,8 @@ a {
 .review-tag {
   padding: 6px 10px;
   border-radius: 999px;
-  background: rgba(37, 99, 235, 0.1);
-  color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-soft-foreground);
   font-size: 12px;
   font-weight: 700;
 }
@@ -184,8 +189,8 @@ a {
   width: 88px;
   height: 88px;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.16), rgba(37, 99, 235, 0.04));
-  color: var(--accent);
+  background: linear-gradient(135deg, var(--accent-soft), var(--gold-soft));
+  color: var(--accent-soft-foreground);
   font-size: 24px;
   font-weight: 800;
 }
@@ -233,15 +238,17 @@ a {
   height: 10px;
   margin: 0 auto 20px;
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.18);
+  background: color-mix(in oklab, var(--foreground) 10%, transparent);
   overflow: hidden;
 }
 
+/* Blue into gold: progress runs from "in hand" to "done", which is the one
+   place the two brand colours belong in the same element. */
 .progress-bar {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #2563eb, #60a5fa);
+  background: linear-gradient(90deg, var(--accent), var(--gold));
   transition: width 0.35s ease;
 }
 
@@ -298,7 +305,7 @@ a {
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #2563eb, #60a5fa);
+  background: linear-gradient(90deg, var(--accent), var(--gold));
   border-radius: 24px 24px 0 0;
 }
 
@@ -311,7 +318,7 @@ a {
 }
 
 .flip-card:hover .flip-card-face {
-  box-shadow: 0 22px 50px rgba(37, 99, 235, 0.18);
+  box-shadow: 0 20px 44px -14px color-mix(in oklab, var(--accent) 34%, transparent);
 }
 
 .flip-card.is-flipped .flip-card-front {
@@ -357,7 +364,7 @@ a {
   width: 100%;
   padding: 12px 14px;
   border-radius: 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   background: var(--field-background);
   color: var(--foreground);
   font: inherit;
@@ -418,10 +425,9 @@ a {
     padding: 0;
   }
 
-  .card {
-    padding: 16px 14px;
-    border-radius: 14px;
-  }
+  /* The mobile card metrics moved into `.card` in index.css as a `md:` pair —
+     that rule now carries higher specificity than a bare `.card` here, so a
+     plain override at this point would never apply. */
 
   /* Forms / inputs more touch-friendly */
   input,
@@ -473,7 +479,7 @@ a {
 
 .folder-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12px 30px -10px color-mix(in oklab, var(--foreground) 22%, transparent);
 }
 
 .folder-card-link {
@@ -488,7 +494,7 @@ a {
   gap: 8px;
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px dashed var(--border);
+  border-top: 1px solid var(--separator);
   align-items: center;
 }
 
@@ -497,8 +503,8 @@ a {
 .form-field textarea:not(.input):not(.textarea) {
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid var(--field-border);
+  background: var(--field-background);
   font-size: 14px;
   color: var(--foreground);
   font-family: inherit;
@@ -510,7 +516,7 @@ a {
 .form-field textarea:not(.input):not(.textarea):focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .empty-state {
@@ -622,8 +628,8 @@ a {
 .session-inline select {
   padding: 6px 10px;
   border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid var(--field-border);
+  background: var(--field-background);
   font-size: 13px;
   color: var(--foreground);
   font-family: inherit;
@@ -644,8 +650,8 @@ a {
 .expression-filter-row select {
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid var(--field-border);
+  background: var(--field-background);
   color: var(--foreground);
   font-size: 14px;
   font-family: inherit;

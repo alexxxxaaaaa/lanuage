@@ -53,7 +53,10 @@ export function LoginPage() {
   }
 
   return (
-    <main className="relative flex h-full items-center justify-center overflow-hidden bg-linear-to-br from-background via-background to-surface-secondary px-4 py-12">
+    // `background-tertiary` rather than `surface-secondary` for the far stop:
+    // the surface tokens are translucent washes now, and a gradient fading to
+    // one would fade to whatever sits behind <main> instead of to a colour.
+    <main className="relative flex h-full items-center justify-center overflow-hidden bg-linear-to-br from-background via-background to-background-tertiary px-4 py-12">
       <div className="absolute top-4 right-4 z-20 flex items-center gap-1">
         <ThemeToggle />
         <LocaleSwitcher />
@@ -62,11 +65,13 @@ export function LoginPage() {
       {/* Decorative aurora orbs */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-32 -left-32 size-96 rounded-full bg-accent/30 blur-3xl"
+        className="pointer-events-none absolute -top-32 -left-32 size-96 rounded-full bg-accent/22 blur-3xl"
       />
+      {/* One gold orb against two blue ones — the login screen is where the
+          two brand colours get to introduce themselves. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -right-32 -bottom-32 size-[28rem] rounded-full bg-accent/15 blur-3xl"
+        className="pointer-events-none absolute -right-32 -bottom-32 size-[28rem] rounded-full bg-gold/18 blur-3xl"
       />
       <div
         aria-hidden

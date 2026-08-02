@@ -46,7 +46,7 @@ export function GrammarQuestionCard({ question, onAnswered }: Props) {
   }
 
   return (
-    <div className="rounded-[10px] border border-black/8 bg-neutral-50 px-4 py-3.5">
+    <div className="rounded-[10px] bg-surface-secondary px-4 py-3.5">
       <p className="mx-0 mt-0 mb-3 font-serif text-base/[1.7] whitespace-pre-wrap">
         {question.prompt}
       </p>
@@ -61,19 +61,23 @@ export function GrammarQuestionCard({ question, onAnswered }: Props) {
               type="button"
               className={`${OPTION} ${
                 isAnswer
-                  ? 'border-green-500 bg-green-100'
+                  ? 'border-success/40 bg-success-soft'
                   : isWrongPick
-                    ? 'border-red-500 bg-red-100'
+                    ? 'border-danger/40 bg-danger-soft'
                     : isPicked && !revealed
-                      ? 'border-[#6d8dcf] bg-[#eef4ff]'
-                      : 'border-black/10 bg-white not-disabled:hover:border-[#b5cdff] not-disabled:hover:bg-[#f2f6ff]'
+                      ? 'border-accent/40 bg-accent-soft'
+                      : 'border-border bg-surface not-disabled:hover:border-accent/30 not-disabled:hover:bg-accent-soft'
               }`}
               onClick={() => void handlePick(idx)}
               disabled={isSubmitting || revealed}
             >
               <span
                 className={`min-w-[18px] font-bold ${
-                  isAnswer ? 'text-green-700' : isWrongPick ? 'text-red-700' : 'text-foreground'
+                  isAnswer
+                    ? 'text-success-soft-foreground'
+                    : isWrongPick
+                      ? 'text-danger-soft-foreground'
+                      : 'text-foreground'
                 }`}
               >
                 {CHOICE_LABELS[idx]}
@@ -88,8 +92,8 @@ export function GrammarQuestionCard({ question, onAnswered }: Props) {
           <span
             className={
               selected === question.answerIndex
-                ? 'font-semibold text-green-700'
-                : 'font-semibold text-red-700'
+                ? 'font-semibold text-success-soft-foreground'
+                : 'font-semibold text-danger-soft-foreground'
             }
           >
             {selected === question.answerIndex ? '正确' : '错误'}

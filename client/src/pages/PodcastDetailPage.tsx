@@ -51,7 +51,7 @@ const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
 // The two inline-edit textareas for fixing a wrong auto-caption.
 const EDIT_BOX =
-  'w-full resize-y rounded-lg border border-foreground/18 bg-white px-2 py-1.5 font-[inherit] text-sm/[1.5] focus:border-indigo-500 focus:outline-none'
+  'w-full resize-y rounded-lg border border-field-border bg-field px-2 py-1.5 font-[inherit] text-sm/[1.5] focus:border-accent focus:outline-none'
 
 // keep-all stops CJK from breaking mid-word; anywhere still rescues long URLs.
 const LINE_TEXT = 'text-[15px]/[1.6] [word-break:keep-all] [overflow-wrap:anywhere]'
@@ -629,7 +629,7 @@ export function PodcastDetailPage() {
         * state (with 更多视频 overlay). Instead we zero out the visual
         * footprint so the iframe stays alive in the background. */}
       <div
-        className="card sticky top-3 z-20 flex justify-center overflow-hidden p-3 shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
+        className="card sticky top-3 z-20 flex justify-center overflow-hidden p-3 shadow-overlay"
         style={
           videoHidden
             ? {
@@ -647,7 +647,7 @@ export function PodcastDetailPage() {
       >
         <button
           type="button"
-          className="absolute top-1.5 right-1.5 z-[2] inline-flex size-7 min-h-0 cursor-pointer items-center justify-center rounded-full border-none p-0 text-sm leading-none text-white bg-foreground/60 transition-colors duration-150 hover:bg-foreground/85"
+          className="absolute top-1.5 right-1.5 z-[2] inline-flex size-7 min-h-0 cursor-pointer items-center justify-center rounded-full border-none p-0 text-sm leading-none text-background bg-foreground/60 transition-colors duration-150 hover:bg-foreground/85"
           onClick={() => setVideoHidden(true)}
           aria-label="收起视频"
           title="收起视频"
@@ -676,7 +676,7 @@ export function PodcastDetailPage() {
       {videoHidden ? (
         <button
           type="button"
-          className="fixed top-[72px] right-5 z-[15] cursor-pointer rounded-full border-none bg-indigo-600 px-3.5 py-2 text-[13px] font-medium text-white shadow-[0_4px_12px_rgba(79,70,229,0.35)] transition-[background-color,transform] duration-150 hover:-translate-y-px hover:bg-indigo-700"
+          className="fixed top-[72px] right-5 z-[15] cursor-pointer rounded-full border-none bg-accent px-3.5 py-2 text-[13px] font-medium text-accent-foreground shadow-[0_4px_12px_-4px_var(--accent)] transition-[background-color,transform] duration-150 hover:-translate-y-px hover:bg-accent-hover"
           onClick={() => setVideoHidden(false)}
           title="显示视频"
         >
@@ -694,8 +694,8 @@ export function PodcastDetailPage() {
               id={`podcast-line-${idx}`}
               className={`group relative flex items-start gap-3 rounded-[10px] py-2 pr-[38px] pl-2.5 transition-colors duration-150 ${
                 isEditing
-                  ? 'cursor-default bg-indigo-500/6'
-                  : `cursor-pointer hover:bg-foreground/4 ${isActive ? 'bg-indigo-500/10' : ''}`
+                  ? 'cursor-default bg-accent-soft'
+                  : `cursor-pointer hover:bg-surface-secondary ${isActive ? 'bg-accent-soft' : ''}`
               }`}
               onClick={() => {
                 // Don't seek while editing — the user is trying to interact
@@ -783,10 +783,10 @@ export function PodcastDetailPage() {
         })}
       </div>
 
-      <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-surface py-2 pr-3.5 pl-2 text-[13px] whitespace-nowrap shadow-[0_14px_36px_rgba(15,23,42,0.16)] [&>*]:shrink-0 [&>*]:whitespace-nowrap max-sm:gap-1.5 max-sm:py-1.5 max-sm:pr-2.5 max-sm:pl-1.5">
+      <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-overlay py-2 pr-3.5 pl-2 text-[13px] whitespace-nowrap shadow-overlay [&>*]:shrink-0 [&>*]:whitespace-nowrap max-sm:gap-1.5 max-sm:py-1.5 max-sm:pr-2.5 max-sm:pl-1.5">
         <button
           type="button"
-          className="inline-flex size-10 min-h-0 cursor-pointer items-center justify-center rounded-full border-none bg-accent p-0 text-sm leading-none text-white transition-[filter] duration-150 hover:brightness-110 active:scale-[0.96]"
+          className="inline-flex size-10 min-h-0 cursor-pointer items-center justify-center rounded-full border-none bg-accent p-0 text-sm leading-none text-accent-foreground transition-[filter] duration-150 hover:brightness-110 active:scale-[0.96]"
           onClick={togglePlay}
           aria-label={isPlaying ? '暂停' : '播放'}
           title={isPlaying ? '暂停 (Space)' : '播放 (Space)'}
@@ -794,7 +794,7 @@ export function PodcastDetailPage() {
           <span aria-hidden>{isPlaying ? '❚❚' : '▶'}</span>
         </button>
 
-        <span className="min-w-9 text-center text-xs tabular-nums text-black/55">{formatTime(currentSec * 1000)}</span>
+        <span className="min-w-9 text-center text-xs tabular-nums text-muted">{formatTime(currentSec * 1000)}</span>
         <input
           type="range"
           className="podcast-progress"
@@ -826,7 +826,7 @@ export function PodcastDetailPage() {
           }}
           aria-label="进度"
         />
-        <span className="min-w-9 text-center text-xs tabular-nums text-black/55">{formatTime(podcast.durationSec * 1000)}</span>
+        <span className="min-w-9 text-center text-xs tabular-nums text-muted">{formatTime(podcast.durationSec * 1000)}</span>
 
         <SelectField
           className="min-w-[80px]"

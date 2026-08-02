@@ -410,25 +410,31 @@ function ListeningPhase({
         extra={`共 ${state.questions.length} 题 · 官方 ${state.listeningMinutes} 分`}
       />
 
-      {/* 播放器吸顶：滚到哪道题都能看见还剩几段、能不能暂停。 */}
-      <Card className="sticky top-2 z-10 p-4">
-        <ExamListeningPlayer
-          canSeek={state.mode === 'self'}
-          segments={segments}
-          onActiveChange={handleActiveChange}
-          onFinished={handleFinished}
-        />
-      </Card>
-
       <div className={LAYOUT}>
-        <ExamQuestionList
-          activeIds={activeIds}
-          answers={answers}
-          numbers={numbers}
-          passages={passages}
-          questions={state.questions}
-          onPick={onPick}
-        />
+        {/* 播放器归到左栏，和听力精练页一个版式。它原先是网格上方的整宽吸顶条，
+            和右栏同样吸顶的答题卡抢同一段视口顶部——一滚就压在答题卡上。装进
+            左栏之后两者各占一列，吸顶范围也被各自的列框住，永远不会重叠。
+
+            这层必须是 flex 不能是 grid：grid 子项的包含块是它自己那一行，
+            sticky 会被锁死在原地；flex 子项的包含块是整个容器，才吸得住。 */}
+        <div className="flex min-w-0 flex-col gap-5">
+          <Card className="sticky top-4 z-[5] p-4 max-[900px]:top-2">
+            <ExamListeningPlayer
+              canSeek={state.mode === 'self'}
+              segments={segments}
+              onActiveChange={handleActiveChange}
+              onFinished={handleFinished}
+            />
+          </Card>
+          <ExamQuestionList
+            activeIds={activeIds}
+            answers={answers}
+            numbers={numbers}
+            passages={passages}
+            questions={state.questions}
+            onPick={onPick}
+          />
+        </div>
         <ExamAnswerSheet
           activeIds={activeIds}
           answers={answers}

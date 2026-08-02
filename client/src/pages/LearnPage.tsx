@@ -55,9 +55,9 @@ const LEARN_LABEL =
 const LEARN_BODY = 'm-0 leading-[1.7] whitespace-pre-wrap [overflow-wrap:anywhere]'
 // 评分标签的配色，键就是 FSRS 的 rating。
 const SUMMARY_TONE = {
-  easy: 'bg-green-600/12 text-green-700',
-  hard: 'bg-orange-600/12 text-orange-700',
-  again: 'bg-red-500/12 text-red-700',
+  easy: 'bg-success-soft text-success-soft-foreground',
+  hard: 'bg-gold-soft text-gold-soft-foreground',
+  again: 'bg-danger-soft text-danger-soft-foreground',
 } as const
 const SLOT =
   'inline-block min-w-4 text-center font-mono tracking-[1px] text-foreground/40'
@@ -700,7 +700,7 @@ export function LearnPage() {
 
           {againItems.length > 0 ? (
             <div className="mx-auto mt-4 max-w-[520px] rounded-xl border border-danger/18 bg-danger/6 px-4 py-3.5 text-left">
-              <div className="mb-2.5 flex flex-col gap-0.5 [&>strong]:text-sm [&>strong]:text-red-700 [&>.muted]:text-xs">
+              <div className="mb-2.5 flex flex-col gap-0.5 [&>strong]:text-sm [&>strong]:text-danger-soft-foreground [&>.muted]:text-xs">
                 <strong>{t('learn.againRescueTitle', { count: againItems.length })}</strong>
                 <span className="muted">{t('learn.againRescueHint')}</span>
               </div>
@@ -708,7 +708,7 @@ export function LearnPage() {
                 {againItems.map((item) => {
                   const draft = correctionDraft[item.wordId]
                   return (
-                    <li key={item.wordId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white/60 px-2.5 py-2">
+                    <li key={item.wordId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-surface/70 px-2.5 py-2">
                       <div className="flex min-w-0 flex-[1_1_160px] items-baseline gap-1.5 [&>strong]:text-[15px] [&>strong]:text-foreground">
                         <strong>{item.word}</strong>
                         {item.meaning ? (

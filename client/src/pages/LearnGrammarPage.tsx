@@ -212,7 +212,9 @@ export function LearnGrammarPage() {
           />
         </div>
 
-        <div className="flex flex-col gap-3 rounded-[14px] border border-border bg-white p-5">
+        {/* Nested inside `.card`, so it takes the secondary wash rather than
+            the card surface again — same surface twice reads as one block. */}
+        <div className="flex flex-col gap-3 rounded-[14px] bg-surface-secondary p-5">
           <div className="text-[26px] font-semibold text-foreground [word-break:keep-all]">{currentItem.pattern}</div>
           {currentItem.connection ? (
             <p className={STUDY_LINE}>
@@ -225,7 +227,7 @@ export function LearnGrammarPage() {
             </p>
           ) : null}
           {currentItem.example ? (
-            <div className="flex flex-col gap-1.5 border-t border-dashed border-border pt-3">
+            <div className="flex flex-col gap-1.5 border-t border-separator pt-3">
               <p className="eyebrow">例句</p>
               <p className="multiline-text">{currentItem.example}</p>
               {currentItem.exampleZh ? (
@@ -249,7 +251,7 @@ export function LearnGrammarPage() {
             if (!questions) return <p className="muted">练习加载中...</p>
             if (questions.length === 0) return null
             return (
-              <div className="mt-4 flex flex-col gap-3 border-t border-black/8 pt-3.5 [&>.eyebrow]:mx-0 [&>.eyebrow]:mt-0 [&>.eyebrow]:mb-1">
+              <div className="mt-4 flex flex-col gap-3 border-t border-separator pt-3.5 [&>.eyebrow]:mx-0 [&>.eyebrow]:mt-0 [&>.eyebrow]:mb-1">
                 <p className="eyebrow">练习</p>
                 {questions.map((q) => (
                   <GrammarQuestionCard
@@ -311,7 +313,7 @@ export function LearnGrammarPage() {
               <span className="rating-caption">记住但不确定</span>
             </div>
             <div className="rating-action">
-              <Button className="bg-green-600 text-white hover:bg-green-700"
+              <Button className="bg-success text-success-foreground hover:bg-success-hover"
                 type="button"
                 isDisabled={isSubmitting}
                 onPress={() => void handleRate('easy')}

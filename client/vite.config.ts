@@ -16,10 +16,11 @@ export default defineConfig({
         description: '词汇 / 表达学习与复习',
         start_url: '/',
         display: 'standalone',
-        // Matches HeroUI's light `--background`; the install splash and the
-        // shell's first paint line up instead of flashing pure white.
-        background_color: '#f7f7f7',
-        theme_color: '#f7f7f7',
+        // Matches the light `--background` in `src/theme.css`; the install
+        // splash and the shell's first paint line up instead of flashing pure
+        // white. Keep in step with the <meta name="theme-color"> tags.
+        background_color: '#f0f1f3',
+        theme_color: '#f0f1f3',
         lang: 'zh-CN',
         icons: [
           {

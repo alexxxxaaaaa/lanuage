@@ -323,7 +323,7 @@ export function PodcastsPage() {
         </details>
         {error ? <p className="error-text" style={{ marginTop: 10 }}>{error}</p> : null}
         {inspect ? (
-          <div className="card" style={{ marginTop: 12, background: 'rgba(15,23,42,0.03)' }}>
+          <div className="card mt-3 bg-surface-secondary">
             <strong>{inspect.title}</strong>
             <p className="muted" style={{ margin: '4px 0' }}>时长 {formatDuration(inspect.durationSec)}</p>
             <p className="muted" style={{ margin: '4px 0' }}>
@@ -356,10 +356,10 @@ export function PodcastsPage() {
                 return (
                   <li
                     key={p.id}
-                    className="grid grid-cols-[240px_1fr] items-start gap-4 rounded-xl border border-border bg-surface p-3 transition-[box-shadow,border-color] duration-150 hover:border-accent/35 hover:shadow-[0_4px_14px_rgba(15,23,42,0.06)] max-sm:grid-cols-[160px_1fr] max-sm:gap-3"
+                    className="grid grid-cols-[240px_1fr] items-start gap-4 rounded-xl bg-surface p-3 shadow-card transition-shadow duration-150 hover:shadow-overlay max-sm:grid-cols-[160px_1fr] max-sm:gap-3"
                   >
                     <Link className="block no-underline" to={`/podcasts/${p.id}`}>
-                      <div className="relative aspect-video w-full overflow-hidden rounded-[10px] bg-black/6">
+                      <div className="relative aspect-video w-full overflow-hidden rounded-[10px] bg-surface-tertiary">
                         {p.thumbnail ? (
                           <img
                             className="block size-full object-cover"
@@ -375,7 +375,7 @@ export function PodcastsPage() {
                         </span>
                         {progress > 0 ? (
                           <span
-                            className="absolute bottom-0 left-0 h-[3px] bg-red-500"
+                            className="absolute bottom-0 left-0 h-[3px] bg-accent"
                             style={{ width: `${progress}%` }}
                           />
                         ) : null}

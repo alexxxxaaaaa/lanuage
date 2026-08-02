@@ -83,7 +83,7 @@ function GroupRow({ group }: { group: QbankOverviewGroup }) {
           <ul className="m-0 list-none border-t border-border p-0">
             {group.papers.map((p) => (
               <li
-                className={`${ROW} [&:not(:first-child)]:border-t [&:not(:first-child)]:border-dashed [&:not(:first-child)]:border-border`}
+                className={`${ROW} [&:not(:first-child)]:border-t [&:not(:first-child)]:border-separator`}
                 key={`${p.year}-${p.month}`}
               >
                 <span className={`${ROW_LABEL} pl-5`}>{paperLabel(p.year, p.month)}</span>

@@ -572,13 +572,13 @@ export function FolderDetailPage() {
             {todayNewCount > 0 ? (
               <>
                 {' · '}
-                <span className="font-bold text-accent">
+                <span className="font-bold text-gold-soft-foreground">
                   {t('folderDetail.todayNew', { count: todayNewCount })}
                 </span>
               </>
             ) : null}
           </p>
-          <div className="mx-0 mt-4 mb-1 flex flex-wrap items-center gap-3 rounded-xl border border-accent/18 bg-accent/6 px-3.5 py-3">
+          <div className="mx-0 mt-4 mb-1 flex flex-wrap items-center gap-3 rounded-xl bg-accent-soft px-3.5 py-3">
             <span className="text-sm font-semibold text-foreground">
               {t('folderDetail.progress', {
                 learned: learnedWords.length,
@@ -684,7 +684,7 @@ export function FolderDetailPage() {
               id={`word-${word.id}`}
               className={`card word-card flex h-full min-h-55 flex-col gap-3.5 p-5.5 pb-5 [&_.word-meaning]:flex-1 [&_.word-meaning]:leading-[1.55] ${
                 highlightedWordId === word.id
-                  ? 'border-accent shadow-[0_0_0_3px_rgba(37,99,235,0.35),var(--surface-shadow)] transition-[box-shadow,border-color] duration-400'
+                  ? 'shadow-[0_0_0_3px_var(--accent-soft-hover),var(--surface-shadow)] transition-[box-shadow] duration-400'
                   : ''
               }`}
             >
@@ -738,7 +738,7 @@ export function FolderDetailPage() {
                 <p className="muted">{t('folderDetail.posLabel', { value: word.partOfSpeech })}</p>
               ) : null}
               {word.review && hasLearnedProgress(word) ? (
-                <div className="mt-1 grid gap-1 rounded-[10px] border border-dashed border-border bg-foreground/2 px-3 py-2.5 [&_details]:mt-1 [&_summary]:cursor-pointer [&_summary]:text-[13px] [&_summary]:text-accent [&_summary]:select-none">
+                <div className="mt-1 grid gap-1 rounded-[10px] bg-surface-secondary px-3 py-2.5 [&_details]:mt-1 [&_summary]:cursor-pointer [&_summary]:text-[13px] [&_summary]:text-accent [&_summary]:select-none">
                   <p className="muted">{t('folderDetail.masteryPercent', { percent: getMasteryPercent(word.review) })}</p>
                   <p className="muted">
                     {t('folderDetail.nextReview', {
@@ -767,7 +767,7 @@ export function FolderDetailPage() {
                 </p>
               ) : null}
               {word.example ? (
-                <div className="mt-auto grid grid-cols-[1fr_auto] items-start gap-x-3 gap-y-2.5 border-t border-dashed border-border pt-3">
+                <div className="mt-auto grid grid-cols-[1fr_auto] items-start gap-x-3 gap-y-2.5 border-t border-separator pt-3">
                   <div className="min-w-0">
                     <span className="mb-1.5 block text-xs font-bold tracking-[0.04em] uppercase text-muted">{t('folderDetail.exampleLabel')}</span>
                     <p className={EXAMPLE_TEXT}>{word.example}</p>
@@ -993,14 +993,7 @@ export function FolderDetailPage() {
               {batchResults.map((r, i) => (
                 <li
                   key={i}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '6px 0',
-                    borderBottom: '1px solid rgba(0,0,0,0.04)',
-                    fontSize: 14,
-                  }}
+                  className="flex items-center gap-2.5 border-b border-separator py-1.5 text-sm"
                 >
                   <span style={{ width: 22, textAlign: 'center' }}>
                     {r.status === 'pending'

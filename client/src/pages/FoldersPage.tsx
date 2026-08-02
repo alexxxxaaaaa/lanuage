@@ -327,9 +327,12 @@ export function FoldersPage() {
 
                 {wordCount > 0 ? (
                   <div className="flex items-center gap-2">
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/8">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-tertiary">
+                      {/* Gold, not accent: this bar reports what is already
+                          mastered, and accent is reserved for what to do next
+                          (the two buttons directly below it). */}
                       <span
-                        className="block h-full rounded-[inherit] bg-accent transition-[width] duration-300"
+                        className="block h-full rounded-[inherit] bg-gold transition-[width] duration-300"
                         style={{ width: `${masteredPercent}%` }}
                       />
                     </div>

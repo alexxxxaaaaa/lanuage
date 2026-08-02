@@ -15,7 +15,8 @@ function applyToDOM(theme: Theme) {
   // we only need to flip which one the browser sees as matching.
   document
     .querySelector('meta[name="theme-color"]:not([media])')
-    ?.setAttribute('content', theme === 'dark' ? '#0a0a0b' : '#f7f7f7')
+    // Keep these two in step with `--background` in theme.css.
+    ?.setAttribute('content', theme === 'dark' ? '#0b0c0f' : '#f0f1f3')
 }
 
 /**

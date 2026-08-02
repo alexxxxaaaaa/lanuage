@@ -93,7 +93,7 @@ export function ExamScoreCard({
         </div>
 
         {wrongCount > 0 ? (
-          <div className="flex flex-wrap items-center gap-3 border-t border-dashed border-border pt-3.5">
+          <div className="flex flex-wrap items-center gap-3 border-t border-separator pt-3.5">
             <Button isPending={isCollecting} size="sm" variant="outline" onPress={onCollectWrong}>
               把 {wrongCount} 道错题加入错题本
             </Button>
