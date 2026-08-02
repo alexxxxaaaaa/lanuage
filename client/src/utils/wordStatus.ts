@@ -41,16 +41,18 @@ export function getMasteryLabel(status: MasteryStatus) {
   }
 }
 
-export function getMasteryColor(status: MasteryStatus) {
+/** Semantic Chip colour for a word's mastery level. */
+export function getMasteryColor(
+  status: MasteryStatus,
+): 'default' | 'accent' | 'warning' | 'success' {
   switch (status) {
-    case 'new':
-      return 'default'
     case 'learning':
-      return 'blue'
+      return 'accent'
     case 'familiar':
-      return 'orange'
+      return 'warning'
     case 'mastered':
-      return 'green'
+      return 'success'
+    case 'new':
     default:
       return 'default'
   }

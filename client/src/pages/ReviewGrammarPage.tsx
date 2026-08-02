@@ -11,6 +11,7 @@ import {
 import { GrammarQuestionCard } from '../components/GrammarQuestionCard'
 import { useTab } from '../components/TabContext'
 import type { GrammarReviewItem, ReviewRating } from '../types'
+import { Button } from '@heroui/react'
 
 export function ReviewGrammarPage() {
   const { setTitle } = useTab()
@@ -148,10 +149,10 @@ export function ReviewGrammarPage() {
               : '所有语法点都还没到期,可以去学新语法或休息一下。'}
           </p>
           <div className="actions">
-            <Link className="primary-link" to="/grammar/learn">
+            <Link className="button button--primary" to="/grammar/learn">
               学习新语法
             </Link>
-            <Link className="secondary-link" to="/grammar">
+            <Link className="button button--outline" to="/grammar">
               返回列表
             </Link>
           </div>
@@ -196,7 +197,7 @@ export function ReviewGrammarPage() {
         >
           <span className="flip-card-face flip-card-front">
             <span className="card-label">正面 · 空格翻卡</span>
-            <strong className="grammar-flip-pattern">{grammar.pattern}</strong>
+            <strong className="text-[32px] [word-break:keep-all]">{grammar.pattern}</strong>
           </span>
           <span className="flip-card-face flip-card-back">
             <span className="card-label">背面</span>
@@ -227,7 +228,7 @@ export function ReviewGrammarPage() {
           if (!questions) return <p className="muted">练习加载中...</p>
           if (questions.length === 0) return null
           return (
-            <div className="grammar-learn-questions">
+            <div className="mt-4 flex flex-col gap-3 border-t border-black/8 pt-3.5 [&>.eyebrow]:mx-0 [&>.eyebrow]:mt-0 [&>.eyebrow]:mb-1">
               <p className="eyebrow">练习</p>
               {questions.map((q) => (
                 <GrammarQuestionCard
@@ -258,36 +259,33 @@ export function ReviewGrammarPage() {
 
         <div className="actions rating-actions">
           <div className="rating-action">
-            <button
+            <Button variant="danger"
               type="button"
-              className="danger-button"
-              disabled={isSubmitting || !isFlipped}
-              onClick={() => void handleRate('again')}
+              isDisabled={isSubmitting || !isFlipped}
+              onPress={() => void handleRate('again')}
             >
               Again
-            </button>
+            </Button>
             <span className="rating-caption">没记住,稍后再来</span>
           </div>
           <div className="rating-action">
-            <button
+            <Button variant="outline"
               type="button"
-              className="secondary-button"
-              disabled={isSubmitting || !isFlipped}
-              onClick={() => void handleRate('hard')}
+              isDisabled={isSubmitting || !isFlipped}
+              onPress={() => void handleRate('hard')}
             >
               Hard
-            </button>
+            </Button>
             <span className="rating-caption">想了一会儿才想起</span>
           </div>
           <div className="rating-action">
-            <button
+            <Button className="bg-green-600 text-white hover:bg-green-700"
               type="button"
-              className="success-button"
-              disabled={isSubmitting || !isFlipped}
-              onClick={() => void handleRate('easy')}
+              isDisabled={isSubmitting || !isFlipped}
+              onPress={() => void handleRate('easy')}
             >
               Easy
-            </button>
+            </Button>
             <span className="rating-caption">一眼就反应过来</span>
           </div>
         </div>

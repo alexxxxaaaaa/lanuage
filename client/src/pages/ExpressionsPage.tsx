@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Input, Select } from 'antd'
+import { SelectField } from '../components/ui/SelectField'
+import { Button, Input } from '@heroui/react'
 import { Link } from 'react-router'
 import { createExpressionFolder, getExpressionFolders } from '../api/expressions'
 import { getErrorMessage } from '../api/error'
@@ -63,13 +64,12 @@ export function ExpressionsPage() {
           <h2>{t('expression.title')}</h2>
           <p className="muted">{t('expression.subtitle')}</p>
         </div>
-        <button
+        <Button
           type="button"
-          className="primary-button"
-          onClick={() => setIsCreating((prev) => !prev)}
+          onPress={() => setIsCreating((prev) => !prev)}
         >
           {isCreating ? t('expression.collapseCreate') : t('expression.createFolder')}
-        </button>
+        </Button>
       </div>
 
       {isCreating ? (
@@ -84,7 +84,7 @@ export function ExpressionsPage() {
           </label>
           <label>
             {t('expression.language')}
-            <Select
+            <SelectField
               value={form.language}
               onChange={(v) => setForm((prev) => ({ ...prev, language: v }))}
               options={[
@@ -94,9 +94,9 @@ export function ExpressionsPage() {
             />
           </label>
           <div className="form-actions">
-            <button type="submit" className="primary-button" disabled={isSubmitting}>
+            <Button type="submit" isDisabled={isSubmitting}>
               {isSubmitting ? t('expression.creating') : t('expression.saveFolder')}
-            </button>
+            </Button>
           </div>
         </form>
       ) : null}

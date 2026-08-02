@@ -11,14 +11,17 @@
     "pages:deploy": "npm run build && wrangler pages deploy dist --project-name word-sprint-client"
   },
   "dependencies": {
+    "@heroui/react": "^3.2.3",
+    "@heroui/styles": "^3.2.3",
     "@sglkc/kuromoji": "^1.1.0",
+    "@tailwindcss/vite": "^4.3.3",
     "@tiptap/extension-link": "^3.22.5",
     "@tiptap/extension-placeholder": "^3.22.5",
     "@tiptap/pm": "^3.22.5",
     "@tiptap/react": "^3.22.5",
     "@tiptap/starter-kit": "^3.22.5",
-    "antd": "^6.3.6",
     "axios": "^1.15.0",
+    "lucide-react": "^1.28.0",
     "pdfjs-dist": "^6.2.108",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
@@ -26,6 +29,7 @@
     "slate": "^0.126.0",
     "slate-history": "^0.113.1",
     "slate-react": "^0.126.0",
+    "tailwindcss": "^4.3.3",
     "zustand": "^5.0.12"
   },
   "devDependencies": {

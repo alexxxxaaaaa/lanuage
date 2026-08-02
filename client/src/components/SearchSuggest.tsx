@@ -35,10 +35,20 @@ type Props = {
   style?: CSSProperties
   /** Debounce in ms before firing remote lookups. Default 250. */
   debounceMs?: number
+  /**
+   * Render the dropdown in normal flow instead of absolutely positioned. Used
+   * inside the Quick Search modal, whose body doesn't clip absolute children.
+   */
+  inlineDropdown?: boolean
 }
 
 const DEBOUNCE_MS_DEFAULT = 250
 const MAX_PER_SECTION = 5
+
+const SECTION_LABEL =
+  'border-t border-border bg-foreground/3 px-3 py-1.5 text-xs text-muted first:border-t-0'
+/** Single-line with ellipsis, shrinkable inside a flex row. */
+const TRUNCATE = 'min-w-0 flex-[0_1_auto] truncate'
 
 // 3-state detection: kana → jp (unambiguous); only kanji → zh (ambiguous,
 // could be Chinese or Japanese — we route through Jisho anyway since shared
@@ -57,7 +67,17 @@ function dictLangFor(input: 'zh' | 'jp' | 'en'): 'jp' | 'en' {
 }
 
 export const SearchSuggest = forwardRef<SearchSuggestHandle, Props>(function SearchSuggest(
-  { value, onChange, onSubmit, placeholder, className, inputClassName, style, debounceMs },
+  {
+    value,
+    onChange,
+    onSubmit,
+    placeholder,
+    className,
+    inputClassName,
+    style,
+    debounceMs,
+    inlineDropdown,
+  },
   ref,
 ) {
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -197,13 +217,13 @@ export const SearchSuggest = forwardRef<SearchSuggestHandle, Props>(function Sea
   const showDropdown = isOpen && items.length > 0
 
   return (
-    <div className={`search-suggest ${className ?? ''}`} style={style}>
+    <div className={`relative min-w-0 flex-1 ${className ?? ''}`} style={style}>
       <input
         ref={inputRef}
         type="search"
         value={value}
         placeholder={placeholder}
-        className={inputClassName}
+        className={`w-full ${inputClassName ?? ''}`}
         onChange={(e) => handleChange(e.target.value)}
         onKeyDown={handleKeyDown}
         onFocus={handleFocus}
@@ -214,12 +234,16 @@ export const SearchSuggest = forwardRef<SearchSuggestHandle, Props>(function Sea
       />
       {showDropdown ? (
         <div
-          className="search-suggest-dropdown"
+          className={
+            inlineDropdown
+              ? 'mt-1 max-h-80 min-w-[280px] overflow-y-auto rounded-[10px] border border-border bg-surface'
+              : 'absolute top-[calc(100%+4px)] right-0 left-0 z-100 max-h-90 min-w-[280px] overflow-y-auto rounded-[10px] border border-border bg-surface shadow-[0_10px_25px_rgba(15,23,42,0.12)]'
+          }
           // Prevent input blur before click handler fires.
           onMouseDown={(e) => e.preventDefault()}
         >
           {library.slice(0, MAX_PER_SECTION).length > 0 ? (
-            <div className="search-suggest-section-label">我的词库</div>
+            <div className={SECTION_LABEL}>我的词库</div>
           ) : null}
           {items.map((item, idx) => {
             const isLib = item.kind === 'library'
@@ -230,23 +254,29 @@ export const SearchSuggest = forwardRef<SearchSuggestHandle, Props>(function Sea
             const showDictHeader = !isLib && (prev === null || prev.kind === 'library')
             return (
               <div key={`${item.kind}-${idx}-${item.data.word}`}>
-                {showDictHeader ? (
-                  <div className="search-suggest-section-label">字典</div>
-                ) : null}
+                {showDictHeader ? <div className={SECTION_LABEL}>字典</div> : null}
                 <button
                   type="button"
-                  className={`search-suggest-item${isHighlighted ? ' is-highlighted' : ''}`}
+                  className={`flex w-full min-w-0 cursor-pointer flex-col gap-0.5 border-none bg-transparent px-3 py-2 text-left font-[inherit] text-inherit hover:bg-indigo-500/8 ${
+                    isHighlighted ? 'bg-indigo-500/8' : ''
+                  }`}
                   onMouseEnter={() => setHighlight(baseIdx)}
                   onClick={() => commit(item.data.word)}
                 >
-                  <div className="search-suggest-line">
-                    <span className="search-suggest-word">{item.data.word}</span>
+                  <div className="flex w-full min-w-0 items-baseline gap-2.5">
+                    {/* CJK breaks between any two characters, so these spans
+                        truncate rather than wrap. */}
+                    <span className={`${TRUNCATE} font-semibold`}>{item.data.word}</span>
                     {item.data.reading && item.data.reading !== item.data.word ? (
-                      <span className="search-suggest-reading">{item.data.reading}</span>
+                      <span className={`${TRUNCATE} text-[0.9em] text-muted`}>
+                        {item.data.reading}
+                      </span>
                     ) : null}
                   </div>
                   {isLib && 'meaning' in item.data && item.data.meaning ? (
-                    <div className="search-suggest-meaning">{item.data.meaning}</div>
+                    <div className="w-full truncate text-[0.85em] text-muted">
+                      {item.data.meaning}
+                    </div>
                   ) : null}
                 </button>
               </div>

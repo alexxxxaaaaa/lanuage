@@ -8,6 +8,9 @@ import {
 import { GrammarQuestionCard } from '../components/GrammarQuestionCard'
 import { useTab } from '../components/TabContext'
 import type { Grammar, ReviewRating } from '../types'
+import { Button } from '@heroui/react'
+
+const STUDY_LINE = 'm-0 text-[15px]/[1.6] text-foreground [overflow-wrap:anywhere]'
 
 // Smaller batch than Word's 5 — grammar items are denser (pattern + connection
 // + meaning + multiple examples), 3 per pass keeps the cognitive load sane.
@@ -149,10 +152,10 @@ export function LearnGrammarPage() {
           <h2>暂无新语法点</h2>
           <p className="muted">所有语法点都已经学习过,可以去复习页巩固一下。</p>
           <div className="actions">
-            <Link className="primary-link" to="/grammar/review">
+            <Link className="button button--primary" to="/grammar/review">
               去复习
             </Link>
-            <Link className="secondary-link" to="/grammar">
+            <Link className="button button--outline" to="/grammar">
               返回列表
             </Link>
           </div>
@@ -169,10 +172,10 @@ export function LearnGrammarPage() {
           <h2>本次学习完成</h2>
           <p className="muted">共学习 {sessionCount} 个新语法点,可以去复习。</p>
           <div className="actions">
-            <Link className="primary-link" to="/grammar/review">
+            <Link className="button button--primary" to="/grammar/review">
               去复习
             </Link>
-            <Link className="secondary-link" to="/grammar">
+            <Link className="button button--outline" to="/grammar">
               返回列表
             </Link>
           </div>
@@ -189,8 +192,8 @@ export function LearnGrammarPage() {
 
   return (
     <section className="page">
-      <div className="card grammar-learn-card">
-        <div className="learn-meta">
+      <div className="card flex flex-col gap-4">
+        <div>
           <div>
             <p className="eyebrow">{phaseLabel}</p>
             <strong className="progress-text">
@@ -216,20 +219,20 @@ export function LearnGrammarPage() {
           />
         </div>
 
-        <div className="grammar-study-card">
-          <div className="grammar-study-pattern">{currentItem.pattern}</div>
+        <div className="flex flex-col gap-3 rounded-[14px] border border-border bg-white p-5">
+          <div className="text-[26px] font-semibold text-foreground [word-break:keep-all]">{currentItem.pattern}</div>
           {currentItem.connection ? (
-            <p className="grammar-study-line">
+            <p className={STUDY_LINE}>
               <strong>接续:</strong> {currentItem.connection}
             </p>
           ) : null}
           {currentItem.meaning ? (
-            <p className="grammar-study-line">
+            <p className={STUDY_LINE}>
               <strong>含义:</strong> {currentItem.meaning}
             </p>
           ) : null}
           {currentItem.example ? (
-            <div className="grammar-study-examples">
+            <div className="flex flex-col gap-1.5 border-t border-dashed border-border pt-3">
               <p className="eyebrow">例句</p>
               <p className="multiline-text">{currentItem.example}</p>
               {currentItem.exampleZh ? (
@@ -253,7 +256,7 @@ export function LearnGrammarPage() {
             if (!questions) return <p className="muted">练习加载中...</p>
             if (questions.length === 0) return null
             return (
-              <div className="grammar-learn-questions">
+              <div className="mt-4 flex flex-col gap-3 border-t border-black/8 pt-3.5 [&>.eyebrow]:mx-0 [&>.eyebrow]:mt-0 [&>.eyebrow]:mb-1">
                 <p className="eyebrow">练习</p>
                 {questions.map((q) => (
                   <GrammarQuestionCard
@@ -285,47 +288,43 @@ export function LearnGrammarPage() {
 
         {phase === 'study' ? (
           <div className="actions">
-            <button
+            <Button
               type="button"
-              className="primary-button"
-              onClick={advance}
+              onPress={advance}
             >
               {itemIdx < currentBatch.length - 1 ? '下一个' : '开始打分'}
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="actions rating-actions">
             <div className="rating-action">
-              <button
+              <Button variant="danger"
                 type="button"
-                className="danger-button"
-                disabled={isSubmitting}
-                onClick={() => void handleRate('again')}
+                isDisabled={isSubmitting}
+                onPress={() => void handleRate('again')}
               >
                 Again
-              </button>
+              </Button>
               <span className="rating-caption">完全没记住</span>
             </div>
             <div className="rating-action">
-              <button
+              <Button variant="outline"
                 type="button"
-                className="secondary-button"
-                disabled={isSubmitting}
-                onClick={() => void handleRate('hard')}
+                isDisabled={isSubmitting}
+                onPress={() => void handleRate('hard')}
               >
                 Hard
-              </button>
+              </Button>
               <span className="rating-caption">记住但不确定</span>
             </div>
             <div className="rating-action">
-              <button
+              <Button className="bg-green-600 text-white hover:bg-green-700"
                 type="button"
-                className="success-button"
-                disabled={isSubmitting}
-                onClick={() => void handleRate('easy')}
+                isDisabled={isSubmitting}
+                onPress={() => void handleRate('easy')}
               >
                 Easy
-              </button>
+              </Button>
               <span className="rating-caption">一看就懂</span>
             </div>
           </div>

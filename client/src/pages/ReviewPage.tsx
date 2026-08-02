@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { SoundOutlined } from '@ant-design/icons'
-import { Select } from 'antd'
+import { SelectField } from '../components/ui/SelectField'
+import { Volume2 } from 'lucide-react'
 import { Link } from 'react-router'
 import { correctReviewResult } from '../api/review'
 import type { ReviewSnapshot } from '../api/review'
@@ -9,6 +9,24 @@ import { VoicePicker } from '../components/VoicePicker'
 import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
 import { pickSpeakableText, speak, stopSpeaking } from '../utils/speech'
+import { Button } from '@heroui/react'
+
+// FSRS rating buttons. min-h-0 sheds the global 44px button floor so the
+// written padding decides the height.
+const RATING_BTN =
+  'min-h-0 min-w-23 cursor-pointer rounded-xl border px-5.5 py-2.5 text-[15px] font-semibold tracking-[0.02em] transition-[background-color,border-color,transform,box-shadow] duration-150 disabled:cursor-not-allowed disabled:opacity-50 not-disabled:hover:-translate-y-px not-disabled:hover:shadow-[0_6px_14px_rgba(15,23,42,0.08)] not-disabled:active:translate-y-0'
+const RATING_TONE = {
+  again: 'border-red-600/20 bg-red-100 text-red-800 not-disabled:hover:bg-red-200',
+  hard: 'border-yellow-500/30 bg-amber-100 text-amber-900 not-disabled:hover:bg-amber-200',
+  easy: 'border-emerald-500/30 bg-emerald-100 text-emerald-800 not-disabled:hover:bg-emerald-200',
+  skip: 'border-black/8 bg-gray-100 text-gray-600 not-disabled:hover:bg-gray-200',
+} as const
+
+// Step indicator above the card (看词 → 回想 → 评分).
+const STEP_PILL =
+  'inline-flex items-center rounded-full border px-2.5 py-1.5 text-xs font-bold'
+const STEP_ACTIVE = 'border-accent bg-accent text-white'
+const STEP_DONE = 'border-emerald-500/28 bg-emerald-500/14 text-emerald-800'
 
 type AgainEntry = {
   wordId: string
@@ -489,16 +507,15 @@ export function ReviewPage() {
           <h2>{t('review.loading')}</h2>
           <p className="muted">{t('review.loadingHint')}</p>
           <div className="actions">
-            <button
+            <Button variant="outline"
               type="button"
-              className="secondary-button"
-              onClick={() => {
+              onPress={() => {
                 void useAppStore.getState().fetchFolders()
                 void useAppStore.getState().fetchTodayReviews()
               }}
             >
               {t('review.retry')}
-            </button>
+            </Button>
           </div>
         </div>
       </section>
@@ -563,15 +580,15 @@ export function ReviewPage() {
             const correct = sessionStats.easy + sessionStats.hard
             const rate = Math.round((correct / total) * 100)
             return (
-              <div className="review-session-stats">
-                <div className="review-session-stats-headline">
-                  <span className="review-session-stats-rate">{rate}%</span>
+              <div className="mx-auto mt-4 max-w-[420px] rounded-xl bg-indigo-500/6 px-4 py-3.5 text-left">
+                <div className="mb-2.5 flex items-baseline gap-2">
+                  <span className="text-[32px] leading-none font-bold text-indigo-600">{rate}%</span>
                   <span className="muted">
                     {' '}
                     正确率 · 共 {total} 词
                   </span>
                 </div>
-                <ul className="review-session-stats-breakdown">
+                <ul className="m-0 flex list-none flex-wrap gap-4 p-0 text-[13px] text-foreground [&>li]:inline-flex [&>li]:items-center [&>li]:gap-1.5 [&_strong]:font-semibold [&_strong]:text-foreground [&_.dot]:inline-block [&_.dot]:size-2 [&_.dot]:rounded-full [&_.dot-easy]:bg-green-500 [&_.dot-hard]:bg-amber-500 [&_.dot-again]:bg-red-500">
                   <li>
                     <span className="dot dot-easy" aria-hidden></span>
                     Easy <strong>{sessionStats.easy}</strong>
@@ -590,79 +607,84 @@ export function ReviewPage() {
           })()}
 
           {againEntries.length > 0 ? (
-            <div className="again-rescue">
-              <div className="again-rescue-header">
+            <div className="mx-auto mt-4 max-w-[520px] rounded-xl border border-danger/18 bg-danger/6 px-4 py-3.5 text-left">
+              <div className="mb-2.5 flex flex-col gap-0.5 [&>strong]:text-sm [&>strong]:text-red-700 [&>.muted]:text-xs">
                 <strong>{t('review.againRescueTitle', { count: againEntries.length })}</strong>
                 <span className="muted">{t('review.againRescueHint')}</span>
               </div>
-              <ul className="again-rescue-list">
+              <ul className="m-0 grid list-none gap-2 p-0">
                 {againEntries.map((entry) => {
                   const draft = correctionDraft[entry.wordId]
                   return (
-                    <li key={entry.wordId} className="again-rescue-item">
-                      <div className="again-rescue-word">
+                    <li key={entry.wordId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white/60 px-2.5 py-2">
+                      <div className="flex min-w-0 flex-[1_1_160px] items-baseline gap-1.5 [&>strong]:text-[15px] [&>strong]:text-foreground">
                         <strong>{entry.word}</strong>
                         {entry.meaning ? (
                           <span className="muted">· {entry.meaning}</span>
                         ) : null}
                       </div>
-                      <div className="again-rescue-actions">
-                        <button
+                      <div className="flex flex-wrap gap-1.5">
+                        <Button
                           type="button"
-                          className={'pill-btn' + (!draft ? ' is-active' : '')}
-                          onClick={() =>
+                          size="sm"
+                          variant={!draft ? 'primary' : 'outline'}
+                          className="text-xs"
+                          onPress={() =>
                             setCorrectionDraft((prev) => {
                               const next = { ...prev }
                               delete next[entry.wordId]
                               return next
                             })
                           }
-                          disabled={isApplyingCorrection}
+                          isDisabled={isApplyingCorrection}
                         >
                           {t('review.againRescueKeep')}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
-                          className={'pill-btn' + (draft === 'hard' ? ' is-active' : '')}
-                          onClick={() =>
+                          size="sm"
+                          variant={draft === 'hard' ? 'primary' : 'outline'}
+                          className="text-xs"
+                          onPress={() =>
                             setCorrectionDraft((prev) => ({
                               ...prev,
                               [entry.wordId]: 'hard',
                             }))
                           }
-                          disabled={isApplyingCorrection}
+                          isDisabled={isApplyingCorrection}
                         >
                           {t('review.againRescueToHard')}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
-                          className={'pill-btn' + (draft === 'easy' ? ' is-active' : '')}
-                          onClick={() =>
+                          size="sm"
+                          variant={draft === 'easy' ? 'primary' : 'outline'}
+                          className="text-xs"
+                          onPress={() =>
                             setCorrectionDraft((prev) => ({
                               ...prev,
                               [entry.wordId]: 'easy',
                             }))
                           }
-                          disabled={isApplyingCorrection}
+                          isDisabled={isApplyingCorrection}
                         >
                           {t('review.againRescueToEasy')}
-                        </button>
+                        </Button>
                       </div>
                     </li>
                   )
                 })}
               </ul>
-              <div className="again-rescue-footer">
-                <button
+              <div className="mt-3 flex items-center gap-3">
+                <Button
                   type="button"
-                  className="primary-button"
-                  onClick={() => void applyCorrections()}
-                  disabled={pendingFixes.length === 0 || isApplyingCorrection}
+                  onPress={() => void applyCorrections()}
+                  isDisabled={pendingFixes.length === 0 || isApplyingCorrection}
                 >
                   {isApplyingCorrection
                     ? t('review.againRescueApplying')
                     : t('review.againRescueApply', { count: pendingFixes.length })}
-                </button>
+                </Button>
                 {correctionApplied ? (
                   <span className="muted">{t('review.againRescueApplied')}</span>
                 ) : null}
@@ -671,13 +693,13 @@ export function ReviewPage() {
           ) : null}
 
           <div className="actions">
-            <Link className="primary-link" to="/learn">
+            <Link className="button button--primary" to="/learn">
               {t('review.goLearn')}
             </Link>
-            <Link className="secondary-link" to="/words/new">
+            <Link className="button button--outline" to="/words/new">
               {t('review.addWord')}
             </Link>
-            <Link className="secondary-link" to="/folders">
+            <Link className="button button--outline" to="/folders">
               {t('review.viewFolders')}
             </Link>
           </div>
@@ -696,18 +718,18 @@ export function ReviewPage() {
               {currentWordPosition} / {totalReviewCount}
             </strong>
           </div>
-          <div className="review-meta-right">
+          <div className="flex flex-wrap items-center gap-3 max-md:w-full max-md:gap-2">
             <label className="session-inline">
               <span className="muted">{t('review.folderLabel')}</span>
-              <Select
+              <SelectField
                 value={reviewFolderId ?? ''}
-                disabled={isLoadingFolders || isLoadingReviews}
+                isDisabled={isLoadingFolders || isLoadingReviews}
                 onChange={(v) => {
                   const next = v === '' ? null : v
                   useAppStore.getState().setReviewFolderId(next)
                   void useAppStore.getState().fetchTodayReviews()
                 }}
-                style={{ minWidth: 160 }}
+              className="min-w-[160px]"
                 options={[
                   { value: '', label: t('review.allFolders') },
                   ...folderList.map((folder) => ({
@@ -721,19 +743,23 @@ export function ReviewPage() {
           </div>
         </div>
 
-        <div className="review-stepper">
+        <div className="my-1 mb-1.5 flex flex-wrap justify-center gap-2">
           {REVIEW_STEPS.map((step, idx) => (
             <span
               key={step.key}
-              className={`review-step-pill ${idx === stepIndex ? 'active' : ''} ${
-                idx < stepIndex ? 'done' : ''
+              className={`${STEP_PILL} ${
+                idx === stepIndex
+                  ? STEP_ACTIVE
+                  : idx < stepIndex
+                    ? STEP_DONE
+                    : 'border-border bg-white text-muted'
               }`}
             >
               {idx + 1}. {step.label}
             </span>
           ))}
         </div>
-        <p className="muted review-step-hint">{currentStep.hint}</p>
+        <p className="muted mx-0 mt-0 mb-3.5 text-[13px]">{currentStep.hint}</p>
 
         <VoicePicker
           lang={currentWord.language}
@@ -791,30 +817,27 @@ export function ReviewPage() {
               />
               {recallStatus === 'idle' ? (
                 <>
-                  <button
+                  <Button variant="outline"
                     type="button"
-                    className="secondary-button hint-button"
-                    onClick={handleRecallHint}
-                    title={t('review.hint')}
+                    onPress={handleRecallHint}
+                    render={(props) => <button {...props} title={t('review.hint')} />}
                   >
-                    <SoundOutlined /> {t('review.hint')}
-                  </button>
-                  <button
+                    <Volume2 /> {t('review.hint')}
+                  </Button>
+                  <Button variant="outline" size="sm"
                     type="button"
-                    className="ghost-button"
-                    onClick={handleRecallForgot}
-                    title={t('review.forgot')}
+                    onPress={handleRecallForgot}
+                    render={(props) => <button {...props} title={t('review.forgot')} />}
                   >
                     {t('review.forgot')}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="primary-button"
-                    disabled={!typedRecall.trim()}
-                    onClick={handleRecallSubmit}
+                    isDisabled={!typedRecall.trim()}
+                    onPress={handleRecallSubmit}
                   >
                     {t('review.submit')}
-                  </button>
+                  </Button>
                 </>
               ) : null}
             </div>
@@ -880,7 +903,7 @@ export function ReviewPage() {
           <span className="flip-card-face flip-card-front">
             <span className="card-label">{t('review.cardFront')}</span>
             {currentStep.key === 'recognition' ? (
-              <span className="flip-word-row">
+              <span className="inline-flex flex-wrap items-center justify-center gap-3">
                 <strong>{currentWord.word}</strong>
                 <SpeakButton
                   text={currentWord.word} reading={currentWord.reading}
@@ -890,14 +913,14 @@ export function ReviewPage() {
                 />
               </span>
             ) : null}
-            <small className="part-of-speech-slot">
+            <small className="inline-flex min-h-6 items-center justify-center">
               {currentWord.partOfSpeech ? t('review.partOfSpeech', { value: currentWord.partOfSpeech }) : '\u00A0'}
             </small>
             {currentStep.key === 'pronunciation' ? (
-              <div className="review-listen-block">
+              <div className="flex flex-col items-center gap-4 py-4">
                 <button
                   type="button"
-                  className="review-big-play"
+                  className="inline-flex size-24 min-h-0 cursor-pointer items-center justify-center rounded-full border-none bg-linear-135 from-accent to-blue-700 p-0 text-[38px] text-white shadow-[0_8px_24px_rgba(37,99,235,0.32)] transition-[transform,box-shadow] duration-150 hover:scale-104 hover:shadow-[0_12px_30px_rgba(37,99,235,0.42)] active:scale-97"
                   onClick={(e) => {
                     e.stopPropagation()
                     speak(
@@ -906,11 +929,10 @@ export function ReviewPage() {
                     )
                   }}
                   aria-label="听音"
-                  title="听音 (P)"
                 >
-                  <SoundOutlined />
+                  <Volume2 />
                 </button>
-                <small className="review-listen-hint">P 再听 · 空格翻卡看答案</small>
+                <small className="text-xs tracking-[0.02em] text-black/40">P 再听 · 空格翻卡看答案</small>
               </div>
             ) : null}
           </span>
@@ -922,7 +944,7 @@ export function ReviewPage() {
                 {currentWord.reading ? (
                   <small>{t('review.readingLabel', { value: currentWord.reading })}</small>
                 ) : null}
-                <small className="part-of-speech-slot">
+                <small className="inline-flex min-h-6 items-center justify-center">
                   {currentWord.partOfSpeech ? t('review.partOfSpeech', { value: currentWord.partOfSpeech }) : '\u00A0'}
                 </small>
                 <small className="multiline-text">{currentWord.example}</small>
@@ -935,10 +957,10 @@ export function ReviewPage() {
                 {currentWord.reading ? (
                   <small>{t('review.readingLabel', { value: currentWord.reading })}</small>
                 ) : null}
-                <small className="part-of-speech-slot">
+                <small className="inline-flex min-h-6 items-center justify-center">
                   {currentWord.partOfSpeech ? t('review.partOfSpeech', { value: currentWord.partOfSpeech }) : '\u00A0'}
                 </small>
-                <small className="multiline-text recall-meaning">
+                <small className="multiline-text">
                   {currentWord.meaning || t('review.meaningEmpty')}
                 </small>
                 {currentWord.example ? (
@@ -953,7 +975,7 @@ export function ReviewPage() {
           <div className="rating-action">
             <button
               type="button"
-              className="rating-btn rating-btn-again"
+              className={`${RATING_BTN} ${RATING_TONE.again}`}
               disabled={isSubmitting}
               onClick={() => void handleStepRating('again')}
             >
@@ -964,7 +986,7 @@ export function ReviewPage() {
           <div className="rating-action">
             <button
               type="button"
-              className="rating-btn rating-btn-hard"
+              className={`${RATING_BTN} ${RATING_TONE.hard}`}
               disabled={isSubmitting}
               onClick={() => void handleStepRating('hard')}
             >
@@ -975,7 +997,7 @@ export function ReviewPage() {
           <div className="rating-action">
             <button
               type="button"
-              className="rating-btn rating-btn-easy"
+              className={`${RATING_BTN} ${RATING_TONE.easy}`}
               disabled={isSubmitting}
               onClick={() => void handleStepRating('easy')}
             >
@@ -987,7 +1009,7 @@ export function ReviewPage() {
             <div className="rating-action">
               <button
                 type="button"
-                className="rating-btn rating-btn-skip"
+                className={`${RATING_BTN} ${RATING_TONE.skip}`}
                 disabled={isSubmitting}
                 onClick={handleSkipStep}
                 title="跳过整个步骤,直接进入下一步"
@@ -1006,7 +1028,7 @@ export function ReviewPage() {
             <div className="rating-action">
               <button
                 type="button"
-                className="rating-btn rating-btn-hard"
+                className={`${RATING_BTN} ${RATING_TONE.hard}`}
                 disabled={isSubmitting}
                 onClick={() => void handleStepRating('hard')}
               >
@@ -1022,7 +1044,7 @@ export function ReviewPage() {
               <div className="rating-action">
                 <button
                   type="button"
-                  className="rating-btn rating-btn-easy"
+                  className={`${RATING_BTN} ${RATING_TONE.easy}`}
                   disabled={isSubmitting}
                   onClick={() => void handleStepRating('easy')}
                 >
@@ -1038,7 +1060,7 @@ export function ReviewPage() {
           <div className="actions">
             <button
               type="button"
-              className="rating-btn rating-btn-again"
+              className={`${RATING_BTN} ${RATING_TONE.again}`}
               disabled={isSubmitting}
               onClick={() => void handleStepRating('again')}
             >

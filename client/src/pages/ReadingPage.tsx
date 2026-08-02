@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { toast } from '@heroui/react'
 import { Link } from 'react-router'
-import { message } from 'antd'
 import { listExams } from '../api/exams'
 import { getErrorMessage } from '../api/error'
 import type { ExamListItem } from '../types'
@@ -40,7 +40,7 @@ export function ReadingPage() {
   useEffect(() => {
     void listExams()
       .then((rows) => setExams(rows))
-      .catch((e) => message.error(getErrorMessage(e, '加载精读失败')))
+      .catch((e) => toast.danger(getErrorMessage(e, '加载精读失败')))
       .finally(() => setIsLoading(false))
   }, [])
 
@@ -85,8 +85,8 @@ export function ReadingPage() {
         </div>
       ) : (
         groups.map((g) => (
-          <div key={g.source} className="reading-group">
-            <p className="eyebrow reading-group-title">{g.source} 真题</p>
+          <div key={g.source} className="mb-5">
+            <p className="eyebrow mt-1 mb-2">{g.source} 真题</p>
             <ul className="exam-list">
               {g.items.map((it) => (
                 <li key={it.exam.id} className="card exam-card">

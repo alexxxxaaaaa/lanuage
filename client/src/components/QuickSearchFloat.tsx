@@ -1,5 +1,8 @@
-import { SearchOutlined } from '@ant-design/icons'
-import { FloatButton, Modal, Progress, Select, message } from 'antd'
+import { Search } from 'lucide-react'
+import { SelectField } from './ui/SelectField'
+import { Button, ProgressBar, toast } from '@heroui/react'
+import { FloatButton } from './ui/FloatButton'
+import { Modal } from './ui/Modal'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { fillWordByAi, type AiFillWordResult } from '../api/ai'
@@ -79,7 +82,7 @@ export function QuickSearchFloat() {
         const rows = await getWords({ q: term })
         setLocalResults(rows ?? [])
       } catch (error) {
-        message.error(getErrorMessage(error, t('quickSearch.searchFailed')))
+        toast.danger(getErrorMessage(error, t('quickSearch.searchFailed')))
       } finally {
         setIsSearching(false)
       }
@@ -114,7 +117,7 @@ export function QuickSearchFloat() {
       const result = await fillWordByAi({ word: term })
       setAiResult(result)
     } catch (error) {
-      message.error(getErrorMessage(error, t('quickSearch.aiFailed')))
+      toast.danger(getErrorMessage(error, t('quickSearch.aiFailed')))
     } finally {
       window.clearInterval(progressTimer)
       setAiProgress(100)
@@ -126,7 +129,7 @@ export function QuickSearchFloat() {
   const handleAdd = async () => {
     if (!aiResult) return
     if (!targetFolderId) {
-      message.warning(t('quickSearch.pickFolderFirst'))
+      toast.warning(t('quickSearch.pickFolderFirst'))
       return
     }
     try {
@@ -140,16 +143,16 @@ export function QuickSearchFloat() {
         note: aiResult.note,
         partOfSpeech: aiResult.partOfSpeech,
       })
-      message.success(t('quickSearch.added'))
+      toast.success(t('quickSearch.added'))
       setAiResult(null)
       setQuery('')
       setOpen(false)
     } catch (error) {
       if (isDuplicateWordError(error)) {
-        message.warning(t('quickSearch.duplicate'))
+        toast.warning(t('quickSearch.duplicate'))
         return
       }
-      message.error(getErrorMessage(error, t('quickSearch.addFailed')))
+      toast.danger(getErrorMessage(error, t('quickSearch.addFailed')))
     }
   }
 
@@ -167,22 +170,14 @@ export function QuickSearchFloat() {
   return (
     <>
       <FloatButton
-        className="quick-search-float"
-        type="primary"
-        icon={<SearchOutlined />}
+        icon={<Search className="size-5" />}
+        side="right"
         tooltip={t('quickSearch.tooltip')}
-        style={{ insetInlineEnd: 24, bottom: 24, zIndex: 1200 }}
-        onClick={() => setOpen(true)}
+        variant="primary"
+        onPress={() => setOpen(true)}
       />
-      <Modal
-        title={t('quickSearch.title')}
-        open={open}
-        onCancel={close}
-        footer={null}
-        destroyOnClose
-        width={520}
-      >
-        <div className="quick-search-body">
+      <Modal isOpen={open} size="lg" title={t('quickSearch.title')} onClose={close}>
+        <div className="flex flex-col gap-3.5">
           <SearchSuggest
             value={query}
             onChange={setQuery}
@@ -193,27 +188,28 @@ export function QuickSearchFloat() {
               navigate(`/words/search?q=${encodeURIComponent(q)}`)
             }}
             placeholder={t('quickSearch.placeholder')}
-            inputClassName="quick-search-input"
+            inputClassName="w-full rounded-[10px] border border-border px-3.5 py-3 text-[15px] outline-none focus:border-accent focus:ring-3 focus:ring-accent/12"
+            inlineDropdown
           />
 
           {!trimmed ? (
-            <p className="muted quick-search-hint">{t('quickSearch.hint')}</p>
+            <p className="muted m-0 text-[13px]">{t('quickSearch.hint')}</p>
           ) : null}
 
           {trimmed && isSearching ? (
-            <p className="muted quick-search-hint">{t('quickSearch.searching')}</p>
+            <p className="muted m-0 text-[13px]">{t('quickSearch.searching')}</p>
           ) : null}
 
           {hasLocalHits ? (
-            <div className="quick-search-section">
-              <p className="quick-search-section-title">
+            <div className="flex flex-col gap-2">
+              <p className="m-0 text-xs font-semibold tracking-[0.05em] text-slate-400 uppercase">
                 {t('quickSearch.localTitle', { count: localResults!.length })}
               </p>
-              <ul className="quick-search-list">
+              <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
                 {localResults!.slice(0, 8).map((w) => (
-                  <li key={w.id} className="quick-search-item">
-                    <div className="quick-search-item-head">
-                      <strong>{w.word}</strong>
+                  <li key={w.id} className="rounded-[10px] border border-border bg-slate-50 px-3 py-2.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <strong className="text-base text-foreground">{w.word}</strong>
                       {w.reading ? <span className="muted">{w.reading}</span> : null}
                       <SpeakButton
                         text={w.word}
@@ -221,10 +217,10 @@ export function QuickSearchFloat() {
                         lang={w.language}
                         size="sm"
                       />
-                      <span className="quick-search-folder-tag">{w.folder?.name ?? ''}</span>
+                      <span className="ml-auto rounded-full bg-indigo-50 px-2 py-0.5 text-xs text-slate-500">{w.folder?.name ?? ''}</span>
                     </div>
                     {w.meaning ? (
-                      <p className="muted quick-search-meaning">{w.meaning}</p>
+                      <p className="muted mt-1 mb-0 text-[13px]/[1.5]">{w.meaning}</p>
                     ) : null}
                   </li>
                 ))}
@@ -233,34 +229,37 @@ export function QuickSearchFloat() {
           ) : null}
 
           {trimmed && !isSearching && noLocalHits && !aiResult ? (
-            <div className="quick-search-section">
-              <p className="muted quick-search-hint">
+            <div className="flex flex-col gap-2">
+              <p className="muted m-0 text-[13px]">
                 {t('quickSearch.noLocal', { term: trimmed })}
               </p>
-              <button
+              <Button className="self-start"
                 type="button"
-                className="primary-button quick-search-ai-btn"
-                onClick={() => void handleAiSearch()}
-                disabled={isAiSearching}
+                onPress={() => void handleAiSearch()}
+                isDisabled={isAiSearching}
               >
                 {isAiSearching ? t('quickSearch.aiSearching') : t('quickSearch.aiSearch')}
-              </button>
+              </Button>
               {isAiSearching || aiProgress > 0 ? (
-                <Progress
-                  percent={aiProgress}
-                  size="small"
-                  showInfo={false}
-                  status={isAiSearching ? 'active' : 'success'}
-                />
+                <ProgressBar
+                  aria-label={t('quickSearch.aiSearching')}
+                  color={isAiSearching ? 'accent' : 'success'}
+                  size="sm"
+                  value={aiProgress}
+                >
+                  <ProgressBar.Track>
+                    <ProgressBar.Fill />
+                  </ProgressBar.Track>
+                </ProgressBar>
               ) : null}
             </div>
           ) : null}
 
           {aiResult ? (
-            <div className="quick-search-section quick-search-ai-result">
-              <p className="quick-search-section-title">{t('quickSearch.aiResult')}</p>
-              <div className="quick-search-item-head">
-                <strong>{aiResult.word}</strong>
+            <div className="flex flex-col gap-2 rounded-xl border border-dashed border-accent bg-accent/4 px-3.5 py-3">
+              <p className="m-0 text-xs font-semibold tracking-[0.05em] text-slate-400 uppercase">{t('quickSearch.aiResult')}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <strong className="text-base text-foreground">{aiResult.word}</strong>
                 {aiResult.reading ? (
                   <span className="muted">{aiResult.reading}</span>
                 ) : null}
@@ -271,41 +270,40 @@ export function QuickSearchFloat() {
                   size="sm"
                 />
                 {aiResult.partOfSpeech ? (
-                  <span className="quick-search-folder-tag">
+                  <span className="ml-auto rounded-full bg-indigo-50 px-2 py-0.5 text-xs text-slate-500">
                     {aiResult.partOfSpeech}
                   </span>
                 ) : null}
               </div>
               {aiResult.meaning ? (
-                <p className="quick-search-meaning multiline-text">{aiResult.meaning}</p>
+                <p className="mt-1 mb-0 text-[13px]/[1.5] multiline-text">{aiResult.meaning}</p>
               ) : null}
               {aiResult.example ? (
-                <p className="muted quick-search-example multiline-text">
+                <p className="muted mt-1 mb-0 text-[13px]/[1.5] multiline-text">
                   {aiResult.example}
                 </p>
               ) : null}
               {aiResult.note ? (
-                <p className="muted quick-search-note">{aiResult.note}</p>
+                <p className="muted mt-1 mb-0 text-xs">{aiResult.note}</p>
               ) : null}
 
-              <div className="quick-search-add-row">
-                <Select
+              <div className="mt-3 flex gap-2 max-[480px]:flex-col">
+                <SelectField
                   value={targetFolderId || undefined}
                   onChange={(v) => setTargetFolderId(v ?? '')}
                   placeholder={t('quickSearch.pickFolder')}
-                  style={{ minWidth: 180, flex: 1 }}
+                  className="min-w-[180px] flex-1"
                   options={folderList
                     .filter((f) => f.language === aiResult.language)
                     .map((f) => ({ value: f.id, label: f.name }))}
                 />
-                <button
+                <Button className="whitespace-nowrap max-[480px]:w-full"
                   type="button"
-                  className="primary-button"
-                  onClick={() => void handleAdd()}
-                  disabled={isSubmitting || !targetFolderId}
+                  onPress={() => void handleAdd()}
+                  isDisabled={isSubmitting || !targetFolderId}
                 >
                   {isSubmitting ? t('quickSearch.adding') : t('quickSearch.add')}
-                </button>
+                </Button>
               </div>
             </div>
           ) : null}

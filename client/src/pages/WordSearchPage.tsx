@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Modal, Progress, Select, Spin } from 'antd'
+import { Button, ProgressBar, Spinner } from '@heroui/react'
+import { SelectField } from '../components/ui/SelectField'
+import { alertDialog } from '../components/ui/dialog'
 import { Link, useSearchParams } from 'react-router'
 import { fillWordByAi } from '../api/ai'
 import { getErrorMessage, isDuplicateWordError } from '../api/error'
@@ -229,7 +231,7 @@ export function WordSearchPage() {
   const handleAddWord = async () => {
     if (!wordResult) return
     if (!selectedWordFolderId) {
-      Modal.warning({ title: t('wordSearch.pickFolder') })
+      void alertDialog.warning({ title: t('wordSearch.pickFolder') })
       return
     }
     setIsSavingWord(true)
@@ -244,12 +246,12 @@ export function WordSearchPage() {
         example: wordResult.example,
         note: wordResult.note,
       })
-      Modal.success({ title: t('wordSearch.addedSuccess') })
+      void alertDialog.success({ title: t('wordSearch.addedSuccess') })
     } catch (saveError) {
       if (isDuplicateWordError(saveError)) {
-        Modal.warning({ title: t('wordSearch.duplicate') })
+        void alertDialog.warning({ title: t('wordSearch.duplicate') })
       } else {
-        Modal.error({
+        void alertDialog.error({
           title: t('wordSearch.addFailed'),
           content: getErrorMessage(saveError, t('wordSearch.tryLater')),
         })
@@ -272,8 +274,8 @@ export function WordSearchPage() {
         </div>
       </div>
 
-      <div className="card dict-search-card">
-        <div className="dict-search-row">
+      <div className="card grid gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <SearchSuggest
             value={keyword}
             onChange={setKeyword}
@@ -287,15 +289,15 @@ export function WordSearchPage() {
               }
             }}
             placeholder={t('wordSearch.placeholder')}
-            inputClassName="dict-search-input"
-            className="dict-search-suggest"
+            inputClassName="w-full rounded-xl border border-border bg-surface px-3.5 py-3 text-[15px] text-foreground focus:border-accent focus:ring-3 focus:ring-accent/15 focus:outline-none"
+            className="min-w-[200px] flex-[1_1_240px] max-[720px]:basis-full"
           />
           <label className="lang-picker" title="覆盖自动检测的输入语言">
             <span className="muted">输入</span>
-            <Select
+            <SelectField
               value={sourceOverride}
               onChange={(v) => setSourceOverride(v)}
-              style={{ minWidth: 140 }}
+              className="min-w-[140px]"
               options={[
                 {
                   value: 'auto',
@@ -310,10 +312,10 @@ export function WordSearchPage() {
           {effectiveSource === 'zh' ? (
             <label className="lang-picker" title="把这个中文词翻译成…">
               <span className="muted">查</span>
-              <Select
+              <SelectField
                 value={chineseTarget}
                 onChange={(v) => setChineseTarget(v)}
-                style={{ minWidth: 90 }}
+              className="min-w-[90px]"
                 options={[
                   { value: 'jp', label: '日语' },
                   { value: 'en', label: '英语' },
@@ -321,45 +323,45 @@ export function WordSearchPage() {
               />
             </label>
           ) : null}
-          <button type="button" className="primary-button" onClick={submitKeyword}>
+          <Button type="button" onPress={submitKeyword}>
             {t('wordSearch.search')}
-          </button>
+          </Button>
         </div>
-        {error ? <p className="error-text dict-search-error">{error}</p> : null}
+        {error ? <p className="error-text m-0">{error}</p> : null}
       </div>
 
       {hasQuery ? (
         <article className="card">
-          <div className="dict-section-header">
-            <h3>{t('wordSearch.myLibrary')}</h3>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h3 className="m-0 text-base">{t('wordSearch.myLibrary')}</h3>
             <span className="muted">{t('wordSearch.matched', { count: localMatches.length })}</span>
           </div>
           {isSearchingLocal ? (
-            <div className="dict-loading">
-              <Spin size="small" />
+            <div className="flex justify-center py-4">
+              <Spinner size="sm" />
             </div>
           ) : localMatches.length === 0 ? (
             <p className="muted">{t('wordSearch.emptyLocal')}</p>
           ) : (
-            <div className="dict-match-list">
+            <div className="grid gap-2">
               {localMatches.map((match) => (
                 <Link
                   key={match.id}
-                  className="local-match-link"
+                  className="no-underline"
                   to={`/folders/${match.folderId}#word-${match.id}`}
                 >
-                  <div className="local-match-row">
-                    <div className="local-match-head">
+                  <div className="grid gap-1 rounded-[10px] border border-border bg-surface px-3 py-2.5 text-foreground transition-colors duration-150 hover:border-accent/30 hover:bg-accent/6">
+                    <div className="flex flex-wrap items-center gap-2">
                       <strong>{match.word}</strong>
                       {match.reading ? (
-                        <span className="muted dict-reading">{match.reading}</span>
+                        <span className="muted text-[13px]">{match.reading}</span>
                       ) : null}
                       <span className="folder-language">
                         {match.folder?.name ?? match.language.toUpperCase()}
                       </span>
                     </div>
                     {match.meaning ? (
-                      <p className="muted local-match-meaning">{match.meaning}</p>
+                      <p className="muted m-0 text-[13px]">{match.meaning}</p>
                     ) : null}
                   </div>
                 </Link>
@@ -370,81 +372,84 @@ export function WordSearchPage() {
       ) : null}
 
       <article className="card">
-        <div className="dict-section-header">
-          <h3>{t('wordSearch.aiTitle')}</h3>
-          <button
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="m-0 text-base">{t('wordSearch.aiTitle')}</h3>
+          <Button variant="outline"
             type="button"
-            className="secondary-button"
-            onClick={() => void runAiLookup(keyword)}
-            disabled={isSearchingAi || !keyword.trim()}
+            onPress={() => void runAiLookup(keyword)}
+            isDisabled={isSearchingAi || !keyword.trim()}
           >
             {isSearchingAi
               ? t('wordSearch.aiSearching')
               : wordResult
                 ? t('wordSearch.aiReSearch')
                 : t('wordSearch.aiAsk')}
-          </button>
+          </Button>
         </div>
 
         {isSearchingAi || aiProgress > 0 ? (
-          <Progress
-            percent={aiProgress}
-            size="small"
-            showInfo={false}
-            status={isSearchingAi ? 'active' : 'success'}
-          />
+          <ProgressBar
+            aria-label={t('wordSearch.aiSearching')}
+            color={isSearchingAi ? 'accent' : 'success'}
+            size="sm"
+            value={aiProgress}
+          >
+            <ProgressBar.Track>
+              <ProgressBar.Fill />
+            </ProgressBar.Track>
+          </ProgressBar>
         ) : null}
 
         {isSearchingAi && !wordResult ? (
-          <div className="dict-loading">
-            <Spin />
+          <div className="flex justify-center py-4">
+            <Spinner />
           </div>
         ) : null}
 
         {wordResult ? (
-          <div className="dict-result">
-            <div className="dict-word-row">
-              <strong className="dict-word">{wordResult.word}</strong>
+          <div className="grid gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <strong className="text-[22px] text-foreground">{wordResult.word}</strong>
               <SpeakButton text={wordResult.word} reading={wordResult.reading} lang={targetLanguage} size="md" />
               {wordResult.reading ? (
-                <span className="muted dict-reading">{wordResult.reading}</span>
+                <span className="muted text-[13px]">{wordResult.reading}</span>
               ) : null}
               {wordResult.partOfSpeech ? (
-                <span className="dict-pos-pill">{wordResult.partOfSpeech}</span>
+                <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-bold text-accent">{wordResult.partOfSpeech}</span>
               ) : null}
             </div>
 
             {wordResult.meaning ? (
-              <p className="dict-meaning">{wordResult.meaning}</p>
+              <p className="m-0 text-[15px]/[1.7] whitespace-pre-wrap text-foreground">{wordResult.meaning}</p>
             ) : null}
 
             {wordResult.example ? (
-              <div className="dict-example-block">
-                <span className="dict-block-label">{t('wordSearch.example')}</span>
-                <p>{wordResult.example}</p>
+              <div className="grid gap-1 rounded-xl border border-border bg-foreground/2 px-3.5 py-3">
+                <span className="text-xs font-bold tracking-[0.06em] text-muted uppercase">{t('wordSearch.example')}</span>
+                <p className="m-0 leading-[1.7] whitespace-pre-wrap text-foreground">{wordResult.example}</p>
               </div>
             ) : null}
 
             {wordResult.note ? (
-              <div className="dict-example-block">
-                <span className="dict-block-label">{t('wordSearch.note')}</span>
-                <p>{wordResult.note}</p>
+              <div className="grid gap-1 rounded-xl border border-border bg-foreground/2 px-3.5 py-3">
+                <span className="text-xs font-bold tracking-[0.06em] text-muted uppercase">{t('wordSearch.note')}</span>
+                <p className="m-0 leading-[1.7] whitespace-pre-wrap text-foreground">{wordResult.note}</p>
               </div>
             ) : null}
 
-            <div className="dict-save-row">
-              <label className="session-inline">
+            <div className="flex flex-wrap items-center gap-3 border-t border-border pt-2">
+              <label className="session-inline min-w-[220px] flex-1">
                 <span className="muted">{t('wordSearch.saveTo')}</span>
-                <Select
+                <SelectField
                   value={selectedWordFolderId || undefined}
                   onChange={(v) => setSelectedWordFolderId(v ?? '')}
-                  disabled={wordFolders.length === 0}
+                  isDisabled={wordFolders.length === 0}
                   placeholder={
                     wordFolders.length === 0
                       ? t('wordSearch.noFolderOption')
                       : undefined
                   }
-                  style={{ minWidth: 180 }}
+              className="min-w-[180px]"
                   options={wordFolders
                     .filter((folder) => folder.language === effectiveLanguage)
                     .map((folder) => ({
@@ -454,18 +459,17 @@ export function WordSearchPage() {
                 />
               </label>
               {wordFolders.length === 0 ? (
-                <Link className="secondary-link" to="/folders">
+                <Link className="button button--outline" to="/folders">
                   {t('wordSearch.createFolder')}
                 </Link>
               ) : null}
-              <button
+              <Button
                 type="button"
-                className="primary-button"
-                onClick={() => void handleAddWord()}
-                disabled={isSavingWord || wordFolders.length === 0}
+                onPress={() => void handleAddWord()}
+                isDisabled={isSavingWord || wordFolders.length === 0}
               >
                 {isSavingWord ? t('wordSearch.addingWord') : t('wordSearch.addWord')}
-              </button>
+              </Button>
             </div>
           </div>
         ) : !isSearchingAi && !hasAiSection ? (

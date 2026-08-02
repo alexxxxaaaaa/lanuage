@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Button } from '@heroui/react'
+import { Modal } from '../components/ui/Modal'
+import { SelectField } from '../components/ui/SelectField'
+import { Input, TextArea, toast } from '@heroui/react'
+import { confirm } from '../components/ui/dialog'
 import { Link, useNavigate } from 'react-router'
-import { Input, message, Modal, Select } from 'antd'
 import {
   deletePodcast,
   importMp3Podcast,
@@ -90,7 +94,7 @@ export function PodcastsPage() {
     const url = mp3Url.trim()
     const srt = mp3PrimarySrt.trim()
     if (!title || !url || !srt) {
-      message.warning('标题、mp3 路径、字幕内容都要填')
+      toast.warning('标题、mp3 路径、字幕内容都要填')
       return
     }
     setIsMp3Importing(true)
@@ -102,7 +106,7 @@ export function PodcastsPage() {
         primarySrt: srt,
         zhSrt: mp3ZhSrt.trim() || undefined,
       })
-      message.success('MP3 播客导入成功')
+      toast.success('MP3 播客导入成功')
       setMp3ModalOpen(false)
       setMp3Title('')
       setMp3Url('')
@@ -110,7 +114,7 @@ export function PodcastsPage() {
       setMp3ZhSrt('')
       await load()
     } catch (err) {
-      message.error(getErrorMessage(err, '导入失败'))
+      toast.danger(getErrorMessage(err, '导入失败'))
     } finally {
       setIsMp3Importing(false)
     }
@@ -176,7 +180,7 @@ export function PodcastsPage() {
         primarySrt: primarySrt.trim() || undefined,
         zhSrt: zhSrt.trim() || undefined,
       })
-      message.success('导入成功')
+      toast.success('导入成功')
       setUrl('')
       setInspect(null)
       setPrimarySrt('')
@@ -203,20 +207,19 @@ export function PodcastsPage() {
   }
 
   const handleDelete = async (id: string, title: string) => {
-    Modal.confirm({
+    const ok = await confirm({
       title: `删除「${title}」?`,
       okText: '删除',
-      okButtonProps: { danger: true },
       cancelText: '取消',
-      onOk: async () => {
-        try {
-          await deletePodcast(id)
-          await load()
-        } catch (err) {
-          message.error(getErrorMessage(err, '删除失败'))
-        }
-      },
+      status: 'danger',
     })
+    if (!ok) return
+    try {
+      await deletePodcast(id)
+      await load()
+    } catch (err) {
+      toast.danger(getErrorMessage(err, '删除失败'))
+    }
   }
 
   return (
@@ -241,38 +244,36 @@ export function PodcastsPage() {
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
           <label className="lang-picker">
             <span className="muted">主要语言</span>
-            <Select
+            <SelectField
               value={primaryLang}
               onChange={(v) => setPrimaryLang(v)}
-              style={{ minWidth: 90 }}
+              className="min-w-[90px]"
               options={[
                 { value: 'jp', label: '日语' },
                 { value: 'en', label: '英语' },
               ]}
             />
           </label>
-          <button
+          <Button
             type="button"
-            onClick={() => void handleInspect()}
-            disabled={isInspecting || !url.trim()}
+            onPress={() => void handleInspect()}
+            isDisabled={isInspecting || !url.trim()}
           >
             {isInspecting ? '抓取中...' : '预览字幕'}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="primary-button"
-            onClick={() => void handleImport()}
-            disabled={isImporting || !url.trim()}
+            onPress={() => void handleImport()}
+            isDisabled={isImporting || !url.trim()}
           >
             {isImporting ? '导入中...' : '导入'}
-          </button>
-          <button
+          </Button>
+          <Button variant="outline" size="sm"
             type="button"
-            className="ghost-button"
-            onClick={() => setMp3ModalOpen(true)}
+            onPress={() => setMp3ModalOpen(true)}
           >
             从 MP3 导入
-          </button>
+          </Button>
         </div>
 
         <details style={{ marginTop: 12 }}>
@@ -290,7 +291,7 @@ export function PodcastsPage() {
                   style={{ marginLeft: 8 }}
                 />
               </span>
-              <Input.TextArea
+              <TextArea
                 rows={4}
                 value={primarySrt}
                 onChange={(e) => setPrimarySrt(e.target.value)}
@@ -308,7 +309,7 @@ export function PodcastsPage() {
                   style={{ marginLeft: 8 }}
                 />
               </span>
-              <Input.TextArea
+              <TextArea
                 rows={4}
                 value={zhSrt}
                 onChange={(e) => setZhSrt(e.target.value)}
@@ -343,59 +344,66 @@ export function PodcastsPage() {
 
       {isLoading ? <div className="card">加载中...</div> : null}
 
-      <div className="podcast-history">
+      <div className="flex flex-col gap-6">
         {groups.map((group) => (
-          <section key={group.label} className="podcast-history-group">
-            <h3 className="podcast-history-day">{group.label}</h3>
-            <ul className="podcast-history-list">
+          <section key={group.label}>
+            <h3 className="mt-2 mb-3 text-lg font-semibold text-foreground">{group.label}</h3>
+            <ul className="m-0 flex list-none flex-col gap-4 p-0">
               {group.items.map((p) => {
                 const progress =
                   p.durationSec > 0 && (p.lastPositionSec ?? 0) > 0
                     ? Math.min(100, ((p.lastPositionSec ?? 0) / p.durationSec) * 100)
                     : 0
                 return (
-                  <li key={p.id} className="podcast-history-item">
-                    <Link className="podcast-history-thumb-link" to={`/podcasts/${p.id}`}>
-                      <div className="podcast-history-thumb">
+                  <li
+                    key={p.id}
+                    className="grid grid-cols-[240px_1fr] items-start gap-4 rounded-xl border border-border bg-surface p-3 transition-[box-shadow,border-color] duration-150 hover:border-accent/35 hover:shadow-[0_4px_14px_rgba(15,23,42,0.06)] max-sm:grid-cols-[160px_1fr] max-sm:gap-3"
+                  >
+                    <Link className="block no-underline" to={`/podcasts/${p.id}`}>
+                      <div className="relative aspect-video w-full overflow-hidden rounded-[10px] bg-black/6">
                         {p.thumbnail ? (
-                          <img src={p.thumbnail} alt="" loading="lazy" />
+                          <img
+                            className="block size-full object-cover"
+                            src={p.thumbnail}
+                            alt=""
+                            loading="lazy"
+                          />
                         ) : (
-                          <div className="podcast-history-thumb-empty" />
+                          <div className="size-full" />
                         )}
-                        <span className="podcast-history-duration">
+                        <span className="absolute right-1.5 bottom-1.5 rounded px-1.5 py-0.5 text-xs tracking-[0.02em] text-white bg-black/78">
                           {formatDuration(p.durationSec)}
                         </span>
                         {progress > 0 ? (
                           <span
-                            className="podcast-history-progress"
+                            className="absolute bottom-0 left-0 h-[3px] bg-red-500"
                             style={{ width: `${progress}%` }}
                           />
                         ) : null}
                       </div>
                     </Link>
-                    <div className="podcast-history-meta">
+                    <div className="flex min-w-0 flex-col gap-1">
                       <Link
-                        className="podcast-history-title"
+                        className="line-clamp-2 text-base/[1.4] font-semibold text-foreground no-underline hover:text-accent max-sm:text-[15px]"
                         to={`/podcasts/${p.id}`}
                       >
                         {p.title}
                       </Link>
-                      <p className="podcast-history-sub muted">
+                      <p className="muted m-0 flex items-center gap-1.5 text-[13px]">
                         {p.primaryLang.toUpperCase()}
                         {progress > 0 ? (
                           <>
-                            <span className="podcast-history-dot">·</span>
+                            <span className="opacity-60">·</span>
                             已看 {Math.round(progress)}%
                           </>
                         ) : null}
                       </p>
-                      <button
+                      <Button variant="outline" size="sm" className="mt-1 self-start text-xs"
                         type="button"
-                        className="ghost-button podcast-history-delete"
-                        onClick={() => void handleDelete(p.id, p.title)}
+                        onPress={() => void handleDelete(p.id, p.title)}
                       >
                         删除
-                      </button>
+                      </Button>
                     </div>
                   </li>
                 )
@@ -406,15 +414,20 @@ export function PodcastsPage() {
       </div>
 
       <Modal
+        footer={
+          <>
+            <Button variant="tertiary" onPress={() => setMp3ModalOpen(false)}>
+              取消
+            </Button>
+            <Button isPending={isMp3Importing} onPress={() => void handleMp3Import()}>
+              {isMp3Importing ? '导入中...' : '导入'}
+            </Button>
+          </>
+        }
+        isOpen={mp3ModalOpen}
+        size="lg"
         title="从 MP3 导入播客"
-        open={mp3ModalOpen}
-        onCancel={() => setMp3ModalOpen(false)}
-        okText={isMp3Importing ? '导入中...' : '导入'}
-        cancelText="取消"
-        confirmLoading={isMp3Importing}
-        onOk={() => void handleMp3Import()}
-        width={640}
-        destroyOnClose
+        onClose={() => setMp3ModalOpen(false)}
       >
         <div style={{ display: 'grid', gap: 12 }}>
           <p className="muted" style={{ margin: 0, fontSize: 12 }}>
@@ -440,14 +453,14 @@ export function PodcastsPage() {
           </label>
           <label style={{ display: 'grid', gap: 4 }}>
             <span className="muted">主语言</span>
-            <Select
+            <SelectField
               value={mp3Lang}
               onChange={(v) => setMp3Lang(v)}
               options={[
                 { value: 'jp', label: '日语' },
                 { value: 'en', label: '英语' },
               ]}
-              style={{ maxWidth: 160 }}
+              className="max-w-[160px]"
             />
           </label>
           <label style={{ display: 'grid', gap: 4 }}>
@@ -460,7 +473,7 @@ export function PodcastsPage() {
                 style={{ marginLeft: 8 }}
               />
             </span>
-            <Input.TextArea
+            <TextArea
               rows={5}
               value={mp3PrimarySrt}
               onChange={(e) => setMp3PrimarySrt(e.target.value)}
@@ -478,7 +491,7 @@ export function PodcastsPage() {
                 style={{ marginLeft: 8 }}
               />
             </span>
-            <Input.TextArea
+            <TextArea
               rows={4}
               value={mp3ZhSrt}
               onChange={(e) => setMp3ZhSrt(e.target.value)}

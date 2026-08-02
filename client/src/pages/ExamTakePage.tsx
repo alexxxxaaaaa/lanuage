@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Button, toast } from '@heroui/react'
+import { confirm } from '../components/ui/dialog'
 import { Link, useNavigate, useParams } from 'react-router'
-import { message, Modal } from 'antd'
 import {
   getAttempt,
   getExam,
@@ -10,6 +11,12 @@ import {
 import { getErrorMessage } from '../api/error'
 import { ExamAudioPlayer } from '../components/ExamAudioPlayer'
 import type { ExamDetail, ExamQuestion, ExamSection } from '../types'
+import {
+  ExamChoice,
+  ExamChoiceList,
+  ExamQuestionCard,
+  ExamSectionBlock,
+} from '../components/exam/ExamQuestion'
 
 // N1 real-exam durations. Reading portion covers vocab + grammar + reading;
 // listening is a separate 60-min block. Both count down from startedAt but we
@@ -77,7 +84,7 @@ export function ExamTakePage() {
           navigate(`/exams/${id}/attempts/${attemptId}/result`, { replace: true })
         }
       })
-      .catch((e) => message.error(getErrorMessage(e, '加载考试失败')))
+      .catch((e) => toast.danger(getErrorMessage(e, '加载考试失败')))
       .finally(() => setIsLoading(false))
   }, [id, attemptId, navigate])
 
@@ -180,15 +187,12 @@ export function ExamTakePage() {
     if (!id || !attemptId) return
     const unanswered = flat.length - answeredCount
     if (unanswered > 0) {
-      const ok = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: '还有未作答的题',
-          content: `你还有 ${unanswered} 题没做,确定交卷吗?`,
-          okText: '仍然交卷',
-          cancelText: '继续答题',
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        })
+      const ok = await confirm({
+        title: '还有未作答的题',
+        content: `你还有 ${unanswered} 题没做,确定交卷吗?`,
+        okText: '仍然交卷',
+        cancelText: '继续答题',
+        status: 'warning',
       })
       if (!ok) return
     }
@@ -197,7 +201,7 @@ export function ExamTakePage() {
       await submitAttempt(id, attemptId, answers)
       navigate(`/exams/${id}/attempts/${attemptId}/result`, { replace: true })
     } catch (err) {
-      message.error(getErrorMessage(err, '交卷失败'))
+      toast.danger(getErrorMessage(err, '交卷失败'))
       setIsSubmitting(false)
     }
   }
@@ -219,7 +223,7 @@ export function ExamTakePage() {
       <section className="page">
         <div className="card state-card">
           <p className="muted">未找到这份考试。</p>
-          <Link className="primary-link" to="/exams">
+          <Link className="button button--primary" to="/exams">
             回列表
           </Link>
         </div>
@@ -235,9 +239,9 @@ export function ExamTakePage() {
     exam.parsedData?.meta?.subtitleUrl || (exam as ExamDetail).subtitleUrl
 
   return (
-    <section className="page exam-take">
-      <header className="exam-take-header">
-        <div className="exam-take-header-info">
+    <section className="page">
+      <header className="sticky top-0 z-10 mb-4 flex items-center justify-between gap-4 rounded-xl border border-foreground/6 bg-white/95 px-4 py-3 backdrop-blur-lg">
+        <div className="[&>h2]:my-1 [&>h2]:text-lg">
           <p className="eyebrow">
             <Link to={`/exams/${id}`}>← 返回详情</Link>
           </p>
@@ -246,13 +250,17 @@ export function ExamTakePage() {
             {isInListeningPhase ? '聴解 阶段' : '语言知识 · 読解 阶段'} · 已作答 {answeredCount} / {flat.length}
           </p>
         </div>
-        <div className={'exam-take-timer' + (isOvertime ? ' is-overtime' : '')}>
+        <div
+          className={`min-w-[130px] rounded-[10px] px-3.5 py-1.5 text-center font-mono text-[28px] font-semibold ${
+            isOvertime ? 'bg-danger/12 text-red-600' : 'bg-indigo-500/10 text-indigo-600'
+          }`}
+        >
           {formatCountdown(remaining)}
         </div>
       </header>
 
       {exam.audioUrl ? (
-        <div className="exam-take-audio-wrap">
+        <div className="sticky top-0 z-30 mb-2 bg-white pt-3 pb-2 shadow-[0_8px_12px_-8px_rgba(0,0,0,0.15)]">
           <ExamAudioPlayer
             audioUrl={exam.audioUrl}
             subtitleUrl={subtitleUrl}
@@ -260,25 +268,18 @@ export function ExamTakePage() {
         </div>
       ) : null}
 
-      <div className="exam-take-body">
+      <div className="grid gap-7">
         {sections.map((section, sectionIdx) => {
           const isListening = section.type === 'listening'
           return (
-            <section
+            <ExamSectionBlock
               key={sectionIdx}
-              className={'exam-section' + (isListening ? ' is-listening' : '')}
+              label={`問題 ${sectionIdx + 1}`}
+              instruction={section.instruction}
+              passage={section.passage}
+              isListening={isListening}
             >
-              <header className="exam-section-header">
-                <p className="eyebrow">問題 {sectionIdx + 1}</p>
-                <p className="exam-section-instruction">{section.instruction}</p>
-              </header>
-              {section.passage ? (
-                <div className="exam-section-passage">
-                  <p>{section.passage}</p>
-                </div>
-              ) : null}
-              <ol className="exam-question-list">
-                {section.questions.map((q, qIdx) => {
+              {section.questions.map((q, qIdx) => {
                   const picked = answers[String(q.id)]
                   const prev = qIdx > 0 ? section.questions[qIdx - 1] : null
                   // Per-question passage (問題8 style) — only show once above
@@ -293,68 +294,56 @@ export function ExamTakePage() {
                   return (
                     <div key={q.id}>
                       {showPassage ? (
-                        <div className="exam-question-passage">
+                        <div className="mx-0 mt-0 mb-3 rounded border-l-[3px] border-neutral-500 bg-neutral-100 px-4 py-3 font-serif leading-[1.75] [&>p]:m-0">
                           <p style={{ whiteSpace: 'pre-wrap' }}>{q.passage}</p>
                         </div>
                       ) : null}
                       {showGroup ? (
-                        <p className="exam-question-group-title">{q.groupTitle}</p>
+                        <p className="mt-4 mb-2 text-base font-bold text-foreground">{q.groupTitle}</p>
                       ) : null}
-                      <li className="exam-question-card is-interactive">
-                        <div className="exam-question-head">
-                          <span className="exam-question-id">{q.id}</span>
-                          <div className="exam-question-stem">
-                            {q.target ? (
-                              <p className="exam-question-target">目标词:{q.target}</p>
-                            ) : null}
-                            <p style={{ whiteSpace: 'pre-wrap' }}>{q.stem}</p>
-                          </div>
-                        </div>
-                        <ol className="exam-question-choices">
+                      <ExamQuestionCard
+                        id={q.id}
+                        stem={q.stem}
+                        target={q.target}
+                        preserveLineBreaks
+                      >
+                        <ExamChoiceList>
                           {q.choices.map((c, idx) => {
                             const choiceNum = idx + 1
-                            const isPicked = picked === choiceNum
                             return (
-                              <li
+                              <ExamChoice
                                 key={idx}
-                                className={
-                                  'exam-question-choice is-clickable' +
-                                  (isPicked ? ' is-picked' : '')
-                                }
-                                onClick={() => pickChoice(q.id, choiceNum)}
+                                num={choiceNum}
+                                tone={picked === choiceNum ? 'picked' : 'default'}
+                                onSelect={() => pickChoice(q.id, choiceNum)}
                               >
-                                <span className="exam-question-choice-num">
-                                  {choiceNum}
-                                </span>
                                 <span>{c}</span>
-                              </li>
+                              </ExamChoice>
                             )
                           })}
-                        </ol>
-                      </li>
+                        </ExamChoiceList>
+                      </ExamQuestionCard>
                     </div>
                   )
                 })}
-              </ol>
-            </section>
+            </ExamSectionBlock>
           )
         })}
       </div>
 
-      <div className="exam-take-footer">
+      <div className="sticky bottom-3 mt-8 flex items-center justify-between gap-4 rounded-xl border border-foreground/6 bg-white/95 px-4 py-3 shadow-[0_4px_20px_rgba(15,23,42,0.08)] backdrop-blur-lg">
         <div className="muted">
           {isOvertime ? '已超时,请尽快交卷' : `${isInListeningPhase ? '聴解' : '読解+文字'} 剩余 ${formatCountdown(remaining)}`}
           {' · '}
           共 {readingCount} 题读+词+法{hasListening ? ` · ${listeningCount} 题听力` : ''}
         </div>
-        <button
+        <Button
           type="button"
-          className="primary-button"
-          disabled={isSubmitting}
-          onClick={() => void handleSubmit()}
+          isDisabled={isSubmitting}
+          onPress={() => void handleSubmit()}
         >
           {isSubmitting ? '交卷中…' : '交卷'}
-        </button>
+        </Button>
       </div>
     </section>
   )

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Input, Select } from 'antd'
+import { SelectField } from '../components/ui/SelectField'
+import { Button, Input } from '@heroui/react'
 import { Link } from 'react-router'
 import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
@@ -90,29 +91,27 @@ export function FoldersPage() {
           <h2>{t('folders.title')}</h2>
         </div>
         <div className="hero-actions compact-actions">
-          <button
+          <Button variant="outline"
             type="button"
-            className="secondary-button"
-            disabled={isLoadingFolders}
-            onClick={() => void useAppStore.getState().fetchFolders()}
+            isDisabled={isLoadingFolders}
+            onPress={() => void useAppStore.getState().fetchFolders()}
           >
             {t('folders.refresh')}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="primary-button"
-            onClick={() => {
+            onPress={() => {
               setIsCreating((prev) => !prev)
               setForm(INITIAL_FORM)
             }}
           >
             {isCreating ? t('folders.collapse') : t('folders.createFolder')}
-          </button>
+          </Button>
         </div>
       </div>
 
       {isCreating ? (
-        <form className="card folder-form" onSubmit={handleCreate}>
+        <form className="card grid gap-3" onSubmit={handleCreate}>
           <label className="form-field">
             <span>{t('folders.folderName')}</span>
             <Input
@@ -125,7 +124,7 @@ export function FoldersPage() {
           </label>
           <label className="form-field">
             <span>{t('folders.language')}</span>
-            <Select
+            <SelectField
               value={form.language}
               onChange={(v) =>
                 setForm((prev) => ({ ...prev, language: v }))
@@ -137,19 +136,18 @@ export function FoldersPage() {
             />
           </label>
           <div className="form-actions">
-            <button type="submit" className="primary-button" disabled={isSubmitting}>
+            <Button type="submit" isDisabled={isSubmitting}>
               {isSubmitting ? t('folders.creating') : t('folders.create')}
-            </button>
-            <button
+            </Button>
+            <Button variant="outline"
               type="button"
-              className="secondary-button"
-              onClick={() => {
+              onPress={() => {
                 setIsCreating(false)
                 setForm(INITIAL_FORM)
               }}
             >
               {t('folders.cancel')}
-            </button>
+            </Button>
           </div>
         </form>
       ) : null}
@@ -168,7 +166,7 @@ export function FoldersPage() {
           editingId === folder.id ? (
             <form
               key={folder.id}
-              className="card folder-card folder-edit"
+              className="card folder-card grid gap-3"
               onSubmit={(event) => handleUpdate(event, folder.id)}
             >
               <label className="form-field">
@@ -182,7 +180,7 @@ export function FoldersPage() {
               </label>
               <label className="form-field">
                 <span>{t('folders.language')}</span>
-                <Select
+                <SelectField
                   value={editForm.language}
                   onChange={(v) =>
                     setEditForm((prev) => ({ ...prev, language: v }))
@@ -194,20 +192,18 @@ export function FoldersPage() {
                 />
               </label>
               <div className="form-actions">
-                <button
+                <Button
                   type="submit"
-                  className="primary-button"
-                  disabled={isSubmitting}
+                  isDisabled={isSubmitting}
                 >
                   {t('folders.save')}
-                </button>
-                <button
+                </Button>
+                <Button variant="outline"
                   type="button"
-                  className="secondary-button"
-                  onClick={cancelEdit}
+                  onPress={cancelEdit}
                 >
                   {t('folders.cancel')}
-                </button>
+                </Button>
               </div>
             </form>
           ) : (
@@ -220,14 +216,14 @@ export function FoldersPage() {
                   </span>
                 </div>
                 {(folder.dueCount ?? 0) > 0 ? (
-                  <div className="folder-status">
-                    <span className="folder-due-pill">
+                  <div className="-mt-0.5 flex flex-wrap items-center gap-1.5">
+                    <span className="rounded-full bg-red-500/12 px-2 py-1 text-xs font-bold whitespace-nowrap text-red-700">
                       {t('folders.dueToday', { count: folder.dueCount ?? 0 })}
                     </span>
                   </div>
                 ) : (folder.reviewedTodayCount ?? 0) > 0 ? (
-                  <div className="folder-status">
-                    <span className="folder-done-pill">
+                  <div className="-mt-0.5 flex flex-wrap items-center gap-1.5">
+                    <span className="rounded-full bg-green-600/12 px-2 py-1 text-xs font-bold whitespace-nowrap text-green-700">
                       {t('folders.reviewedToday', {
                         count: folder.reviewedTodayCount ?? 0,
                       })}
@@ -236,10 +232,10 @@ export function FoldersPage() {
                 ) : null}
                 <p className="muted">{t('folders.wordCount', { count: folder._count?.words ?? 0 })}</p>
                 {(folder._count?.words ?? 0) > 0 ? (
-                  <div className="folder-mastery">
-                    <div className="folder-mastery-bar">
+                  <div className="mt-0.5 flex items-center gap-2">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/8">
                       <span
-                        className="folder-mastery-fill"
+                        className="block h-full rounded-[inherit] bg-accent transition-[width] duration-300"
                         style={{
                           width: `${Math.round(
                             ((folder.masteredCount ?? 0) / (folder._count?.words ?? 1)) * 100,
@@ -247,7 +243,7 @@ export function FoldersPage() {
                         }}
                       />
                     </div>
-                    <span className="folder-mastery-label">
+                    <span className="text-xs whitespace-nowrap text-muted">
                       {t('folders.masteredOf', {
                         mastered: folder.masteredCount ?? 0,
                         total: folder._count?.words ?? 0,
@@ -257,21 +253,19 @@ export function FoldersPage() {
                 ) : null}
               </Link>
               <div className="folder-card-actions">
-                <button
+                <Button variant="outline" size="sm"
                   type="button"
-                  className="ghost-button"
-                  onClick={() => beginEdit(folder)}
+                  onPress={() => beginEdit(folder)}
                 >
                   {t('folders.rename')}
-                </button>
-                <button
+                </Button>
+                <Button variant="danger-soft" size="sm"
                   type="button"
-                  className="ghost-button danger"
-                  onClick={() => void handleDelete(folder)}
-                  disabled={isSubmitting}
+                  onPress={() => void handleDelete(folder)}
+                  isDisabled={isSubmitting}
                 >
                   {t('folders.delete')}
-                </button>
+                </Button>
               </div>
             </article>
           ),

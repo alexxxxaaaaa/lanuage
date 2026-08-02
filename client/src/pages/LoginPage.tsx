@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Input } from 'antd'
+import { Button, Input } from '@heroui/react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { login } from '../api/auth'
 import { useAuthStore } from '../store/authStore'
@@ -31,36 +31,34 @@ export function LoginPage() {
   }
 
   return (
-    <section className="auth-page">
-      <div className="auth-card">
-        <h1 className="auth-title">登录</h1>
-        <p className="auth-subtitle">登录后访问你的词汇库</p>
-        <form className="auth-form" onSubmit={handleSubmit}>
-          <label className="auth-field">
+    <section className="flex min-h-screen items-center justify-center bg-linear-135 from-slate-50 to-indigo-50 px-4 py-8">
+      <div className="w-full max-w-[380px] rounded-2xl bg-white px-7 py-8 shadow-[0_12px_32px_rgba(15,23,42,0.08)]">
+        <h1 className="mt-0 mb-1 text-2xl font-semibold text-slate-900">登录</h1>
+        <p className="mt-0 mb-6 text-sm text-slate-500">登录后访问你的词汇库</p>
+        <form className="flex flex-col gap-3.5" onSubmit={handleSubmit}>
+          <label className="flex flex-col gap-1.5 text-[13px] text-slate-700">
             <span>用户名</span>
             <Input
               autoFocus
-              size="large"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
               autoComplete="username"
             />
           </label>
-          <label className="auth-field">
+          <label className="flex flex-col gap-1.5 text-[13px] text-slate-700">
             <span>密码</span>
-            <Input.Password
-              size="large"
+            <Input type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete="current-password"
             />
           </label>
-          {error ? <p className="auth-error">{error}</p> : null}
-          <button type="submit" className="primary-button" disabled={isSubmitting}>
+          {error ? <p className="m-0 text-[13px] text-red-600">{error}</p> : null}
+          <Button className="mt-2 w-full" type="submit" isDisabled={isSubmitting}>
             {isSubmitting ? '登录中…' : '登录'}
-          </button>
+          </Button>
         </form>
-        <p className="auth-footer">
+        <p className="mx-0 mt-4.5 mb-0 text-center text-[13px] text-slate-500 [&_a]:text-indigo-500 [&_a]:no-underline">
           没有账户？<Link to="/register">立即注册</Link>
         </p>
       </div>

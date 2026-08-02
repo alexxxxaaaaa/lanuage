@@ -10,6 +10,10 @@ type DictNode = {
 
 const messages: Record<UiLanguage, DictNode> = {
   zh: {
+    common: {
+      ok: '确定',
+      cancel: '取消',
+    },
     nav: {
       searchPlaceholder: '词典搜索：输入中文查英语/日语',
       search: '搜索',
@@ -426,6 +430,10 @@ const messages: Record<UiLanguage, DictNode> = {
     },
   },
   en: {
+    common: {
+      ok: 'OK',
+      cancel: 'Cancel',
+    },
     nav: {
       searchPlaceholder: 'Dictionary: Chinese to English/Japanese',
       search: 'Search',
@@ -842,6 +850,10 @@ const messages: Record<UiLanguage, DictNode> = {
     },
   },
   jp: {
+    common: {
+      ok: 'OK',
+      cancel: 'キャンセル',
+    },
     nav: {
       searchPlaceholder: '辞書検索: 中国語から英語/日本語へ',
       search: '検索',

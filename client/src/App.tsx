@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
-import { CodeOutlined, MenuOutlined, SearchOutlined } from '@ant-design/icons'
-import { Drawer, FloatButton, Modal, Select } from 'antd'
+import { SelectField } from './components/ui/SelectField'
+import { Code, Menu } from 'lucide-react'
+import { Button, Drawer } from '@heroui/react'
+import { FloatButton } from './components/ui/FloatButton'
+import { Modal } from './components/ui/Modal'
 import {
   NavLink,
   Route,
@@ -8,7 +11,6 @@ import {
   useLocation,
   useNavigate,
 } from 'react-router'
-import './App.css'
 import { useI18n } from './i18n'
 import { fetchMe } from './api/auth'
 import { QuickSearchFloat } from './components/QuickSearchFloat'
@@ -22,6 +24,34 @@ import { useTabsStore } from './store/tabsStore'
 import { primeSpeechOnFirstGesture } from './utils/speech'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
+
+// The PWA safe-area @supports block always applied (it sat after the
+// breakpoints in source order), so the desktop 24px/64px padding never
+// actually took effect. Kept as-is rather than silently changing the layout.
+const APP_SHELL =
+  'mx-auto box-border w-[min(1040px,100%)] pt-12 pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] pb-[max(32px,env(safe-area-inset-bottom))] max-md:pt-4'
+
+// Circular icon button in the nav bar; only shown once the desktop link row
+// collapses.
+const NAV_ICON_BUTTON =
+  'hidden size-10 items-center justify-center rounded-full border border-border bg-surface p-0 text-lg text-foreground max-md:inline-flex max-[480px]:size-9'
+
+// The same link list renders in the top bar and inside the drawer, so the
+// styling is picked per placement rather than inherited from an ancestor.
+const NAV_LINK: Record<'bar' | 'drawer', (isActive: boolean) => string> = {
+  bar: (isActive) =>
+    `rounded-full border px-3.5 py-2.5 no-underline max-md:px-3 max-md:py-2 max-md:text-[13px] max-[480px]:px-2.5 max-[480px]:py-1.5 max-[480px]:text-xs ${
+      isActive
+        ? 'border-accent bg-accent text-white'
+        : 'border-border bg-surface text-foreground'
+    }`,
+  drawer: (isActive) =>
+    `rounded-[10px] border px-3.5 py-3 text-[15px] no-underline ${
+      isActive
+        ? 'border-accent bg-accent text-white'
+        : 'border-transparent bg-transparent text-foreground hover:border-border hover:bg-accent/6'
+    }`,
+}
 
 function AppShell() {
   const navigate = useNavigate()
@@ -135,138 +165,128 @@ function AppShell() {
       .catch(() => {})
   }, [token, setUser])
 
-  const navLinks = (
+  const renderNavLinks = (place: 'bar' | 'drawer') => (
     <>
-      <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/" end>
+      <NavLink className={({ isActive }) => NAV_LINK[place](isActive)} to="/" end>
         {t('nav.home')}
       </NavLink>
-      <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/folders">
+      <NavLink className={({ isActive }) => NAV_LINK[place](isActive)} to="/folders">
         {t('nav.folders')}
       </NavLink>
-      <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/notes">
+      <NavLink className={({ isActive }) => NAV_LINK[place](isActive)} to="/notes">
         {t('nav.notes')}
       </NavLink>
-      <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/expressions">
+      <NavLink className={({ isActive }) => NAV_LINK[place](isActive)} to="/expressions">
         {t('nav.expressions')}
       </NavLink>
-      <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/grammar">
+      <NavLink className={({ isActive }) => NAV_LINK[place](isActive)} to="/grammar">
         {t('nav.grammar')}
       </NavLink>
-      <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/exams">
+      <NavLink className={({ isActive }) => NAV_LINK[place](isActive)} to="/exams">
         真题
       </NavLink>
-      <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/reading">
+      <NavLink className={({ isActive }) => NAV_LINK[place](isActive)} to="/reading">
         精读
       </NavLink>
-      <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/jlpt">
+      <NavLink className={({ isActive }) => NAV_LINK[place](isActive)} to="/jlpt">
         JLPT精练
       </NavLink>
       {user?.canSeePodcast ? (
-        <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/podcasts">
+        <NavLink className={({ isActive }) => NAV_LINK[place](isActive)} to="/podcasts">
           {t('nav.podcasts')}
         </NavLink>
       ) : null}
-      <NavLink className={({ isActive }) => (isActive ? 'active' : '')} to="/ai-usage">
+      <NavLink className={({ isActive }) => NAV_LINK[place](isActive)} to="/ai-usage">
         {t('nav.aiUsage')}
       </NavLink>
     </>
   )
 
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        <div className="brand">
-          <p className="eyebrow">Word Sprint</p>
+    <div className={APP_SHELL}>
+      <header className="mb-8 flex items-start justify-between gap-6 max-md:mb-5 max-md:flex-nowrap max-md:items-center max-md:gap-2">
+        <div className="flex min-w-0 flex-col gap-2 max-md:flex-1 max-md:gap-1">
+          <p className="eyebrow max-md:m-0 max-md:truncate max-md:text-[13px]">Word Sprint</p>
         </div>
 
-        <nav className="nav">
-          <form className="nav-search" onSubmit={handleGlobalSearch}>
+        <nav className="flex flex-wrap items-center gap-3 max-md:w-auto max-md:flex-nowrap max-md:justify-end max-md:gap-2">
+          <form
+            className="mr-2 inline-flex items-center gap-2 max-md:hidden"
+            onSubmit={handleGlobalSearch}
+          >
             <SearchSuggest
+              className="w-[280px] max-w-[46vw] flex-none"
+              inputClassName="rounded-full border border-border bg-surface px-3 py-2.5 text-sm text-foreground focus:border-accent focus:ring-3 focus:ring-accent/15 focus:outline-none"
+              placeholder={t('nav.searchPlaceholder')}
               value={keyword}
               onChange={setKeyword}
               onSubmit={submitSearch}
-              placeholder={t('nav.searchPlaceholder')}
             />
-            <button type="submit" className="primary-button">
+            <Button type="submit">
               {t('nav.search')}
-            </button>
+            </Button>
           </form>
-          <button
-            type="button"
-            className="nav-search-icon"
-            aria-label={t('nav.search')}
-            onClick={() => navigate('/words/search')}
-          >
-            <SearchOutlined />
-          </button>
-          <label className="nav-language">
-            <span className="nav-language-label">{t('nav.language')}</span>
-            <Select
-              className="nav-language-select"
-              size="small"
-              variant="borderless"
-              popupMatchSelectWidth={false}
-              value={language}
-              onChange={(value) => setLanguage(value as 'zh' | 'en' | 'jp')}
+          <label className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-2.5 py-1.5 text-xs font-semibold text-foreground max-md:px-1.5 max-md:py-1">
+            <span className="max-md:hidden">{t('nav.language')}</span>
+            <SelectField
+              className="min-w-[92px] max-md:min-w-16 max-[480px]:min-w-14"
               options={[
                 { value: 'zh', label: t('nav.zh') },
                 { value: 'en', label: t('nav.en') },
                 { value: 'jp', label: t('nav.jp') },
               ]}
+              value={language}
+              onChange={(value) => setLanguage(value as 'zh' | 'en' | 'jp')}
             />
           </label>
           {user ? (
-            <div className="brand-user">
-              <span className="brand-user-name">@{user.username}</span>
-              <button type="button" className="brand-logout" onClick={handleLogout}>
+            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-surface py-1.5 pr-1 pl-3 text-xs text-muted max-md:py-1 max-md:pl-2.5 max-[480px]:gap-1.5 max-[480px]:py-[3px] max-[480px]:pr-[3px] max-[480px]:pl-2">
+              <span className="max-w-[90px] truncate font-semibold text-foreground max-md:max-w-14 max-[480px]:max-w-11">@{user.username}</span>
+              <button type="button" className="min-h-[26px] cursor-pointer rounded-full border-none bg-accent/8 px-2.5 py-0.5 text-xs font-semibold text-accent hover:bg-accent/16 max-[480px]:min-h-6 max-[480px]:px-2 max-[480px]:text-[11px]" onClick={handleLogout}>
                 {t('nav.logout')}
               </button>
             </div>
           ) : null}
-          <div className="nav-links-desktop">{navLinks}</div>
-          <button
+          <div className="contents max-md:hidden">{renderNavLinks('bar')}</div>
+          <Button
             type="button"
-            className="nav-menu-toggle"
+            className={NAV_ICON_BUTTON}
             aria-label={t('nav.openMenu')}
-            onClick={() => setIsDrawerOpen(true)}
+            onPress={() => setIsDrawerOpen(true)}
           >
-            <MenuOutlined />
-          </button>
+            <Menu />
+          </Button>
         </nav>
       </header>
 
-      <Drawer
-        title={t('nav.drawerTitle')}
-        placement="right"
-        open={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        width={260}
-        className="nav-drawer"
-      >
-        <div className="nav-drawer-links">{navLinks}</div>
-      </Drawer>
+      <Drawer.Backdrop isOpen={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+        <Drawer.Content placement="right">
+          <Drawer.Dialog className="w-[260px]">
+            <Drawer.CloseTrigger />
+            <Drawer.Header>
+              <Drawer.Heading>{t('nav.drawerTitle')}</Drawer.Heading>
+            </Drawer.Header>
+            <Drawer.Body>
+              <div className="flex flex-col gap-2">{renderNavLinks('drawer')}</div>
+            </Drawer.Body>
+          </Drawer.Dialog>
+        </Drawer.Content>
+      </Drawer.Backdrop>
 
       <main className="page-content">
         <TabbedRoot />
       </main>
       <FloatButton
-        icon={<CodeOutlined />}
+        className="max-md:hidden"
+        icon={<Code className="size-5" />}
+        side="left"
         tooltip={t('nav.codeTooltip')}
-        onClick={() => setIsCodeOpen(true)}
-        className="hide-on-mobile-float"
-        style={{ insetInlineStart: 24, bottom: 24 }}
+        onPress={() => setIsCodeOpen(true)}
       />
       <Modal
-        title=""
-        open={isCodeOpen}
-        onCancel={() => setIsCodeOpen(false)}
-        footer={null}
-        className="full-screen-code-modal"
-        width="100vw"
-        style={{ top: 0, paddingBottom: 0, maxWidth: '100vw' }}
-        styles={{
-          body: { height: 'calc(100vh - 56px)', overflowY: 'auto' },
-        }}
+        isOpen={isCodeOpen}
+        size="full"
+        onClose={() => setIsCodeOpen(false)}
       >
         <BackstageNote />
       </Modal>

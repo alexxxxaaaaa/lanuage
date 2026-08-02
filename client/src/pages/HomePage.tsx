@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Modal, Select, Tabs, message } from 'antd'
+import { Button, toast } from '@heroui/react'
+import { Modal } from '../components/ui/Modal'
+import { SelectField } from '../components/ui/SelectField'
+import { TabsView } from '../components/ui/TabsView'
+import { alertDialog } from '../components/ui/dialog'
 import { Link, useNavigate } from 'react-router'
 import { useI18n } from '../i18n'
 import {
@@ -139,9 +143,9 @@ export function HomePage() {
     }))
     try {
       await markWordMastered(wordId)
-      message.success(t('home.markedMastered', { word: wordLabel }))
+      toast.success(t('home.markedMastered', { word: wordLabel }))
     } catch {
-      message.error(t('home.markMasteredFailed'))
+      toast.danger(t('home.markMasteredFailed'))
       // Server rejected — reload authoritative state so local optimistic
       // removal doesn't outlive reality.
       const [, list] = await Promise.all([
@@ -171,24 +175,21 @@ export function HomePage() {
 
   return (
     <section className="page">
-      <div className="card hero-card">
+      <div className="card py-12 text-center">
         <p className="eyebrow">Today Review</p>
-        <div className="home-hero-title-row">
+        <div className="flex flex-wrap items-center justify-center gap-2.5">
           <h2>{t('home.title')}</h2>
-          <button
+          <Button variant="outline"
             type="button"
-            className="secondary-button"
-            onClick={() => setWeeklyOpen(true)}
+            onPress={() => setWeeklyOpen(true)}
           >
             本周回顾
-          </button>
-          <button
+          </Button>
+          <Button variant="outline"
             type="button"
-            className="secondary-button"
-            onClick={() =>
-              Modal.info({
+            onPress={() =>
+              void alertDialog.info({
                 title: t('home.algoTitle'),
-                width: 640,
                 okText: t('expression.save'),
                 content: (
                   <div>
@@ -199,7 +200,7 @@ export function HomePage() {
             }
           >
             {t('home.algoInfo')}
-          </button>
+          </Button>
         </div>
         <p className="hero-count">{isLoadingReviews ? '...' : dueCount}</p>
         {todayLearned.total > 0 ? (
@@ -222,48 +223,44 @@ export function HomePage() {
         ) : null}
 
         {dueListItems.length > 0 ? (
-          <div className="home-due-list-block">
-            <button
+          <div className="mt-4 flex flex-col items-center gap-3">
+            <Button variant="outline" size="sm" className="self-center"
               type="button"
-              className="ghost-button home-due-toggle"
-              onClick={() => setShowDueList(true)}
+              onPress={() => setShowDueList(true)}
             >
               {t('home.showDueList', { count: dueListItems.length })}
-            </button>
+            </Button>
           </div>
         ) : null}
 
         <Modal
           title={t('home.dueListTitle', { count: dueListItems.length })}
-          open={showDueList}
-          onCancel={() => setShowDueList(false)}
-          footer={null}
-          width={560}
-          styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
+          isOpen={showDueList}
+          onClose={() => setShowDueList(false)}
+          size="md"
         >
           {dueListItems.length === 0 ? (
             <p className="muted">{t('home.dueListEmpty')}</p>
           ) : (
             <>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-              <button
+              <Button variant="outline" size="sm"
                 type="button"
-                className="ghost-button"
-                title="打乱今日复习顺序(下次刷新会重置)"
-                onClick={() => useAppStore.getState().shuffleTodayReviews()}
+                render={(props) => <button {...props} title="打乱今日复习顺序(下次刷新会重置)" />}
+                onPress={() => useAppStore.getState().shuffleTodayReviews()}
               >
                 🔀 打乱顺序
-              </button>
+              </Button>
             </div>
-            <Tabs
+            <TabsView
               items={dueGroups.map((group) => ({
                 key: group.folderId,
                 label: `${group.folderName}（${group.items.length}）`,
                 children: (
-                  <ul className="home-due-list">
+                  <ul className="m-0 flex w-full max-w-[560px] list-none flex-col gap-2 p-0 text-left">
                     {group.items.map((item) => (
-                      <li key={item.wordId} className="home-due-item">
-                        <div className="home-due-item-info">
+                      <li key={item.wordId} className="flex flex-col gap-1.5 rounded-xl border border-border bg-foreground/2 px-3.5 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
                           <strong>{item.word.word}</strong>
                           {item.word.reading ? (
                             <span className="muted">{item.word.reading}</span>
@@ -273,23 +270,22 @@ export function HomePage() {
                           </span>
                         </div>
                         {item.word.meaning ? (
-                          <p className="muted home-due-item-meaning">
+                          <p className="muted m-0 text-[13px]">
                             {item.word.meaning}
                           </p>
                         ) : null}
-                        <div className="home-due-item-actions">
-                          <button
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" size="sm"
                             type="button"
-                            className="ghost-button"
-                            disabled={masteringWordId === item.wordId}
-                            onClick={() =>
+                            isDisabled={masteringWordId === item.wordId}
+                            onPress={() =>
                               void handleMarkMastered(item.wordId, item.word.word)
                             }
                           >
                             {masteringWordId === item.wordId
                               ? t('home.marking')
                               : t('home.markMastered')}
-                          </button>
+                          </Button>
                         </div>
                       </li>
                     ))}
@@ -307,18 +303,17 @@ export function HomePage() {
               ? `${t('home.newListTitle', { count: newWordsForLearnFolder.length })} · ${learnFolderName}`
               : t('home.newListTitle', { count: newWordsForLearnFolder.length })
           }
-          open={learnFolderId !== null}
-          onCancel={() => setLearnFolderId(null)}
+          isOpen={learnFolderId !== null}
+          onClose={() => setLearnFolderId(null)}
           footer={
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button type="button" className="ghost-button" onClick={() => setLearnFolderId(null)}>
+              <Button variant="outline" size="sm" type="button" onPress={() => setLearnFolderId(null)}>
                 {t('expression.collapseCreate')}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="primary-button"
-                disabled={newWordsForLearnFolder.length === 0}
-                onClick={() => {
+                isDisabled={newWordsForLearnFolder.length === 0}
+                onPress={() => {
                   if (!learnFolderId) return
                   useAppStore.getState().setReviewFolderId(learnFolderId)
                   setLearnFolderId(null)
@@ -326,37 +321,35 @@ export function HomePage() {
                 }}
               >
                 {t('home.learnNew')}
-              </button>
+              </Button>
             </div>
           }
-          width={560}
-          styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
+          size="md"
         >
           {newWordsForLearnFolder.length === 0 ? (
             <p className="muted">{t('home.newListEmpty')}</p>
           ) : (
-            <ul className="home-due-list">
+            <ul className="m-0 flex w-full max-w-[560px] list-none flex-col gap-2 p-0 text-left">
               {newWordsForLearnFolder.map((w) => (
-                <li key={w.id} className="home-due-item">
-                  <div className="home-due-item-info">
+                <li key={w.id} className="flex flex-col gap-1.5 rounded-xl border border-border bg-foreground/2 px-3.5 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
                     <strong>{w.word}</strong>
                     {w.reading ? <span className="muted">{w.reading}</span> : null}
                     <span className="folder-language">{w.language.toUpperCase()}</span>
                   </div>
                   {w.meaning ? (
-                    <p className="muted home-due-item-meaning">{w.meaning}</p>
+                    <p className="muted m-0 text-[13px]">{w.meaning}</p>
                   ) : null}
-                  <div className="home-due-item-actions">
-                    <button
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm"
                       type="button"
-                      className="ghost-button"
-                      disabled={masteringWordId === w.id}
-                      onClick={() => void handleMarkMastered(w.id, w.word)}
+                      isDisabled={masteringWordId === w.id}
+                      onPress={() => void handleMarkMastered(w.id, w.word)}
                     >
                       {masteringWordId === w.id
                         ? t('home.marking')
                         : t('home.markMastered')}
-                    </button>
+                    </Button>
                   </div>
                 </li>
               ))}
@@ -364,69 +357,66 @@ export function HomePage() {
           )}
         </Modal>
         {/* <div className="hero-actions">
-          <button
+          <Button
             type="button"
-            className="primary-button"
-            onClick={handleStartLearnAll}
-            disabled={isLoadingReviews}
+            onPress={handleStartLearnAll}
+            isDisabled={isLoadingReviews}
           >
             全部分类开始学习
-          </button>
-          <button
+          </Button>
+          <Button variant="outline"
             type="button"
-            className="secondary-button"
-            onClick={handleStartReviewAll}
-            disabled={isLoadingReviews || dueCount === 0}
+            onPress={handleStartReviewAll}
+            isDisabled={isLoadingReviews || dueCount === 0}
           >
             全部分类开始复习
-          </button>
-          <Link className="secondary-link" to="/folders">
+          </Button>
+          <Link className="button button--outline" to="/folders">
             查看分类
           </Link>
-          <button
+          <Button variant="outline"
             type="button"
-            className="secondary-button"
-            disabled={isLoadingReviews || isLoadingFolders}
-            onClick={() => {
+            isDisabled={isLoadingReviews || isLoadingFolders}
+            onPress={() => {
               void useAppStore.getState().fetchFolders()
               void useAppStore.getState().fetchTodayReviews()
             }}
           >
             刷新数据
-          </button>
+          </Button>
         </div> */}
 
         {error ? <p className="error-text">{error}</p> : null}
       </div>
 
-      <div className="home-modules">
-        <Link className="home-module-card" to="/folders">
-          <div className="home-module-icon">📚</div>
-          <div className="home-module-body">
-            <strong>{t('nav.folders')}</strong>
-            <span className="muted">按语言/教材分类管理单词</span>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
+        <Link className="flex items-center gap-3 rounded-[14px] border border-border bg-surface px-4.5 py-4 text-foreground no-underline transition-[transform,box-shadow,border-color] duration-150 hover:-translate-y-px hover:border-accent hover:shadow-[0_6px_20px_rgba(37,99,235,0.1)]" to="/folders">
+          <div className="inline-flex size-11 items-center justify-center rounded-[10px] bg-accent/8 text-[26px]">📚</div>
+          <div className="flex flex-1 flex-col gap-0.5">
+            <strong className="text-[15px]">{t('nav.folders')}</strong>
+            <span className="muted text-xs leading-[1.4]">按语言/教材分类管理单词</span>
           </div>
-          <span className="home-module-arrow">→</span>
+          <span className="text-lg font-semibold text-accent">→</span>
         </Link>
-        <Link className="home-module-card" to="/notes">
-          <div className="home-module-icon">📝</div>
-          <div className="home-module-body">
-            <strong>{t('nav.notes')}</strong>
-            <span className="muted">摘录文章 / 课文，挑词加入词库</span>
+        <Link className="flex items-center gap-3 rounded-[14px] border border-border bg-surface px-4.5 py-4 text-foreground no-underline transition-[transform,box-shadow,border-color] duration-150 hover:-translate-y-px hover:border-accent hover:shadow-[0_6px_20px_rgba(37,99,235,0.1)]" to="/notes">
+          <div className="inline-flex size-11 items-center justify-center rounded-[10px] bg-accent/8 text-[26px]">📝</div>
+          <div className="flex flex-1 flex-col gap-0.5">
+            <strong className="text-[15px]">{t('nav.notes')}</strong>
+            <span className="muted text-xs leading-[1.4]">摘录文章 / 课文，挑词加入词库</span>
           </div>
-          <span className="home-module-arrow">→</span>
+          <span className="text-lg font-semibold text-accent">→</span>
         </Link>
-        <Link className="home-module-card" to="/expressions">
-          <div className="home-module-icon">💬</div>
-          <div className="home-module-body">
-            <strong>{t('nav.expressions')}</strong>
-            <span className="muted">收集口语化短句和场景表达</span>
+        <Link className="flex items-center gap-3 rounded-[14px] border border-border bg-surface px-4.5 py-4 text-foreground no-underline transition-[transform,box-shadow,border-color] duration-150 hover:-translate-y-px hover:border-accent hover:shadow-[0_6px_20px_rgba(37,99,235,0.1)]" to="/expressions">
+          <div className="inline-flex size-11 items-center justify-center rounded-[10px] bg-accent/8 text-[26px]">💬</div>
+          <div className="flex flex-1 flex-col gap-0.5">
+            <strong className="text-[15px]">{t('nav.expressions')}</strong>
+            <span className="muted text-xs leading-[1.4]">收集口语化短句和场景表达</span>
           </div>
-          <span className="home-module-arrow">→</span>
+          <span className="text-lg font-semibold text-accent">→</span>
         </Link>
       </div>
 
-      <div className="folder-grid home-action-grid">
+      <div className="folder-grid mt-1">
         {folderList.map((folder) => (
           <article key={folder.id} className="card folder-card">
             <Link className="folder-card-link" to={`/folders/${folder.id}`}>
@@ -441,13 +431,13 @@ export function HomePage() {
                 })}
               </p>
             </Link>
-            <div className="folder-card-actions home-folder-actions">
-              <label className="session-inline home-folder-limit">
+            <div className="folder-card-actions flex-wrap items-center justify-between">
+              <label className="session-inline justify-between">
                 <span className="muted">{t('home.learnLimit')}</span>
-                <Select
+                <SelectField
+                  className="min-w-[100px]"
                   value={sessionLimit === null ? 'all' : String(sessionLimit)}
                   onChange={(v) => handleLearnLimitChange(v)}
-                  style={{ minWidth: 100 }}
                   options={LEARN_LIMIT_OPTIONS.map((option) => ({
                     value: option.value === null ? 'all' : String(option.value),
                     label:
@@ -458,22 +448,20 @@ export function HomePage() {
                 />
               </label>
               <div>
-                <button
-                type="button"
-                className="ghost-button"
-                disabled={isLoadingFolders || isLoadingReviews}
-                onClick={() => handleStartLearnByFolder(folder.id)}
-              >
+                <Button variant="outline" size="sm"
+                  type="button"
+                  isDisabled={isLoadingFolders || isLoadingReviews}
+                  onPress={() => handleStartLearnByFolder(folder.id)}
+                >
                 {t('home.learnNew')}
-              </button>
-              <button
+              </Button>
+              <Button variant="outline" size="sm"
                 type="button"
-                className="ghost-button"
-                disabled={isLoadingFolders || isLoadingReviews}
-                onClick={() => handleStartReviewByFolder(folder.id)}
+                isDisabled={isLoadingFolders || isLoadingReviews}
+                onPress={() => handleStartReviewByFolder(folder.id)}
               >
                 {t('home.review')}
-              </button>
+              </Button>
               </div>
             </div>
           </article>

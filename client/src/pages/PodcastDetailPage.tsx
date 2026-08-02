@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Select } from 'antd'
+import { SelectField } from '../components/ui/SelectField'
 import { Link, useParams } from 'react-router'
 import {
   getPodcast,
@@ -12,6 +12,7 @@ import { useTab } from '../components/TabContext'
 import { getStoredToken } from '../store/authStore'
 import { getTokenizer, renderFuriganaHtml } from '../utils/furigana'
 import type { Podcast } from '../types'
+import { Button } from '@heroui/react'
 
 // Minimal YouTube IFrame Player types — pulled in just for the methods we use.
 type YTPlayer = {
@@ -47,6 +48,13 @@ declare global {
 }
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]
+
+// The two inline-edit textareas for fixing a wrong auto-caption.
+const EDIT_BOX =
+  'w-full resize-y rounded-lg border border-foreground/18 bg-white px-2 py-1.5 font-[inherit] text-sm/[1.5] focus:border-indigo-500 focus:outline-none'
+
+// keep-all stops CJK from breaking mid-word; anywhere still rescues long URLs.
+const LINE_TEXT = 'text-[15px]/[1.6] [word-break:keep-all] [overflow-wrap:anywhere]'
 
 let apiLoadPromise: Promise<void> | null = null
 function loadYouTubeApi(): Promise<void> {
@@ -577,7 +585,8 @@ export function PodcastDetailPage() {
   const lines = podcast.transcript.lines
 
   return (
-    <section className="page podcast-detail">
+    // pb-24 leaves room for the fixed bottom toolbar.
+    <section className="page pb-24">
       <div className="section-header">
         <div>
           <p className="eyebrow"><Link to="/podcasts">播客</Link></p>
@@ -594,7 +603,7 @@ export function PodcastDetailPage() {
         * state (with 更多视频 overlay). Instead we zero out the visual
         * footprint so the iframe stays alive in the background. */}
       <div
-        className="card podcast-player-card"
+        className="card sticky top-3 z-20 flex justify-center overflow-hidden p-3 shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
         style={
           videoHidden
             ? {
@@ -612,14 +621,16 @@ export function PodcastDetailPage() {
       >
         <button
           type="button"
-          className="podcast-player-close"
+          className="absolute top-1.5 right-1.5 z-[2] inline-flex size-7 min-h-0 cursor-pointer items-center justify-center rounded-full border-none p-0 text-sm leading-none text-white bg-foreground/60 transition-colors duration-150 hover:bg-foreground/85"
           onClick={() => setVideoHidden(true)}
           aria-label="收起视频"
           title="收起视频"
         >
           ✕
         </button>
-        <div className="podcast-player-frame">
+        {/* The YouTube API injects its iframe into the empty div below, so both
+          * the placeholder and the injected frame get the same fill rules. */}
+        <div className="relative aspect-video w-full max-w-[560px] overflow-hidden rounded-xl [&>div]:absolute [&>div]:inset-0 [&>div]:size-full [&_iframe]:absolute [&_iframe]:inset-0 [&_iframe]:size-full [&_iframe]:border-0">
           {podcast?.mp3Url ? (
             <audio
               // Imperative ref-callback — wires the adapter + polling the
@@ -629,7 +640,7 @@ export function PodcastDetailPage() {
               src={podcast.mp3Url}
               controls
               preload="metadata"
-              className="podcast-mp3-audio"
+              className="block h-11 w-full"
             />
           ) : (
             <div ref={playerHostRef} />
@@ -639,7 +650,7 @@ export function PodcastDetailPage() {
       {videoHidden ? (
         <button
           type="button"
-          className="podcast-video-show-btn"
+          className="fixed top-[72px] right-5 z-[15] cursor-pointer rounded-full border-none bg-indigo-600 px-3.5 py-2 text-[13px] font-medium text-white shadow-[0_4px_12px_rgba(79,70,229,0.35)] transition-[background-color,transform] duration-150 hover:-translate-y-px hover:bg-indigo-700"
           onClick={() => setVideoHidden(false)}
           title="显示视频"
         >
@@ -647,7 +658,7 @@ export function PodcastDetailPage() {
         </button>
       ) : null}
 
-      <div className="card podcast-transcript">
+      <div className="card flex flex-col gap-1">
         {lines.map((ln, idx) => {
           const isActive = idx === currentIdx
           const isEditing = editingIdx === idx
@@ -655,7 +666,11 @@ export function PodcastDetailPage() {
             <div
               key={idx}
               id={`podcast-line-${idx}`}
-              className={`podcast-line${isActive ? ' is-active' : ''}${isEditing ? ' is-editing' : ''}`}
+              className={`group relative flex items-start gap-3 rounded-[10px] py-2 pr-[38px] pl-2.5 transition-colors duration-150 ${
+                isEditing
+                  ? 'cursor-default bg-indigo-500/6'
+                  : `cursor-pointer hover:bg-foreground/4 ${isActive ? 'bg-indigo-500/10' : ''}`
+              }`}
               onClick={() => {
                 // Don't seek while editing — the user is trying to interact
                 // with the form, not jump elsewhere.
@@ -665,15 +680,16 @@ export function PodcastDetailPage() {
               role="button"
               tabIndex={0}
             >
-              <div className="podcast-line-time">{formatTime(ln.start)}</div>
-              <div className="podcast-line-body">
+              {/* line-height matches the body text's first line, so 7:59 sits on
+                * the same baseline as 復旧に despite the smaller font. */}
+              <div className="w-12 shrink-0 text-xs/[24px] tabular-nums text-muted">
+                {formatTime(ln.start)}
+              </div>
+              <div className="min-w-0 flex-1">
                 {isEditing ? (
-                  <div
-                    className="podcast-line-edit"
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                  <div className="grid gap-2" onClick={(e) => e.stopPropagation()}>
                     <textarea
-                      className="podcast-line-edit-text"
+                      className={EDIT_BOX}
                       value={editText}
                       onChange={(e) => setEditText(e.target.value)}
                       rows={2}
@@ -681,43 +697,43 @@ export function PodcastDetailPage() {
                       placeholder="字幕原文"
                     />
                     <textarea
-                      className="podcast-line-edit-zh"
+                      className={`${EDIT_BOX} text-[13px] text-muted`}
                       value={editZh}
                       onChange={(e) => setEditZh(e.target.value)}
                       rows={2}
                       placeholder="中文翻译（可留空）"
                     />
-                    <div className="podcast-line-edit-actions">
-                      <button
+                    <div className="mt-0.5 flex gap-2">
+                      <Button className="text-[13px]"
                         type="button"
-                        className="primary-button"
-                        onClick={() => void saveEditLine()}
-                        disabled={isSavingEdit}
+                        onPress={() => void saveEditLine()}
+                        isDisabled={isSavingEdit}
                       >
                         {isSavingEdit ? '保存中…' : '保存'}
-                      </button>
-                      <button
+                      </Button>
+                      <Button variant="outline" size="sm" className="text-[13px]"
                         type="button"
-                        className="ghost-button"
-                        onClick={cancelEditLine}
-                        disabled={isSavingEdit}
+                        onPress={cancelEditLine}
+                        isDisabled={isSavingEdit}
                       >
                         取消
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 ) : (
                   <>
                     {showFurigana && furiganaHtml[idx] ? (
                       <div
-                        className="podcast-line-text"
+                        className={`furigana-text ${LINE_TEXT} ${isActive ? 'font-semibold' : ''}`}
                         dangerouslySetInnerHTML={{ __html: furiganaHtml[idx] }}
                       />
                     ) : (
-                      <div className="podcast-line-text">{ln.text}</div>
+                      <div className={`${LINE_TEXT} ${isActive ? 'font-semibold' : ''}`}>
+                        {ln.text}
+                      </div>
                     )}
                     {ln.zh ? (
-                      <div className="podcast-line-zh muted">{ln.zh}</div>
+                      <div className="muted mt-0.5 text-[13px]/[1.5]">{ln.zh}</div>
                     ) : null}
                   </>
                 )}
@@ -725,7 +741,7 @@ export function PodcastDetailPage() {
               {!isEditing ? (
                 <button
                   type="button"
-                  className="podcast-line-edit-btn"
+                  className="absolute top-0 right-2 inline-flex h-[18px] w-[22px] min-h-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-xs leading-none text-muted opacity-0 transition-[opacity,background-color,color] duration-150 group-hover:opacity-100 group-focus-within:opacity-100 hover:bg-foreground/8 hover:text-foreground"
                   onClick={(e) => {
                     e.stopPropagation()
                     beginEditLine(idx)
@@ -741,10 +757,10 @@ export function PodcastDetailPage() {
         })}
       </div>
 
-      <div className="podcast-toolbar">
+      <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-surface py-2 pr-3.5 pl-2 text-[13px] whitespace-nowrap shadow-[0_14px_36px_rgba(15,23,42,0.16)] [&>*]:shrink-0 [&>*]:whitespace-nowrap max-sm:gap-1.5 max-sm:py-1.5 max-sm:pr-2.5 max-sm:pl-1.5">
         <button
           type="button"
-          className="podcast-play"
+          className="inline-flex size-10 min-h-0 cursor-pointer items-center justify-center rounded-full border-none bg-accent p-0 text-sm leading-none text-white transition-[filter] duration-150 hover:brightness-110 active:scale-[0.96]"
           onClick={togglePlay}
           aria-label={isPlaying ? '暂停' : '播放'}
           title={isPlaying ? '暂停 (Space)' : '播放 (Space)'}
@@ -752,7 +768,7 @@ export function PodcastDetailPage() {
           <span aria-hidden>{isPlaying ? '❚❚' : '▶'}</span>
         </button>
 
-        <span className="podcast-time">{formatTime(currentSec * 1000)}</span>
+        <span className="min-w-9 text-center text-xs tabular-nums text-black/55">{formatTime(currentSec * 1000)}</span>
         <input
           type="range"
           className="podcast-progress"
@@ -784,21 +800,23 @@ export function PodcastDetailPage() {
           }}
           aria-label="进度"
         />
-        <span className="podcast-time">{formatTime(podcast.durationSec * 1000)}</span>
+        <span className="min-w-9 text-center text-xs tabular-nums text-black/55">{formatTime(podcast.durationSec * 1000)}</span>
 
-        <Select
-          className="podcast-speed"
+        <SelectField
+          className="min-w-[80px]"
           value={playbackRate}
           onChange={(v) => setPlaybackRate(Number(v))}
           aria-label="播放速度"
-          title="播放速度"
-          style={{ minWidth: 80 }}
           options={SPEEDS.map((s) => ({ value: s, label: `${s}x` }))}
         />
 
         <button
           type="button"
-          className={`podcast-chip${videoHidden ? '' : ' is-on'}`}
+          className={`h-8 min-h-0 cursor-pointer rounded-full border px-3.5 text-[13px] font-medium disabled:cursor-not-allowed disabled:opacity-45 ${
+            videoHidden
+              ? 'border-border bg-surface text-muted hover:bg-foreground/4'
+              : 'border-accent/25 bg-accent/10 text-accent'
+          }`}
           onClick={() => setVideoHidden((v) => !v)}
           title={videoHidden ? '显示视频' : '隐藏视频'}
         >
@@ -808,7 +826,11 @@ export function PodcastDetailPage() {
         {podcast.primaryLang === 'jp' ? (
           <button
             type="button"
-            className={`podcast-chip${showFurigana ? ' is-on' : ''}`}
+            className={`h-8 min-h-0 cursor-pointer rounded-full border px-3.5 text-[13px] font-medium disabled:cursor-not-allowed disabled:opacity-45 ${
+              showFurigana
+                ? 'border-accent/25 bg-accent/10 text-accent'
+                : 'border-border bg-surface text-muted not-disabled:hover:bg-foreground/4'
+            }`}
             onClick={() => setShowFurigana((v) => !v)}
             disabled={furiganaState === 'loading'}
             title={
@@ -825,8 +847,8 @@ export function PodcastDetailPage() {
           </button>
         ) : null}
 
-        <span className="podcast-toolbar-hint">
-          <kbd>←</kbd><kbd>→</kbd>切句<span className="podcast-toolbar-dot">·</span>
+        <span className="ml-1 inline-flex items-center gap-[3px] border-l border-border pl-2 text-[11px] text-muted [&>kbd]:inline-flex [&>kbd]:h-[18px] [&>kbd]:min-w-[18px] [&>kbd]:items-center [&>kbd]:justify-center [&>kbd]:rounded [&>kbd]:border [&>kbd]:border-border [&>kbd]:bg-foreground/6 [&>kbd]:px-1 [&>kbd]:font-[inherit] [&>kbd]:text-[11px]/none [&>kbd]:text-muted max-sm:hidden">
+          <kbd>←</kbd><kbd>→</kbd>切句<span className="mx-1 text-foreground/25">·</span>
           <kbd>Space</kbd>播放
         </span>
       </div>

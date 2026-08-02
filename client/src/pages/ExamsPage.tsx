@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
+import { toast } from '@heroui/react'
 import { Link } from 'react-router'
-import { message } from 'antd'
 import { listExams } from '../api/exams'
 import { getErrorMessage } from '../api/error'
 import type { ExamListItem } from '../types'
@@ -26,7 +26,7 @@ export function ExamsPage() {
     void listExams()
       // 精读拆篇也存成 Exam(标题以「精读·」开头),它们归精读板块,真题库里排除。
       .then((rows) => setExams(rows.filter((r) => !r.title.startsWith('精读·'))))
-      .catch((e) => message.error(getErrorMessage(e, '加载真题失败')))
+      .catch((e) => toast.danger(getErrorMessage(e, '加载真题失败')))
       .finally(() => setIsLoading(false))
   }, [])
 

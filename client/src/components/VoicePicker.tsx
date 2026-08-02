@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Select } from 'antd'
+import { Button } from '@heroui/react'
+import { SelectField } from './ui/SelectField'
 import {
   getPreferredVoiceName,
   getVoicesForLang,
@@ -48,15 +49,13 @@ export function VoicePicker({ lang, sampleText }: VoicePickerProps) {
   }
 
   return (
-    <div className="voice-picker">
-      <label className="voice-picker-label" htmlFor={`voice-${lang}`}>
+    <div className="flex flex-wrap items-center gap-2.5 rounded-xl border border-accent/20 bg-accent/5 px-3.5 py-2.5">
+      <span className="text-[13px] font-semibold whitespace-nowrap text-foreground">
         朗读音色
-      </label>
-      <Select
-        id={`voice-${lang}`}
-        value={selected}
-        onChange={handleChange}
-        style={{ minWidth: 220 }}
+      </span>
+      <SelectField
+        aria-label="朗读音色"
+        className="min-w-[220px] flex-1"
         options={[
           { value: '', label: '自动(推荐)' },
           ...voices.map((voice) => ({
@@ -64,14 +63,12 @@ export function VoicePicker({ lang, sampleText }: VoicePickerProps) {
             label: `${voice.name} · ${voice.lang}`,
           })),
         ]}
+        value={selected}
+        onChange={handleChange}
       />
-      <button
-        type="button"
-        className="ghost-button"
-        onClick={() => speak(preview, lang)}
-      >
+      <Button size="sm" variant="outline" onPress={() => speak(preview, lang)}>
         试听
-      </button>
+      </Button>
     </div>
   )
 }

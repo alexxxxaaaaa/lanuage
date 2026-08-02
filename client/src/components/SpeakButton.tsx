@@ -1,6 +1,13 @@
 import type { MouseEvent } from 'react'
-import { SoundOutlined } from '@ant-design/icons'
+import { Volume2 } from 'lucide-react'
 import { isSpeechSupported, pickSpeakableText, speak } from '../utils/speech'
+
+const SPEAK_BUTTON =
+  'inline-flex cursor-pointer items-center justify-center rounded-full border border-accent/25 bg-accent/8 p-0 leading-none text-accent transition-[background-color,transform] duration-150 hover:bg-accent/16 active:scale-92'
+const SPEAK_SIZE = {
+  sm: 'size-7 min-h-7 text-sm',
+  md: 'size-10 min-h-10 text-lg',
+} as const
 
 type SpeakButtonProps = {
   text: string
@@ -33,12 +40,12 @@ export function SpeakButton({
   return (
     <button
       type="button"
-      className={`speak-button speak-button-${size}`}
+      className={`${SPEAK_BUTTON} ${SPEAK_SIZE[size]}`}
       onClick={handleClick}
       aria-label={`朗读 ${speakText}`}
       title={label}
     >
-      <SoundOutlined aria-hidden="true" />
+      <Volume2 aria-hidden="true" />
     </button>
   )
 }

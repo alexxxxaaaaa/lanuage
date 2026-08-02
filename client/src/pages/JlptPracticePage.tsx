@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Button, Spinner, toast } from '@heroui/react'
+import { confirm } from '../components/ui/dialog'
 import { Link, useSearchParams } from 'react-router'
-import { Modal, Spin, message } from 'antd'
-import { StarFilled, StarOutlined } from '@ant-design/icons'
+import { Star } from 'lucide-react'
 import {
   clearQbankAttempts,
   getQbankQuestions,
@@ -50,6 +51,39 @@ function setTitleOf(filter: QbankSetFilter): string {
 function hasPlaceholderOptions(options: string[]): boolean {
   return options.length > 0 && options.every((o, i) => o.trim() === String(i + 1))
 }
+
+// 答题卡里的统计胶囊。
+const STAT = 'rounded-full px-2.5 py-0.5 text-xs'
+const STAT_TONE = {
+  correct: 'bg-success/16 text-green-700',
+  wrong: 'bg-danger/16 text-red-700',
+  none: 'bg-foreground/6 text-muted',
+} as const
+
+// 题号点阵。aspect-square + min-h-0 是为了压掉全局 button 的 44px 最小高度。
+const DOT =
+  'aspect-square min-h-0 cursor-pointer rounded-full border p-0 text-xs tabular-nums'
+const DOT_TONE = {
+  correct: 'border-success bg-success text-white',
+  wrong: 'border-danger bg-danger text-white',
+  none: 'border-border bg-foreground/5 text-muted',
+} as const
+
+// 选项按钮同样要覆盖全局 button：左对齐（不是 center）、正文字重（不是 600）、
+// 不吃 44px 最小高度。
+const OPTION =
+  'flex w-full min-h-0 items-start justify-start gap-2.5 rounded-[10px] border px-3.5 py-2.5 text-left text-[15px]/[1.7] font-normal'
+const OPTION_NUM =
+  'mt-0.5 inline-flex size-[22px] shrink-0 items-center justify-center rounded-full border text-xs'
+const OPTION_TAG = 'ml-auto shrink-0 self-center rounded-full px-2 py-0.5 text-[11px]'
+
+// 纯文字按钮（清空答题卡 / 再做一次），同样要脱掉全局 button 的外形。
+const LINK_BUTTON =
+  'min-h-0 cursor-pointer border-none bg-transparent p-0 text-[13px] text-accent'
+
+const EXPLAIN_LABEL = 'mt-0 mb-0.5 text-xs font-semibold whitespace-normal text-accent'
+const EXPLAIN_BLOCK = 'multiline-text text-sm/[1.85] text-foreground'
+const LOADING = 'grid place-items-center py-12'
 
 export function JlptPracticePage() {
   const [params] = useSearchParams()
@@ -101,7 +135,7 @@ export function JlptPracticePage() {
         const firstUndone = rows.findIndex((r) => r.status === null)
         setIndex(firstUndone >= 0 ? firstUndone : 0)
       })
-      .catch((e) => message.error(getErrorMessage(e, '加载题目失败')))
+      .catch((e) => toast.danger(getErrorMessage(e, '加载题目失败')))
       .finally(() => !cancelled && setIsLoading(false))
     return () => {
       cancelled = true
@@ -130,7 +164,7 @@ export function JlptPracticePage() {
       })
       .catch((e) => {
         setFailed((prev) => new Set([...prev, ...missing]))
-        message.error(getErrorMessage(e, '加载题目失败'))
+        toast.danger(getErrorMessage(e, '加载题目失败'))
       })
       .finally(() => {
         for (const id of missing) inFlight.current.delete(id)
@@ -177,7 +211,7 @@ export function JlptPracticePage() {
           return next
         })
       } catch (e) {
-        message.error(getErrorMessage(e, '提交失败'))
+        toast.danger(getErrorMessage(e, '提交失败'))
       }
     },
     [current, question, hidden],
@@ -195,36 +229,36 @@ export function JlptPracticePage() {
       await setQbankFavorite(current.id, next)
       setDetails((prev) => ({ ...prev, [current.id]: { ...question, favorite: next } }))
       setItems((prev) => prev.map((it) => (it.id === current.id ? { ...it, favorite: next } : it)))
-      message.success(next ? '已收藏' : '已取消收藏')
+      toast.success(next ? '已收藏' : '已取消收藏')
     } catch (e) {
-      message.error(getErrorMessage(e, '操作失败'))
+      toast.danger(getErrorMessage(e, '操作失败'))
     }
   }
 
-  const clearCard = () => {
-    Modal.confirm({
+  const clearCard = async () => {
+    const ok = await confirm({
       title: '清空答题卡？',
       content: `会删掉这一组里 ${stats.answered} 道题的作答记录，题目本身不变。`,
       okText: '清空',
       cancelText: '取消',
-      onOk: async () => {
-        try {
-          await clearQbankAttempts(filter)
-          setItems((prev) => prev.map((it) => ({ ...it, status: null })))
-          setDetails((prev) => {
-            const next: Record<string, QbankQuestion> = {}
-            for (const [id, q] of Object.entries(prev)) {
-              next[id] = { ...q, status: null, selected: null }
-            }
-            return next
-          })
-          setHidden(new Set())
-          setIndex(0)
-        } catch (e) {
-          message.error(getErrorMessage(e, '清空失败'))
-        }
-      },
+      status: 'warning',
     })
+    if (!ok) return
+    try {
+      await clearQbankAttempts(filter)
+      setItems((prev) => prev.map((it) => ({ ...it, status: null })))
+      setDetails((prev) => {
+        const next: Record<string, QbankQuestion> = {}
+        for (const [id, q] of Object.entries(prev)) {
+          next[id] = { ...q, status: null, selected: null }
+        }
+        return next
+      })
+      setHidden(new Set())
+      setIndex(0)
+    } catch (e) {
+      toast.danger(getErrorMessage(e, '清空失败'))
+    }
   }
 
   // 键盘：1–4 选项，←/→ 翻题。只在前台 tab 生效，后台 tab 仍然挂载着。
@@ -248,8 +282,8 @@ export function JlptPracticePage() {
   if (isLoading) {
     return (
       <section className="page">
-        <div className="jlpt-loading">
-          <Spin />
+        <div className={LOADING}>
+          <Spinner />
         </div>
       </section>
     )
@@ -267,7 +301,7 @@ export function JlptPracticePage() {
                 ? '没有错题，说明都做对了。'
                 : '筛选条件没有命中题目。'}
           </p>
-          <Link className="primary-link" to="/jlpt">
+          <Link className="button button--primary" to="/jlpt">
             返回题库
           </Link>
         </div>
@@ -282,42 +316,45 @@ export function JlptPracticePage() {
   const meta = current ? mondaiMeta(current.category, current.mondaiNo) : null
 
   const answerCard = (
-    <aside className="jlpt-answer-card">
-      <div className="jlpt-answer-head">
-        <h3>答题卡</h3>
-        <button type="button" className="jlpt-link-button" onClick={clearCard}>
+    // ≤900px 时右栏塌到题目上方并吸顶，做题时始终看得到得分。
+    <aside className="sticky top-4 z-[5] grid gap-2.5 rounded-2xl border border-border bg-surface p-4 shadow-card max-[900px]:top-2 max-[900px]:order-first">
+      <div className="flex items-center justify-between">
+        <h3 className="m-0 text-[15px]">答题卡</h3>
+        <Button type="button" className={LINK_BUTTON} onPress={clearCard}>
           清空
-        </button>
+        </Button>
       </div>
-      <div className="jlpt-answer-stats">
-        <span className="jlpt-stat is-correct">正确 {stats.correct}</span>
-        <span className="jlpt-stat is-wrong">错误 {stats.wrong}</span>
-        <span className="jlpt-stat">未做 {stats.untouched}</span>
+      <div className="flex flex-wrap gap-1.5">
+        <span className={`${STAT} ${STAT_TONE.correct}`}>正确 {stats.correct}</span>
+        <span className={`${STAT} ${STAT_TONE.wrong}`}>错误 {stats.wrong}</span>
+        <span className={`${STAT} ${STAT_TONE.none}`}>未做 {stats.untouched}</span>
       </div>
-      <p className="jlpt-answer-score">
+      <p className="m-0 text-xl tabular-nums text-foreground">
         <strong>
           {stats.correct}/{stats.answered}
         </strong>
-        <span className="muted"> 正确率 {stats.rate}%</span>
+        <span className="muted text-[13px]"> 正确率 {stats.rate}%</span>
       </p>
       <button
         type="button"
-        className="jlpt-grid-toggle"
+        className="hidden min-h-[34px] rounded-full border border-border bg-transparent text-[13px] text-foreground max-[900px]:block"
         onClick={() => setIsGridOpen((v) => !v)}
         aria-expanded={isGridOpen}
       >
         {isGridOpen ? '收起题号' : `展开题号（${items.length}）`}
       </button>
-      <div className={'jlpt-answer-grid' + (isGridOpen ? '' : ' is-collapsed')}>
+      <div
+        className={`grid max-h-[42vh] grid-cols-5 gap-1.5 overflow-y-auto max-[900px]:max-h-[32vh] max-[900px]:grid-cols-8 ${
+          isGridOpen ? '' : 'max-[900px]:hidden'
+        }`}
+      >
         {items.map((item, i) => (
           <button
             type="button"
             key={item.id}
-            className={
-              'jlpt-answer-dot' +
-              (item.status ? ` is-${item.status}` : '') +
-              (i === index ? ' is-current' : '')
-            }
+            className={`${DOT} ${DOT_TONE[item.status ?? 'none']} ${
+              i === index ? 'outline-2 outline-offset-1 outline-accent' : ''
+            }`}
             title={`${paperLabel(item.year, item.month)} ${item.seq}`}
             onClick={() => setIndex(i)}
           >
@@ -329,29 +366,31 @@ export function JlptPracticePage() {
   )
 
   return (
-    <section className="page jlpt-take">
-      <header className="jlpt-take-header">
+    <section className="page">
+      <header className="flex items-start justify-between gap-4">
         <div>
           <p className="eyebrow">
             <Link to="/jlpt">← JLPT 精练</Link>
           </p>
           <h2>{title}</h2>
-          {meta?.instruction ? <p className="jlpt-take-instruction">{meta.instruction}</p> : null}
+          {meta?.instruction ? (
+            <p className="muted mt-1.5 mb-0 text-[13px]/[1.6]">{meta.instruction}</p>
+          ) : null}
         </div>
-        <div className="jlpt-take-position">
+        <div className="muted shrink-0 text-[13px] tabular-nums">
           第 {index + 1} / {items.length} 题
         </div>
       </header>
 
-      <div className="jlpt-take-body">
-        <div className="jlpt-take-main">
+      <div className="grid grid-cols-[minmax(0,1fr)_250px] items-start gap-5 max-[900px]:grid-cols-1">
+        <div className="grid min-w-0 gap-3.5">
           {!question ? (
             current && failed.has(current.id) ? (
               <div className="card state-card">
                 <p className="muted">这道题的正文没能加载出来。</p>
-                <button
+                <Button
                   type="button"
-                  onClick={() =>
+                  onPress={() =>
                     setFailed((prev) => {
                       const next = new Set(prev)
                       next.delete(current.id)
@@ -360,138 +399,166 @@ export function JlptPracticePage() {
                   }
                 >
                   重试
-                </button>
+                </Button>
               </div>
             ) : (
-              <div className="jlpt-loading">
-                <Spin />
+              <div className={LOADING}>
+                <Spinner />
               </div>
             )
           ) : (
             <>
               {showPassage && question.passage ? (
-                <div className="jlpt-passage">
-                  <p className="jlpt-passage-label">
+                <div className="max-h-[46vh] overflow-y-auto rounded-[14px] border-l-[3px] border-accent/40 bg-foreground/3 px-4.5 py-3.5 max-[900px]:max-h-[38vh]">
+                  <p className="mt-0 mb-1.5 text-xs font-semibold text-accent">
                     {isListening ? '聴解原文' : question.passage.type || '本文'}
                   </p>
-                  <QbankText className="jlpt-passage-body" text={question.passage.content} />
+                  <QbankText
+                    className="multiline-text text-[15px]/[1.9] text-foreground"
+                    text={question.passage.content}
+                  />
                 </div>
               ) : null}
 
               {isListening ? (
                 question.audioUrl ? (
-                  <div className="jlpt-audio">
-                    <audio controls preload="none" src={question.audioUrl} />
+                  <div>
+                    <audio className="h-10 w-full" controls preload="none" src={question.audioUrl} />
                   </div>
                 ) : (
-                  <p className="muted jlpt-audio-note">
+                  <p className="muted mt-1.5 mb-0 text-xs">
                     这一题的音频源站缺失，可以先看下面的原文。
                   </p>
                 )
               ) : null}
 
-              <article className="jlpt-question">
-                <div className="jlpt-question-head">
-                  <span className="jlpt-question-index">{index + 1}.</span>
-                  <div className="jlpt-question-stem">
-                    <p className="jlpt-question-source">
+              <article className="rounded-2xl border border-border bg-surface px-5 py-4.5 shadow-card">
+                <div className="flex items-start gap-2.5">
+                  <span className="shrink-0 leading-[1.7] font-bold text-foreground">
+                    {index + 1}.
+                  </span>
+                  <div className="multiline-text min-w-0 flex-1 text-base/[1.8] text-foreground">
+                    <p className="muted mt-0 mb-1 text-xs whitespace-normal">
                       {paperLabel(question.year, question.month)} · {question.seq}
                     </p>
                     <QbankText text={question.stemJp} />
                   </div>
                   <button
                     type="button"
-                    className={'jlpt-fav-button' + (question.favorite ? ' is-on' : '')}
+                    className={`min-h-0 shrink-0 cursor-pointer border-none bg-transparent px-1 text-lg ${
+                      question.favorite ? 'text-amber-500' : 'text-foreground/25'
+                    }`}
                     onClick={() => void toggleFavorite()}
                     title={question.favorite ? '取消收藏' : '收藏这道题'}
                   >
-                    {question.favorite ? <StarFilled /> : <StarOutlined />}
+                    <Star fill={question.favorite ? 'currentColor' : 'none'} />
                   </button>
                 </div>
 
-                <ol className="jlpt-options">
+                <ol className="m-0 mt-3.5 grid list-none gap-2 p-0">
                   {question.options.map((option, i) => {
                     const num = i + 1
-                    const isAnswer = num === question.answer
-                    const isPicked = question.selected === num
-                    const cls = [
-                      'jlpt-option',
-                      revealed ? 'is-revealed' : 'is-clickable',
-                      revealed && isAnswer ? 'is-answer' : '',
-                      revealed && isPicked && !isAnswer ? 'is-wrong' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')
+                    const isAnswer = revealed && num === question.answer
+                    const isWrong = revealed && question.selected === num && !isAnswer
                     return (
                       <li key={i}>
-                        <button
+                        <Button
                           type="button"
-                          className={cls}
-                          disabled={revealed}
-                          onClick={() => void pick(num)}
+                          className={`${OPTION} ${
+                            isAnswer
+                              ? 'border-success bg-success/12'
+                              : isWrong
+                                ? 'border-danger bg-danger/10'
+                                : `border-border bg-surface text-foreground ${
+                                    revealed
+                                      ? 'cursor-default'
+                                      : 'hover:border-accent hover:bg-accent/6'
+                                  }`
+                          }`}
+                          isDisabled={revealed}
+                          onPress={() => void pick(num)}
                         >
-                          <span className="jlpt-option-num">{num}</span>
+                          <span
+                            className={`${OPTION_NUM} ${
+                              isAnswer
+                                ? 'border-success bg-success text-white'
+                                : isWrong
+                                  ? 'border-danger bg-danger text-white'
+                                  : 'border-border'
+                            }`}
+                          >
+                            {num}
+                          </span>
                           {hasPlaceholderOptions(question.options) ? (
                             <span className="muted">（选项由音频念出）</span>
                           ) : (
-                            <QbankText className="jlpt-option-text" text={option} />
+                            <QbankText
+                              className="min-w-0 flex-1 [overflow-wrap:anywhere]"
+                              text={option}
+                            />
                           )}
-                          {revealed && isAnswer ? (
-                            <span className="jlpt-option-tag is-answer">正确答案</span>
+                          {isAnswer ? (
+                            <span className={`${OPTION_TAG} bg-success/20 text-green-700`}>
+                              正确答案
+                            </span>
                           ) : null}
-                          {revealed && isPicked && !isAnswer ? (
-                            <span className="jlpt-option-tag is-wrong">你的选择</span>
+                          {isWrong ? (
+                            <span className={`${OPTION_TAG} bg-danger/16 text-red-700`}>
+                              你的选择
+                            </span>
                           ) : null}
-                        </button>
+                        </Button>
                       </li>
                     )
                   })}
                 </ol>
 
                 {revealed ? (
-                  <div className="jlpt-explain">
-                    <p className={'jlpt-verdict is-' + question.status}>
+                  <div className="mt-4 grid gap-2.5 border-t border-dashed border-border pt-3.5">
+                    <p
+                      className={`m-0 flex items-center gap-3 font-bold ${
+                        question.status === 'correct' ? 'text-green-700' : 'text-red-700'
+                      }`}
+                    >
                       {question.status === 'correct' ? '✓ 答对了' : '✗ 答错了'}
-                      <button type="button" className="jlpt-link-button" onClick={retry}>
+                      <Button type="button" className={LINK_BUTTON} onPress={retry}>
                         再做一次
-                      </button>
+                      </Button>
                     </p>
                     {question.stemZh ? (
-                      <div className="jlpt-explain-block">
-                        <p className="jlpt-explain-label">{isListening ? '設問' : '译文'}</p>
+                      <div className={EXPLAIN_BLOCK}>
+                        <p className={EXPLAIN_LABEL}>{isListening ? '設問' : '译文'}</p>
                         <QbankText text={question.stemZh} />
                       </div>
                     ) : null}
                     {question.explain ? (
-                      <div className="jlpt-explain-block">
-                        <p className="jlpt-explain-label">{isListening ? '原文 / 译文' : '解析'}</p>
+                      <div className={EXPLAIN_BLOCK}>
+                        <p className={EXPLAIN_LABEL}>{isListening ? '原文 / 译文' : '解析'}</p>
                         <QbankText text={question.explain} />
                       </div>
                     ) : null}
                     {question.dispute ? (
-                      <p className="jlpt-dispute">⚠ {question.dispute}</p>
+                      <p className="m-0 text-xs text-amber-700">⚠ {question.dispute}</p>
                     ) : null}
                   </div>
                 ) : null}
               </article>
 
-              <div className="jlpt-nav">
-                <button
+              <div className="flex justify-end gap-2.5">
+                <Button variant="outline" size="sm"
                   type="button"
-                  className="ghost-button"
-                  disabled={index === 0}
-                  onClick={() => setIndex((i) => Math.max(0, i - 1))}
+                  isDisabled={index === 0}
+                  onPress={() => setIndex((i) => Math.max(0, i - 1))}
                 >
                   上一题
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="primary-button"
-                  disabled={index >= items.length - 1}
-                  onClick={() => setIndex((i) => Math.min(items.length - 1, i + 1))}
+                  isDisabled={index >= items.length - 1}
+                  onPress={() => setIndex((i) => Math.min(items.length - 1, i + 1))}
                 >
                   下一题
-                </button>
+                </Button>
               </div>
             </>
           )}

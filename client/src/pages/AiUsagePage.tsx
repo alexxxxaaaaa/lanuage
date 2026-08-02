@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { InputNumber, Select } from 'antd'
+import { SelectField } from '../components/ui/SelectField'
+import { NumberField } from '@heroui/react'
 import { getAiUsage, type AiUsageSummary } from '../api/ai'
 
 const FEATURE_LABELS: Record<string, string> = {
@@ -51,10 +52,10 @@ export function AiUsagePage() {
         </div>
         <label className="session-inline">
           <span>统计周期</span>
-          <Select
+          <SelectField
             value={days}
             onChange={(v) => setDays(v)}
-            style={{ minWidth: 120 }}
+              className="min-w-[120px]"
             options={[
               { value: 7, label: '近 7 天' },
               { value: 30, label: '近 30 天' },
@@ -84,19 +85,22 @@ export function AiUsagePage() {
               <p className="hero-count" style={{ fontSize: 36 }}>${estimatedCost.toFixed(4)}</p>
               <label className="session-inline" style={{ justifyContent: 'space-between' }}>
                 <span className="muted">单价 ($ / 1M tokens)</span>
-                <InputNumber
-                  min={0}
+                <NumberField
+                  aria-label="单价 ($ / 1M tokens)"
+                  className="w-[140px]"
+                  minValue={0}
                   step={0.1}
                   value={pricePerMillionTokens}
                   onChange={(next) => {
-                    setPricePerMillionTokens(
-                      typeof next === 'number' && Number.isFinite(next) && next >= 0
-                        ? next
-                        : 0,
-                    )
+                    setPricePerMillionTokens(Number.isFinite(next) && next >= 0 ? next : 0)
                   }}
-                  style={{ width: 120 }}
-                />
+                >
+                  <NumberField.Group>
+                    <NumberField.DecrementButton />
+                    <NumberField.Input />
+                    <NumberField.IncrementButton />
+                  </NumberField.Group>
+                </NumberField>
               </label>
             </article>
           </div>

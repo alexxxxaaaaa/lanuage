@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { SoundOutlined } from '@ant-design/icons'
+import { Volume2 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router'
 import { correctReviewResult, submitReviewResult } from '../api/review'
 import type { ReviewSnapshot } from '../api/review'
@@ -9,6 +9,7 @@ import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
 import type { ReviewRating, Word } from '../types'
 import { pickSpeakableText, speak, stopSpeaking } from '../utils/speech'
+import { Button } from '@heroui/react'
 
 const BATCH_SIZE = 5
 const RECOVERY_MAX_ATTEMPTS = 3
@@ -38,6 +39,23 @@ function normalizeAnswer(value: string) {
   return katakanaToHiragana(value.trim().toLowerCase()).replace(/\s+/g, ' ')
 }
 
+const EXAMPLE_TEXT =
+  'm-0 text-sm/[1.65] whitespace-pre-wrap break-words text-foreground [overflow-wrap:anywhere]'
+const LEN_ROW = 'inline-flex items-center gap-2 text-[13px]'
+const LEARN_SECTION =
+  'mt-3.5 rounded-xl border border-border bg-foreground/2 px-3.5 py-3 break-words [overflow-wrap:anywhere]'
+const LEARN_LABEL =
+  'mt-0 mb-2 text-xs font-bold tracking-[0.06em] uppercase text-muted'
+const LEARN_BODY = 'm-0 leading-[1.7] whitespace-pre-wrap [overflow-wrap:anywhere]'
+// 评分标签的配色，键就是 FSRS 的 rating。
+const SUMMARY_TONE = {
+  easy: 'bg-green-600/12 text-green-700',
+  hard: 'bg-orange-600/12 text-orange-700',
+  again: 'bg-red-500/12 text-red-700',
+} as const
+const SLOT =
+  'inline-block min-w-4 text-center font-mono tracking-[1px] text-foreground/40'
+
 /** Visual cue for the word's character / kana count. When the meaning prompt
  *  is too vague to uniquely identify the word, this length hint constrains
  *  the answer shape without giving the letters away. */
@@ -49,22 +67,22 @@ function RecallLengthHint({ word }: { word: Word }) {
   // Render N underscore slots so the user sees the visual length too.
   const slots = (n: number) =>
     Array.from({ length: n }).map((_, i) => (
-      <span key={i} className="recall-length-slot">_</span>
+      <span key={i} className={SLOT}>_</span>
     ))
   const same = word.word === word.reading || readingChars.length === 0
   return (
-    <div className="recall-length-hint muted">
-      <div className="recall-length-row">
+    <div className="muted my-2 mb-3 flex flex-col gap-1.5">
+      <div className={LEN_ROW}>
         {slots(wordChars.length)}
-        <span className="recall-length-count">
+        <span className="text-xs text-muted">
           {wordChars.length}
           {isJp ? ' 字' : ' letters'}
         </span>
       </div>
       {isJp && !same ? (
-        <div className="recall-length-row recall-length-secondary">
+        <div className={`${LEN_ROW} opacity-75`}>
           {slots(readingChars.length)}
-          <span className="recall-length-count">{readingChars.length} 假名</span>
+          <span className="text-xs text-muted">{readingChars.length} 假名</span>
         </div>
       ) : null}
     </div>
@@ -515,7 +533,7 @@ export function LearnPage() {
   if (isLoading) {
     return (
       <section className="page">
-        <div className="card learn-card state-card">
+        <div className="card state-card mx-auto w-full max-w-[660px] p-7 text-left max-md:px-4.5 max-md:py-5.5">
           <h2>{t('learn.preparing')}</h2>
           <p className="muted">{t('learn.preparingHint')}</p>
         </div>
@@ -526,7 +544,7 @@ export function LearnPage() {
   if (error) {
     return (
       <section className="page">
-        <div className="card learn-card state-card">
+        <div className="card state-card mx-auto w-full max-w-[660px] p-7 text-left max-md:px-4.5 max-md:py-5.5">
           <h2>{error}</h2>
           <p className="muted">{t('learn.retryLater')}</p>
         </div>
@@ -537,7 +555,7 @@ export function LearnPage() {
   if (allWords.length === 0) {
     return (
       <section className="page">
-        <div className="card learn-card state-card">
+        <div className="card state-card mx-auto w-full max-w-[660px] p-7 text-left max-md:px-4.5 max-md:py-5.5">
           <h2>{t('learn.empty')}</h2>
           <p className="muted">
             {dueCount > 0
@@ -546,16 +564,15 @@ export function LearnPage() {
           </p>
           <div className="actions">
             {dueCount > 0 ? (
-              <button
+              <Button
                 type="button"
-                className="primary-button"
-                onClick={() => navigate('/review')}
+                onPress={() => navigate('/review')}
               >
                 {t('learn.goReview', { count: dueCount })}
-              </button>
+              </Button>
             ) : null}
             <Link
-              className={dueCount > 0 ? 'secondary-link' : 'primary-link'}
+              className={`button `}
               to="/words/new"
             >
               {t('learn.addWord')}
@@ -603,92 +620,91 @@ export function LearnPage() {
     }
     return (
       <section className="page">
-        <div className="card learn-card state-card">
+        <div className="card state-card mx-auto w-full max-w-[660px] p-7 text-left max-md:px-4.5 max-md:py-5.5">
           <h2>{t('learn.sessionDoneTitle')}</h2>
           <p className="muted">
             {t('learn.sessionDoneSummary', { total, perfect, slipped })}
           </p>
 
           {againItems.length > 0 ? (
-            <div className="again-rescue">
-              <div className="again-rescue-header">
+            <div className="mx-auto mt-4 max-w-[520px] rounded-xl border border-danger/18 bg-danger/6 px-4 py-3.5 text-left">
+              <div className="mb-2.5 flex flex-col gap-0.5 [&>strong]:text-sm [&>strong]:text-red-700 [&>.muted]:text-xs">
                 <strong>{t('learn.againRescueTitle', { count: againItems.length })}</strong>
                 <span className="muted">{t('learn.againRescueHint')}</span>
               </div>
-              <ul className="again-rescue-list">
+              <ul className="m-0 grid list-none gap-2 p-0">
                 {againItems.map((item) => {
                   const draft = correctionDraft[item.wordId]
                   return (
-                    <li key={item.wordId} className="again-rescue-item">
-                      <div className="again-rescue-word">
+                    <li key={item.wordId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white/60 px-2.5 py-2">
+                      <div className="flex min-w-0 flex-[1_1_160px] items-baseline gap-1.5 [&>strong]:text-[15px] [&>strong]:text-foreground">
                         <strong>{item.word}</strong>
                         {item.meaning ? (
                           <span className="muted">· {item.meaning}</span>
                         ) : null}
                       </div>
-                      <div className="again-rescue-actions">
-                        <button
+                      <div className="flex flex-wrap gap-1.5">
+                        <Button
                           type="button"
-                          className={
-                            'pill-btn' + (!draft ? ' is-active' : '')
-                          }
-                          onClick={() =>
+                          size="sm"
+                          variant={!draft ? 'primary' : 'outline'}
+                          className="text-xs"
+                          onPress={() =>
                             setCorrectionDraft((prev) => {
                               const next = { ...prev }
                               delete next[item.wordId]
                               return next
                             })
                           }
-                          disabled={isApplyingCorrection}
+                          isDisabled={isApplyingCorrection}
                         >
                           {t('learn.againRescueKeep')}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
-                          className={
-                            'pill-btn' + (draft === 'hard' ? ' is-active' : '')
-                          }
-                          onClick={() =>
+                          size="sm"
+                          variant={draft === 'hard' ? 'primary' : 'outline'}
+                          className="text-xs"
+                          onPress={() =>
                             setCorrectionDraft((prev) => ({
                               ...prev,
                               [item.wordId]: 'hard',
                             }))
                           }
-                          disabled={isApplyingCorrection}
+                          isDisabled={isApplyingCorrection}
                         >
                           {t('learn.againRescueToHard')}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
-                          className={
-                            'pill-btn' + (draft === 'easy' ? ' is-active' : '')
-                          }
-                          onClick={() =>
+                          size="sm"
+                          variant={draft === 'easy' ? 'primary' : 'outline'}
+                          className="text-xs"
+                          onPress={() =>
                             setCorrectionDraft((prev) => ({
                               ...prev,
                               [item.wordId]: 'easy',
                             }))
                           }
-                          disabled={isApplyingCorrection}
+                          isDisabled={isApplyingCorrection}
                         >
                           {t('learn.againRescueToEasy')}
-                        </button>
+                        </Button>
                       </div>
                     </li>
                   )
                 })}
               </ul>
-              <div className="again-rescue-footer">
-                <button
+              <div className="mt-3 flex items-center gap-3">
+                <Button
                   type="button"
-                  className="primary-button"
-                  onClick={() => void applyCorrections()}
-                  disabled={pendingFixes.length === 0 || isApplyingCorrection}
+                  onPress={() => void applyCorrections()}
+                  isDisabled={pendingFixes.length === 0 || isApplyingCorrection}
                 >
                   {isApplyingCorrection
                     ? t('learn.againRescueApplying')
                     : t('learn.againRescueApply', { count: pendingFixes.length })}
-                </button>
+                </Button>
                 {correctionApplied ? (
                   <span className="muted">{t('learn.againRescueApplied')}</span>
                 ) : null}
@@ -696,11 +712,11 @@ export function LearnPage() {
             </div>
           ) : null}
 
-          <ul className="learn-summary-list">
+          <ul className="mx-auto mt-4 grid max-w-[420px] list-none gap-1.5 p-0">
             {sessionSummary.map((item, idx) => (
-              <li key={`${item.word}-${idx}`} className="learn-summary-item">
+              <li key={`${item.word}-${idx}`} className="flex items-center gap-2.5 rounded-lg bg-foreground/3 px-2.5 py-1.5 text-sm [&>strong]:flex-1 [&>strong]:text-left [&>strong]:text-foreground">
                 <strong>{item.word}</strong>
-                <span className={`learn-summary-rating learn-summary-${item.rating}`}>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${SUMMARY_TONE[item.rating]}`}>
                   {item.rating === 'easy'
                     ? '✓ Easy'
                     : item.rating === 'hard'
@@ -715,16 +731,15 @@ export function LearnPage() {
           </ul>
           <div className="actions">
             {dueCount > 0 ? (
-              <button
+              <Button
                 type="button"
-                className="primary-button"
-                onClick={() => navigate('/review')}
+                onPress={() => navigate('/review')}
               >
                 {t('learn.goReview', { count: dueCount })}
-              </button>
+              </Button>
             ) : null}
             <Link
-              className={dueCount > 0 ? 'secondary-link' : 'primary-link'}
+              className={`button `}
               to="/"
             >
               {t('learn.backHome')}
@@ -770,8 +785,8 @@ export function LearnPage() {
 
   return (
     <section className="page">
-      <div className="card learn-card">
-        <div className="learn-top">
+      <div className="card mx-auto w-full max-w-[660px] p-7 text-left max-md:px-4.5 max-md:py-5.5">
+        <div className="mb-1.5 flex items-start justify-between gap-3 max-md:flex-col max-md:items-start">
           <div>
             <p className="eyebrow">{phaseDisplay}</p>
             <h2>{t('learn.cardTitle', { folder: folderName })}</h2>
@@ -785,7 +800,7 @@ export function LearnPage() {
                 : ''}
             </p>
           </div>
-          <span className="learn-limit-pill">
+          <span className="inline-flex items-center rounded-full border border-accent/22 bg-accent/10 px-3 py-1.5 text-[13px] font-bold whitespace-nowrap text-accent">
             {t('learn.sessionTotal', { count: allWords.length })}
           </span>
         </div>
@@ -794,8 +809,8 @@ export function LearnPage() {
         </div>
 
         {phase === 'study' ? (
-          <div className="learn-study-block">
-            <div className="word-card-title learn-word-row">
+          <div className="grid gap-2.5">
+            <div className="word-card-title mt-2.5 mb-1">
               <strong className="word-title">{currentWord.word}</strong>
               <SpeakButton
                 text={currentWord.word}
@@ -809,27 +824,27 @@ export function LearnPage() {
               <p className="muted">{t('learn.partOfSpeech', { value: currentWord.partOfSpeech })}</p>
             ) : null}
             {currentWord.meaning ? (
-              <div className="learn-section">
-                <p className="learn-label">{t('learn.meaningLabel')}</p>
-                <p className="learn-text">{currentWord.meaning}</p>
+              <div className={LEARN_SECTION}>
+                <p className={LEARN_LABEL}>{t('learn.meaningLabel')}</p>
+                <p className={LEARN_BODY}>{currentWord.meaning}</p>
               </div>
             ) : null}
             {currentWord.example ? (
-              <div className="learn-section">
-                <p className="learn-label">{t('learn.exampleLabel')}</p>
-                <p className="word-example-text">{currentWord.example}</p>
+              <div className={LEARN_SECTION}>
+                <p className={LEARN_LABEL}>{t('learn.exampleLabel')}</p>
+                <p className={EXAMPLE_TEXT}>{currentWord.example}</p>
               </div>
             ) : null}
             {currentWord.note ? (
-              <div className="learn-section">
-                <p className="learn-label">{t('learn.noteLabel')}</p>
-                <p className="muted learn-note">{currentWord.note}</p>
+              <div className={LEARN_SECTION}>
+                <p className={LEARN_LABEL}>{t('learn.noteLabel')}</p>
+                <p className={`muted ${LEARN_BODY}`}>{currentWord.note}</p>
               </div>
             ) : null}
             <div className="actions">
-              <button type="button" className="primary-button" onClick={advanceStudy}>
+              <Button type="button" onPress={advanceStudy}>
                 {t('learn.gotIt')}
-              </button>
+              </Button>
             </div>
           </div>
         ) : null}
@@ -894,30 +909,27 @@ export function LearnPage() {
               />
               {status === 'idle' ? (
                 <>
-                  <button
+                  <Button variant="outline"
                     type="button"
-                    className="secondary-button hint-button"
-                    onClick={playHint}
-                    title={t('learn.hint')}
+                    onPress={playHint}
+                    render={(props) => <button {...props} title={t('learn.hint')} />}
                   >
-                    <SoundOutlined /> {t('learn.hint')}
-                  </button>
-                  <button
+                    <Volume2 /> {t('learn.hint')}
+                  </Button>
+                  <Button variant="outline" size="sm"
                     type="button"
-                    className="ghost-button"
-                    onClick={markForgot}
-                    title={t('learn.forgot')}
+                    onPress={markForgot}
+                    render={(props) => <button {...props} title={t('learn.forgot')} />}
                   >
                     {t('learn.forgot')}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="primary-button"
-                    disabled={!typedAnswer.trim()}
-                    onClick={submitTyped}
+                    isDisabled={!typedAnswer.trim()}
+                    onPress={submitTyped}
                   >
                     {t('learn.submit')}
-                  </button>
+                  </Button>
                 </>
               ) : null}
             </div>
@@ -978,30 +990,27 @@ export function LearnPage() {
               />
               {status === 'idle' ? (
                 <>
-                  <button
+                  <Button variant="outline"
                     type="button"
-                    className="secondary-button hint-button"
-                    onClick={playHint}
-                    title={t('learn.hint')}
+                    onPress={playHint}
+                    render={(props) => <button {...props} title={t('learn.hint')} />}
                   >
-                    <SoundOutlined /> {t('learn.hint')}
-                  </button>
-                  <button
+                    <Volume2 /> {t('learn.hint')}
+                  </Button>
+                  <Button variant="outline" size="sm"
                     type="button"
-                    className="ghost-button"
-                    onClick={markForgot}
-                    title={t('learn.forgot')}
+                    onPress={markForgot}
+                    render={(props) => <button {...props} title={t('learn.forgot')} />}
                   >
                     {t('learn.forgot')}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="primary-button"
-                    disabled={!typedAnswer.trim()}
-                    onClick={submitTyped}
+                    isDisabled={!typedAnswer.trim()}
+                    onPress={submitTyped}
                   >
                     {t('learn.submit')}
-                  </button>
+                  </Button>
                 </>
               ) : null}
             </div>
@@ -1060,30 +1069,27 @@ export function LearnPage() {
               />
               {status === 'idle' ? (
                 <>
-                  <button
+                  <Button variant="outline"
                     type="button"
-                    className="secondary-button hint-button"
-                    onClick={playHint}
-                    title={t('learn.hint')}
+                    onPress={playHint}
+                    render={(props) => <button {...props} title={t('learn.hint')} />}
                   >
-                    <SoundOutlined /> {t('learn.hint')}
-                  </button>
-                  <button
+                    <Volume2 /> {t('learn.hint')}
+                  </Button>
+                  <Button variant="outline" size="sm"
                     type="button"
-                    className="ghost-button"
-                    onClick={markForgot}
-                    title={t('learn.forgot')}
+                    onPress={markForgot}
+                    render={(props) => <button {...props} title={t('learn.forgot')} />}
                   >
                     {t('learn.forgot')}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="primary-button"
-                    disabled={!typedAnswer.trim()}
-                    onClick={submitTyped}
+                    isDisabled={!typedAnswer.trim()}
+                    onPress={submitTyped}
                   >
                     {t('learn.submit')}
-                  </button>
+                  </Button>
                 </>
               ) : null}
             </div>
@@ -1153,9 +1159,9 @@ function FeedbackBlock({
         <p className="muted multiline-text">{word.example}</p>
       ) : null}
       <div className="actions">
-        <button type="button" className="primary-button" onClick={onAdvance}>
+        <Button type="button" onPress={onAdvance}>
           {label}（Enter）
-        </button>
+        </Button>
       </div>
     </div>
   ) : (
@@ -1179,15 +1185,15 @@ function FeedbackBlock({
         />
       </div>
       {word.meaning ? (
-        <p className="recall-feedback-meaning multiline-text">{word.meaning}</p>
+        <p className="multiline-text mt-2 mb-1 text-[15px] font-medium text-foreground">{word.meaning}</p>
       ) : null}
       {word.example ? (
         <p className="muted multiline-text">{word.example}</p>
       ) : null}
       <div className="actions">
-        <button type="button" className="danger-button" onClick={onAdvance}>
+        <Button variant="danger" type="button" onPress={onAdvance}>
           {label}（Enter）
-        </button>
+        </Button>
       </div>
     </div>
   )

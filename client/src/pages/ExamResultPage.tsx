@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
+import { toast } from '@heroui/react'
 import { Link, useParams } from 'react-router'
-import { message } from 'antd'
 import { getAttempt, getExam, type ExamAttempt } from '../api/exams'
 import { getErrorMessage } from '../api/error'
 import type {
@@ -9,6 +9,15 @@ import type {
   ExamSection,
   ExamSectionType,
 } from '../types'
+import {
+  ExamChoice,
+  ExamChoiceList,
+  ExamQuestionCard,
+  ExamSectionBlock,
+} from '../components/exam/ExamQuestion'
+
+// 选项行尾的小标签（正确答案 / 你的选择）。
+const TAG = 'ml-2 rounded bg-foreground/8 px-1.5 py-0.5 text-[11px] text-muted'
 
 const SECTION_LABELS: Record<ExamSectionType, string> = {
   vocabulary_reading: '文字·語彙 · 汉字读音',
@@ -48,23 +57,21 @@ function ResultQuestion({
   const notAttempted = !answered
   const answerUnknown = answered && correct === null
   return (
-    <li
-      className={
-        'exam-question-card' +
-        (isCorrect ? ' is-correct' : '') +
-        (isWrong ? ' is-wrong' : '') +
-        (notAttempted ? ' is-skipped' : '')
-      }
-    >
-      <div className="exam-question-head">
-        <span className="exam-question-id">{q.id}</span>
-        <div className="exam-question-stem">
-          {q.target ? (
-            <p className="exam-question-target">目标词:{q.target}</p>
-          ) : null}
-          <p>{q.stem}</p>
-        </div>
-        <span className="exam-question-badge">
+    <ExamQuestionCard
+      id={q.id}
+      stem={q.stem}
+      target={q.target}
+      tone={isCorrect ? 'correct' : isWrong ? 'wrong' : notAttempted ? 'skipped' : 'default'}
+      badge={
+        <span
+          className={`ml-auto self-start rounded-full px-2 py-0.5 text-xs ${
+            isCorrect
+              ? 'bg-success/16 text-green-700'
+              : isWrong
+                ? 'bg-danger/16 text-red-800'
+                : 'bg-foreground/6 text-foreground'
+          }`}
+        >
           {isCorrect
             ? '✓ 正确'
             : isWrong
@@ -75,33 +82,40 @@ function ResultQuestion({
                   ? '· 无答案数据'
                   : ''}
         </span>
-      </div>
-      <ol className="exam-question-choices">
+      }
+    >
+      <ExamChoiceList>
         {q.choices.map((c, idx) => {
           const num = idx + 1
           const isAnswer = correct === num
           const isPicked = userAnswer === num
-          const cls =
-            'exam-question-choice' +
-            (isAnswer ? ' is-answer' : '') +
-            (isPicked && !isAnswer ? ' is-picked-wrong' : '') +
-            (isPicked && isAnswer ? ' is-picked-correct' : '')
           return (
-            <li key={idx} className={cls}>
-              <span className="exam-question-choice-num">{num}</span>
+            <ExamChoice
+              key={idx}
+              num={num}
+              tone={
+                isPicked && isAnswer
+                  ? 'pickedCorrect'
+                  : isAnswer
+                    ? 'answer'
+                    : isPicked
+                      ? 'pickedWrong'
+                      : 'default'
+              }
+            >
               <span>{c}</span>
-              {isAnswer ? <span className="exam-question-tag">正确答案</span> : null}
-              {isPicked && !isAnswer ? (
-                <span className="exam-question-tag">你的选择</span>
-              ) : null}
-            </li>
+              {isAnswer ? <span className={TAG}>正确答案</span> : null}
+              {isPicked && !isAnswer ? <span className={TAG}>你的选择</span> : null}
+            </ExamChoice>
           )
         })}
-      </ol>
+      </ExamChoiceList>
       {q.explanation ? (
-        <p className="exam-question-explanation">{q.explanation}</p>
+        <p className="mt-3 mr-0 mb-0 ml-[38px] rounded-md border-l-[3px] border-indigo-500/40 bg-indigo-500/6 px-3 py-2.5 text-[13px]/[1.7] whitespace-pre-wrap text-foreground">
+          {q.explanation}
+        </p>
       ) : null}
-    </li>
+    </ExamQuestionCard>
   )
 }
 
@@ -113,26 +127,15 @@ function ResultSection({
   answers: Record<string, number>
 }) {
   return (
-    <section className="exam-section">
-      <header className="exam-section-header">
-        <p className="eyebrow">{SECTION_LABELS[section.type] ?? section.type}</p>
-        <p className="exam-section-instruction">{section.instruction}</p>
-      </header>
-      {section.passage ? (
-        <div className="exam-section-passage">
-          <p>{section.passage}</p>
-        </div>
-      ) : null}
-      <ol className="exam-question-list">
-        {section.questions.map((q) => (
-          <ResultQuestion
-            key={q.id}
-            q={q}
-            userAnswer={answers[String(q.id)]}
-          />
-        ))}
-      </ol>
-    </section>
+    <ExamSectionBlock
+      label={SECTION_LABELS[section.type] ?? section.type}
+      instruction={section.instruction}
+      passage={section.passage}
+    >
+      {section.questions.map((q) => (
+        <ResultQuestion key={q.id} q={q} userAnswer={answers[String(q.id)]} />
+      ))}
+    </ExamSectionBlock>
   )
 }
 
@@ -150,7 +153,7 @@ export function ExamResultPage() {
         setExam(exRow)
         setAttempt(attRow)
       })
-      .catch((e) => message.error(getErrorMessage(e, '加载结果失败')))
+      .catch((e) => toast.danger(getErrorMessage(e, '加载结果失败')))
       .finally(() => setIsLoading(false))
   }, [id, attemptId])
 
@@ -169,7 +172,7 @@ export function ExamResultPage() {
       <section className="page">
         <div className="card state-card">
           <p className="muted">未找到考试记录。</p>
-          <Link className="primary-link" to="/exams">
+          <Link className="button button--primary" to="/exams">
             回真题列表
           </Link>
         </div>
@@ -219,13 +222,13 @@ export function ExamResultPage() {
         </div>
       </div>
 
-      <div className="card exam-score-card">
-        <div className="exam-score-headline">
-          <span className="exam-score-num">{attempt.score ?? 0}</span>
+      <div className="card my-5 grid gap-4 p-5">
+        <div className="flex items-baseline gap-3">
+          <span className="text-5xl leading-none font-bold text-indigo-600">{attempt.score ?? 0}</span>
           <span className="muted">分 · 正确 {totalCorrect} / {totalGraded}</span>
         </div>
         {Object.keys(scoreByType).length > 0 ? (
-          <ul className="exam-score-breakdown">
+          <ul className="m-0 grid list-none gap-1.5 p-0 [&>li]:flex [&>li]:justify-between [&>li]:rounded-md [&>li]:bg-foreground/3 [&>li]:px-2.5 [&>li]:py-1.5 [&>li]:text-sm">
             {Object.entries(scoreByType).map(([type, v]) => (
               <li key={type}>
                 <span>{SECTION_LABELS[type as ExamSectionType] ?? type}</span>

@@ -32,13 +32,16 @@ function parseSrt(raw: string): SubtitleLine[] {
   return lines
 }
 
+// The cue before and after the active one, dimmed. Rendered even when absent
+// (as &nbsp;) so the three-line block keeps a constant height.
+const NEIGHBOR = 'muted m-0 min-h-5 text-[0.85rem]/[1.4]'
+
 // Sticky-top audio player. Fetches SRT once, then binds an interval to
 // audio.currentTime to highlight the active cue.
 export function ExamAudioPlayer({ audioUrl, subtitleUrl }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [subtitles, setSubtitles] = useState<SubtitleLine[]>([])
   const [currentMs, setCurrentMs] = useState(0)
-  const [isPlaying, setIsPlaying] = useState(false)
 
   useEffect(() => {
     if (!subtitleUrl) return
@@ -61,18 +64,8 @@ export function ExamAudioPlayer({ audioUrl, subtitleUrl }: Props) {
     const audio = audioRef.current
     if (!audio) return
     const onTime = () => setCurrentMs(audio.currentTime * 1000)
-    const onPlay = () => setIsPlaying(true)
-    const onPause = () => setIsPlaying(false)
     audio.addEventListener('timeupdate', onTime)
-    audio.addEventListener('play', onPlay)
-    audio.addEventListener('pause', onPause)
-    audio.addEventListener('ended', onPause)
-    return () => {
-      audio.removeEventListener('timeupdate', onTime)
-      audio.removeEventListener('play', onPlay)
-      audio.removeEventListener('pause', onPause)
-      audio.removeEventListener('ended', onPause)
-    }
+    return () => audio.removeEventListener('timeupdate', onTime)
   }, [])
 
   const activeIdx = useMemo(() => {
@@ -93,28 +86,28 @@ export function ExamAudioPlayer({ audioUrl, subtitleUrl }: Props) {
       : null
 
   return (
-    <div className="exam-audio-player">
+    <div className="flex flex-col gap-2 rounded-[10px] border border-black/8 bg-neutral-50 px-3 py-2">
       <audio
         ref={audioRef}
         src={audioUrl}
         controls
         preload="metadata"
-        className="exam-audio-player-audio"
+        className="h-9 w-full"
       />
       {subtitles.length > 0 ? (
-        <div className={'exam-audio-subs' + (isPlaying ? ' is-playing' : '')}>
+        <div className="flex min-h-[68px] flex-col gap-0.5 text-center">
           {prev ? (
-            <p className="exam-audio-subs-neighbor muted">{prev.text}</p>
+            <p className={NEIGHBOR}>{prev.text}</p>
           ) : (
-            <p className="exam-audio-subs-neighbor muted">&nbsp;</p>
+            <p className={NEIGHBOR}>&nbsp;</p>
           )}
-          <p className="exam-audio-subs-active">
+          <p className="m-0 min-h-[26px] text-[1.05rem]/[1.5] font-semibold text-neutral-900 transition-colors duration-150">
             {active ? active.text : '（音声再生中…）'}
           </p>
           {next ? (
-            <p className="exam-audio-subs-neighbor muted">{next.text}</p>
+            <p className={NEIGHBOR}>{next.text}</p>
           ) : (
-            <p className="exam-audio-subs-neighbor muted">&nbsp;</p>
+            <p className={NEIGHBOR}>&nbsp;</p>
           )}
         </div>
       ) : subtitleUrl ? (

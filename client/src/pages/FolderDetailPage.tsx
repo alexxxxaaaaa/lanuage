@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Input, Modal, Pagination, Select, Tag } from 'antd'
+import { Button, Chip, Input, TextArea } from '@heroui/react'
+import { Modal } from '../components/ui/Modal'
+import { Pager } from '../components/ui/Pager'
+import { SelectField } from '../components/ui/SelectField'
+import { alertDialog } from '../components/ui/dialog'
 import { Link, useLocation, useParams } from 'react-router'
 import { fillWordByAi } from '../api/ai'
 import { isDuplicateWordError } from '../api/error'
@@ -20,6 +24,9 @@ import {
   getMasteryStatus,
   isTrickyWord,
 } from '../utils/wordStatus'
+
+const EXAMPLE_TEXT =
+  'm-0 text-sm/[1.65] whitespace-pre-wrap break-words text-foreground [overflow-wrap:anywhere]'
 
 type WordFormState = {
   word: string
@@ -283,7 +290,7 @@ export function FolderDetailPage() {
       cancelEdit()
     } catch (error) {
       if (isDuplicateWordError(error)) {
-        Modal.warning({
+        void alertDialog.warning({
           title: t('folderDetail.duplicateTitle'),
           content: t('folderDetail.duplicateContent', { word: nextWord }),
           okText: t('folderDetail.gotIt'),
@@ -530,66 +537,65 @@ export function FolderDetailPage() {
             {todayNewCount > 0 ? (
               <>
                 {' · '}
-                <span className="folder-today-new">
+                <span className="font-bold text-accent">
                   {t('folderDetail.todayNew', { count: todayNewCount })}
                 </span>
               </>
             ) : null}
           </p>
-          <div className="session-picker">
-            <span className="session-picker-label">
+          <div className="mx-0 mt-4 mb-1 flex flex-wrap items-center gap-3 rounded-xl border border-accent/18 bg-accent/6 px-3.5 py-3">
+            <span className="text-sm font-semibold text-foreground">
               {t('folderDetail.progress', {
                 learned: learnedWords.length,
                 total: words.length,
                 percent: learnedPercent,
               })}
             </span>
-            <div className="progress-track home-progress-track">
+            <div className="progress-track mt-2 mb-0 w-[min(100%,480px)]">
               <span className="progress-bar" style={{ width: `${learnedPercent}%` }} />
             </div>
           </div>
           <div className="compact-actions">
-            <button
+            <Button
               type="button"
-              className={filter === 'all' ? 'primary-button' : 'secondary-button'}
-              onClick={() => setFilter('all')}
+              variant={filter === 'all' ? 'primary' : 'outline'}
+              onPress={() => setFilter('all')}
             >
               {t('folderDetail.filterAll', { count: words.length })}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className={filter === 'learned' ? 'primary-button' : 'secondary-button'}
-              onClick={() => setFilter('learned')}
+              variant={filter === 'learned' ? 'primary' : 'outline'}
+              onPress={() => setFilter('learned')}
             >
               {t('folderDetail.filterLearned', { count: learnedWords.length })}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className={filter === 'unlearned' ? 'primary-button' : 'secondary-button'}
-              onClick={() => setFilter('unlearned')}
+              variant={filter === 'unlearned' ? 'primary' : 'outline'}
+              onPress={() => setFilter('unlearned')}
             >
               {t('folderDetail.filterUnlearned', { count: unlearnedWords.length })}
-            </button>
+            </Button>
           </div>
-          <div className="word-search-form">
+          <div className="mt-3 grid grid-cols-[1fr_auto] gap-2.5 max-sm:grid-cols-1">
             <Input
               value={searchKeyword}
               onChange={(event) => setSearchKeyword(event.target.value)}
               placeholder="搜索已添加单词：单词/释义/例句/笔记"
-              allowClear
             />
           </div>
         </div>
         <div className="hero-actions compact-actions">
           <Link
-            className="primary-link"
+            className="button button--primary"
             to={`/words/new${folder ? `?folderId=${folder.id}` : ''}`}
           >
             {t('folderDetail.addWord')}
           </Link>
           <button
             type="button"
-            className="secondary-link"
+            className="button button--outline"
             disabled={!folder}
             onClick={openBatchModal}
             title="粘贴多个词,AI 自动查并加到本分类"
@@ -598,7 +604,7 @@ export function FolderDetailPage() {
           </button>
           {folder && words.length > 0 ? (
             <a
-              className="secondary-link"
+              className="button button--outline"
               href={`/api/words/export?folderId=${folder.id}`}
               download
             >
@@ -625,13 +631,15 @@ export function FolderDetailPage() {
         </div>
       ) : null}
 
-      <div className="word-list word-list-folder">
+      <div className="word-list grid grid-cols-[repeat(auto-fill,minmax(min(100%,320px),1fr))] items-stretch gap-5">
         {pagedWords.map((word) => (
             <article
               key={word.id}
               id={`word-${word.id}`}
-              className={`card word-card word-card-folder ${
-                highlightedWordId === word.id ? 'is-highlighted' : ''
+              className={`card word-card flex h-full min-h-55 flex-col gap-3.5 p-5.5 pb-5 [&_.word-meaning]:flex-1 [&_.word-meaning]:leading-[1.55] ${
+                highlightedWordId === word.id
+                  ? 'border-accent shadow-[0_0_0_3px_rgba(37,99,235,0.35),var(--surface-shadow)] transition-[box-shadow,border-color] duration-400'
+                  : ''
               }`}
             >
               <div className="word-card-header">
@@ -646,38 +654,35 @@ export function FolderDetailPage() {
                     />
                     <span className="muted word-reading">{word.reading}</span>
                   </div>
-                  <div className="word-status-row">
-                    <Tag color={getMasteryColor(getMasteryStatus(word.review))}>
+                  <div className="mt-2">
+                    <Chip color={getMasteryColor(getMasteryStatus(word.review))}>
                       {getMasteryLabel(getMasteryStatus(word.review))}
-                    </Tag>
-                    {isTrickyWord(word.review) ? <Tag color="red">{t('folderDetail.tricky')}</Tag> : null}
+                    </Chip>
+                    {isTrickyWord(word.review) ? <Chip color="danger">{t('folderDetail.tricky')}</Chip> : null}
                   </div>
                 </div>
                 <div className="folder-card-actions">
-                  <button
+                  <Button variant="outline" size="sm"
                     type="button"
-                    className="ghost-button"
-                    onClick={() => void pinToTop(word)}
-                    disabled={pinningId === word.id}
-                    title="把这个词放到第一个"
+                    onPress={() => void pinToTop(word)}
+                    isDisabled={pinningId === word.id}
+                    render={(props) => <button {...props} title="把这个词放到第一个" />}
                   >
                     置顶
-                  </button>
-                  <button
+                  </Button>
+                  <Button variant="outline" size="sm"
                     type="button"
-                    className="ghost-button"
-                    onClick={() => beginEdit(word)}
+                    onPress={() => beginEdit(word)}
                   >
                     {t('folderDetail.edit')}
-                  </button>
-                  <button
+                  </Button>
+                  <Button variant="danger-soft" size="sm"
                     type="button"
-                    className="ghost-button danger"
-                    onClick={() => void handleDelete(word)}
-                    disabled={isSubmitting}
+                    onPress={() => void handleDelete(word)}
+                    isDisabled={isSubmitting}
                   >
                     {t('folderDetail.delete')}
-                  </button>
+                  </Button>
                 </div>
               </div>
               {word.meaning ? (
@@ -687,7 +692,7 @@ export function FolderDetailPage() {
                 <p className="muted">{t('folderDetail.posLabel', { value: word.partOfSpeech })}</p>
               ) : null}
               {word.review && hasLearnedProgress(word) ? (
-                <div className="word-mastery-panel">
+                <div className="mt-1 grid gap-1 rounded-[10px] border border-dashed border-border bg-foreground/2 px-3 py-2.5 [&_details]:mt-1 [&_summary]:cursor-pointer [&_summary]:text-[13px] [&_summary]:text-accent [&_summary]:select-none">
                   <p className="muted">{t('folderDetail.masteryPercent', { percent: getMasteryPercent(word.review) })}</p>
                   <p className="muted">
                     {t('folderDetail.nextReview', {
@@ -716,10 +721,10 @@ export function FolderDetailPage() {
                 </p>
               ) : null}
               {word.example ? (
-                <div className="word-example-block">
-                  <div className="word-example-body">
-                    <span className="word-example-label">{t('folderDetail.exampleLabel')}</span>
-                    <p className="word-example-text">{word.example}</p>
+                <div className="mt-auto grid grid-cols-[1fr_auto] items-start gap-x-3 gap-y-2.5 border-t border-dashed border-border pt-3">
+                  <div className="min-w-0">
+                    <span className="mb-1.5 block text-xs font-bold tracking-[0.04em] uppercase text-muted">{t('folderDetail.exampleLabel')}</span>
+                    <p className={EXAMPLE_TEXT}>{word.example}</p>
                   </div>
                   <SpeakButton
                     text={word.example}
@@ -736,8 +741,8 @@ export function FolderDetailPage() {
         )}
       </div>
       {filteredWords.length > 0 ? (
-        <div className="folder-pagination">
-          <Pagination
+        <div className="mt-1.5 flex justify-center">
+          <Pager
             current={safePage}
             pageSize={PAGE_SIZE}
             total={filteredWords.length}
@@ -745,31 +750,26 @@ export function FolderDetailPage() {
               setPage(nextPage)
               window.scrollTo({ top: 0, behavior: 'smooth' })
             }}
-            showSizeChanger={false}
-            showTotal={(total) => t('folderDetail.paginationTotal', { total })}
+            summary={t('folderDetail.paginationTotal', { total: filteredWords.length })}
           />
         </div>
       ) : null}
 
       <Modal
-        open={editingWordId !== null && form !== null}
-        onCancel={cancelEdit}
+        isOpen={editingWordId !== null && form !== null}
+        onClose={cancelEdit}
         title={
           editingWordId
             ? words.find((w) => w.id === editingWordId)?.word ?? t('folderDetail.edit')
             : t('folderDetail.edit')
         }
-        width={720}
-        destroyOnHidden
-        footer={null}
-        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
+        size="lg"
       >
         {form && editingWordId ? (
           <form
-            className="word-edit"
             onSubmit={(event) => handleSave(event, editingWordId)}
           >
-            <div className="word-grid">
+            <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
               <label className="form-field">
                 <span>{t('folderDetail.formWord')}</span>
                 <Input
@@ -792,11 +792,11 @@ export function FolderDetailPage() {
                   }
                 />
               </label>
-              <label className="form-field form-field-full">
+              <label className="form-field col-span-full">
                 <span>{t('folderDetail.formFolder')}</span>
-                <Select
+                <SelectField
                   value={form.folderId || undefined}
-                  disabled={isLoadingFolders}
+                  isDisabled={isLoadingFolders}
                   onChange={(v) =>
                     setForm((prev) =>
                       prev ? { ...prev, folderId: v ?? '' } : prev,
@@ -809,9 +809,9 @@ export function FolderDetailPage() {
                   }))}
                 />
               </label>
-              <label className="form-field form-field-full">
+              <label className="form-field col-span-full">
                 <span>{t('folderDetail.formSourceNote')}</span>
-                <Select
+                <SelectField
                   value={form.sourceNoteId || undefined}
                   onChange={(v) =>
                     setForm((prev) =>
@@ -819,14 +819,13 @@ export function FolderDetailPage() {
                     )
                   }
                   placeholder={t('folderDetail.formNoSource')}
-                  allowClear
                   options={noteOptions.map((item) => ({
                     value: item.id,
                     label: item.title,
                   }))}
                 />
               </label>
-              <label className="form-field form-field-full">
+              <label className="form-field col-span-full">
                 <span>{t('folderDetail.formPartOfSpeech')}</span>
                 <Input
                   value={form.partOfSpeech}
@@ -838,9 +837,9 @@ export function FolderDetailPage() {
                   placeholder={t('folderDetail.formPosPlaceholder')}
                 />
               </label>
-              <label className="form-field form-field-full">
+              <label className="form-field col-span-full">
                 <span>{t('folderDetail.formMeaning')}</span>
-                <Input.TextArea
+                <TextArea
                   rows={3}
                   value={form.meaning}
                   onChange={(event) =>
@@ -850,9 +849,9 @@ export function FolderDetailPage() {
                   }
                 />
               </label>
-              <label className="form-field form-field-full">
+              <label className="form-field col-span-full">
                 <span>{t('folderDetail.formExample')}</span>
-                <Input.TextArea
+                <TextArea
                   rows={2}
                   value={form.example}
                   onChange={(event) =>
@@ -862,9 +861,9 @@ export function FolderDetailPage() {
                   }
                 />
               </label>
-              <label className="form-field form-field-full">
+              <label className="form-field col-span-full">
                 <span>{t('folderDetail.formNote')}</span>
-                <Input.TextArea
+                <TextArea
                   rows={2}
                   value={form.note}
                   onChange={(event) =>
@@ -876,20 +875,18 @@ export function FolderDetailPage() {
               </label>
             </div>
             <div className="form-actions">
-              <button
+              <Button variant="outline"
                 type="button"
-                className="secondary-button"
-                onClick={cancelEdit}
+                onPress={cancelEdit}
               >
                 {t('folderDetail.cancel')}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
-                className="primary-button"
-                disabled={isSubmitting}
+                isDisabled={isSubmitting}
               >
                 {t('folderDetail.save')}
-              </button>
+              </Button>
             </div>
           </form>
         ) : null}
@@ -897,44 +894,38 @@ export function FolderDetailPage() {
 
       <Modal
         title="批量添加单词"
-        open={isBatchOpen}
-        onCancel={() => {
+        isOpen={isBatchOpen}
+        onClose={() => {
           if (batchRunning) return
           setIsBatchOpen(false)
         }}
-        footer={null}
-        width={520}
-        maskClosable={!batchRunning}
-        closable={!batchRunning}
+        size="md"
       >
         {batchResults.length === 0 ? (
           <>
             <p className="muted" style={{ marginTop: 0 }}>
               用逗号、空格或换行分隔多个词。AI 会逐个查并加到当前分类。
             </p>
-            <Input.TextArea
+            <TextArea
               value={batchInput}
               onChange={(e) => setBatchInput(e.target.value)}
               placeholder={'例如:\n勉強\n頑張る、励まし'}
               rows={8}
-              autoSize={{ minRows: 6, maxRows: 20 }}
             />
             <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button
+              <Button variant="outline" size="sm"
                 type="button"
-                className="ghost-button"
-                onClick={() => setIsBatchOpen(false)}
+                onPress={() => setIsBatchOpen(false)}
               >
                 取消
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="primary-button"
-                disabled={!batchInput.trim()}
-                onClick={() => void runBatchAdd()}
+                isDisabled={!batchInput.trim()}
+                onPress={() => void runBatchAdd()}
               >
                 开始添加
-              </button>
+              </Button>
             </div>
           </>
         ) : (
@@ -983,33 +974,31 @@ export function FolderDetailPage() {
                     </span>
                   ) : null}
                   {r.status === 'duplicate' && r.existingWordId ? (
-                    <button
+                    <Button variant="outline" size="sm"
                       type="button"
-                      className="ghost-button"
                       style={{ fontSize: 12, padding: '2px 10px', borderRadius: 999 }}
-                      onClick={() => void pinExistingFromBatch(i, r.existingWordId!)}
-                      disabled={pinningId === r.existingWordId}
-                      title="把这个已存在的词置顶到分类第一个"
+                      onPress={() => void pinExistingFromBatch(i, r.existingWordId!)}
+                      isDisabled={pinningId === r.existingWordId}
+                      render={(props) => <button {...props} title="把这个已存在的词置顶到分类第一个" />}
                     >
                       置顶
-                    </button>
+                    </Button>
                   ) : null}
                 </li>
               ))}
             </ul>
             {!batchRunning ? (
               <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-                <button
+                <Button
                   type="button"
-                  className="primary-button"
-                  onClick={() => {
+                  onPress={() => {
                     setIsBatchOpen(false)
                     setBatchInput('')
                     setBatchResults([])
                   }}
                 >
                   完成
-                </button>
+                </Button>
               </div>
             ) : null}
           </>
@@ -1017,23 +1006,20 @@ export function FolderDetailPage() {
       </Modal>
 
       <Modal
-        open={isRetryOpen}
-        onCancel={() => {
+        isOpen={isRetryOpen}
+        onClose={() => {
           if (retryRunning) return
           setIsRetryOpen(false)
         }}
         title={`添加失败 ${retryItems.filter((r) => r.status === 'failed' || r.status === 'idle').length} 个`}
-        maskClosable={!retryRunning}
-        closable={!retryRunning}
-        footer={null}
       >
         <p className="muted" style={{ marginTop: 0 }}>
           这些词在批量添加时失败(通常是 AI 网络抖动或临时错误),点"一键重试"重新查询 + 保存。
         </p>
-        <ul className="retry-list">
+        <ul className="my-3 grid max-h-80 list-none gap-1.5 overflow-y-auto p-0">
           {retryItems.map((r, i) => (
-            <li key={`${r.word}-${i}`} className="retry-list-item">
-              <span className="retry-list-icon" aria-hidden>
+            <li key={`${r.word}-${i}`} className="flex items-center gap-2 rounded-lg bg-foreground/3 px-2.5 py-2 text-sm">
+              <span className="w-5 shrink-0 text-center" aria-hidden>
                 {r.status === 'running'
                   ? '⏳'
                   : r.status === 'success'
@@ -1042,19 +1028,18 @@ export function FolderDetailPage() {
                       ? '❌'
                       : '·'}
               </span>
-              <span className="retry-list-word">{r.word}</span>
+              <span className="min-w-0 flex-1 font-[inherit] break-words text-foreground">{r.word}</span>
               {r.message ? (
-                <span className="muted retry-list-msg">{r.message}</span>
+                <span className="muted shrink-0 text-xs">{r.message}</span>
               ) : null}
             </li>
           ))}
         </ul>
-        <div className="retry-list-actions">
-          <button
+        <div className="mt-3 flex justify-end gap-2">
+          <Button
             type="button"
-            className="primary-button"
-            onClick={() => void runRetry()}
-            disabled={
+            onPress={() => void runRetry()}
+            isDisabled={
               retryRunning ||
               retryItems.filter((r) => r.status === 'idle' || r.status === 'failed')
                 .length === 0
@@ -1063,18 +1048,17 @@ export function FolderDetailPage() {
             {retryRunning
               ? '重试中…'
               : `一键重试 (${retryItems.filter((r) => r.status === 'idle' || r.status === 'failed').length})`}
-          </button>
-          <button
+          </Button>
+          <Button variant="outline" size="sm"
             type="button"
-            className="ghost-button"
-            onClick={() => {
+            onPress={() => {
               if (retryRunning) return
               setIsRetryOpen(false)
             }}
-            disabled={retryRunning}
+            isDisabled={retryRunning}
           >
             关闭
-          </button>
+          </Button>
         </div>
       </Modal>
     </section>

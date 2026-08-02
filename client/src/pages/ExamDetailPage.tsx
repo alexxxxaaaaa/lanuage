@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
+import { Button, toast } from '@heroui/react'
 import { Link, useNavigate, useParams } from 'react-router'
-import { message } from 'antd'
 import {
   deleteAttempt,
   getExam,
@@ -15,6 +15,12 @@ import type {
   ExamSection,
   ExamSectionType,
 } from '../types'
+import {
+  ExamChoice,
+  ExamChoiceList,
+  ExamQuestionCard,
+  ExamSectionBlock,
+} from '../components/exam/ExamQuestion'
 
 const SECTION_LABELS: Record<ExamSectionType, string> = {
   vocabulary_reading: '文字·語彙 · 汉字读音',
@@ -41,46 +47,29 @@ function formatDateTime(iso: string) {
 
 function QuestionCard({ q }: { q: ExamQuestion }) {
   return (
-    <li className="exam-question-card">
-      <div className="exam-question-head">
-        <span className="exam-question-id">{q.id}</span>
-        <div className="exam-question-stem">
-          {q.target ? (
-            <p className="exam-question-target">目标词:{q.target}</p>
-          ) : null}
-          <p>{q.stem}</p>
-        </div>
-      </div>
-      <ol className="exam-question-choices">
+    <ExamQuestionCard id={q.id} stem={q.stem} target={q.target}>
+      <ExamChoiceList>
         {q.choices.map((c, idx) => (
-          <li key={idx} className="exam-question-choice">
-            <span className="exam-question-choice-num">{idx + 1}</span>
+          <ExamChoice key={idx} num={idx + 1}>
             <span>{c}</span>
-          </li>
+          </ExamChoice>
         ))}
-      </ol>
-    </li>
+      </ExamChoiceList>
+    </ExamQuestionCard>
   )
 }
 
 function SectionBlock({ section }: { section: ExamSection }) {
   return (
-    <section className="exam-section">
-      <header className="exam-section-header">
-        <p className="eyebrow">{SECTION_LABELS[section.type] ?? section.type}</p>
-        <p className="exam-section-instruction">{section.instruction}</p>
-      </header>
-      {section.passage ? (
-        <div className="exam-section-passage">
-          <p>{section.passage}</p>
-        </div>
-      ) : null}
-      <ol className="exam-question-list">
-        {section.questions.map((q) => (
-          <QuestionCard key={q.id} q={q} />
-        ))}
-      </ol>
-    </section>
+    <ExamSectionBlock
+      label={SECTION_LABELS[section.type] ?? section.type}
+      instruction={section.instruction}
+      passage={section.passage}
+    >
+      {section.questions.map((q) => (
+        <QuestionCard key={q.id} q={q} />
+      ))}
+    </ExamSectionBlock>
   )
 }
 
@@ -100,7 +89,7 @@ export function ExamDetailPage() {
         setExam(exRow)
         setAttempts(attemptRows)
       })
-      .catch((e) => message.error(getErrorMessage(e, '加载真题失败')))
+      .catch((e) => toast.danger(getErrorMessage(e, '加载真题失败')))
       .finally(() => setIsLoading(false))
   }, [id])
 
@@ -111,7 +100,7 @@ export function ExamDetailPage() {
       const attempt = await startAttempt(id)
       navigate(`/exams/${id}/attempts/${attempt.id}`)
     } catch (err) {
-      message.error(getErrorMessage(err, '无法开始考试'))
+      toast.danger(getErrorMessage(err, '无法开始考试'))
     } finally {
       setIsStarting(false)
     }
@@ -129,7 +118,7 @@ export function ExamDetailPage() {
       await deleteAttempt(id, attempt.id)
       setAttempts((prev) => prev.filter((a) => a.id !== attempt.id))
     } catch (err) {
-      message.error(getErrorMessage(err, '删除失败'))
+      toast.danger(getErrorMessage(err, '删除失败'))
     }
   }
 
@@ -149,7 +138,7 @@ export function ExamDetailPage() {
       <section className="page">
         <div className="card state-card">
           <p className="muted">未找到这份真题。</p>
-          <Link className="primary-link" to="/exams">
+          <Link className="button button--primary" to="/exams">
             回真题列表
           </Link>
         </div>
@@ -181,41 +170,39 @@ export function ExamDetailPage() {
             {sections.length} 个部分 · 共 {totalQuestions} 题 · 有答案 {questionsWithAnswer} 题
           </p>
         </div>
-        <div className="exam-detail-actions">
+        <div className="flex shrink-0 gap-2">
           {inProgress ? (
-            <button
+            <Button
               type="button"
-              className="primary-button"
-              onClick={() => handleResume(inProgress)}
-              disabled={isStarting}
+              onPress={() => handleResume(inProgress)}
+              isDisabled={isStarting}
             >
               继续上次考试
-            </button>
+            </Button>
           ) : (
-            <button
+            <Button
               type="button"
-              className="primary-button"
-              onClick={() => void handleStart()}
-              disabled={isStarting || questionsWithAnswer === 0}
-              title={
+              onPress={() => void handleStart()}
+              isDisabled={isStarting || questionsWithAnswer === 0}
+              render={(props) => <button {...props} title={
                 questionsWithAnswer === 0
                   ? '还没有答案数据 —— 上传解析 PDF 才能开考'
                   : ''
-              }
+              } />}
             >
               {isStarting ? '准备中…' : '开始考试'}
-            </button>
+            </Button>
           )}
         </div>
       </div>
 
       {attempts.length > 0 ? (
-        <div className="card exam-attempts-card">
-          <h3>历次记录</h3>
-          <ul className="exam-attempt-list">
+        <div className="card mt-5 p-4">
+          <h3 className="mt-0 mb-3 text-[15px] text-muted">历次记录</h3>
+          <ul className="m-0 grid list-none gap-2 p-0">
             {attempts.map((a) => (
-              <li key={a.id} className="exam-attempt-row">
-                <div className="exam-attempt-main">
+              <li key={a.id} className="flex items-center gap-3 rounded-lg bg-foreground/3 px-3 py-2.5">
+                <div className="min-w-0 flex-1 text-sm [&>strong]:text-foreground">
                   <strong>
                     {a.finishedAt ? `${a.score ?? 0} 分` : '进行中'}
                   </strong>
@@ -225,30 +212,28 @@ export function ExamDetailPage() {
                     {a.finishedAt ? ` · 交卷 ${formatDateTime(a.finishedAt)}` : ''}
                   </span>
                 </div>
-                <div className="exam-attempt-actions">
+                <div className="flex shrink-0 gap-1.5">
                   {a.finishedAt ? (
                     <Link
-                      className="ghost-button"
+                      className="button button--outline button--sm"
                       to={`/exams/${id}/attempts/${a.id}/result`}
                     >
                       查看结果
                     </Link>
                   ) : (
-                    <button
+                    <Button variant="outline" size="sm"
                       type="button"
-                      className="ghost-button"
-                      onClick={() => handleResume(a)}
+                      onPress={() => handleResume(a)}
                     >
                       继续
-                    </button>
+                    </Button>
                   )}
-                  <button
+                  <Button variant="outline" size="sm"
                     type="button"
-                    className="ghost-button"
-                    onClick={() => void handleDeleteAttempt(a)}
+                    onPress={() => void handleDeleteAttempt(a)}
                   >
                     删除
-                  </button>
+                  </Button>
                 </div>
               </li>
             ))}

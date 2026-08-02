@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Spinner, toast } from '@heroui/react'
 import { Link } from 'react-router'
-import { Segmented, Spin, Tabs, message } from 'antd'
-import { DownOutlined, RightOutlined } from '@ant-design/icons'
+import { SegmentedControl } from '../components/ui/SegmentedControl'
+import { TabsView } from '../components/ui/TabsView'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import {
   getQbankOverview,
   getQbankSet,
@@ -38,12 +40,12 @@ function practiceHref(filter: QbankSetFilter): string {
 function Progress({ total, answered, correct }: { total: number; answered: number; correct: number }) {
   const pct = (n: number) => (total > 0 ? `${(n / total) * 100}%` : '0%')
   return (
-    <div className="jlpt-progress" title={total ? `已答 ${answered} · 正确 ${correct}` : ''}>
-      <div className="jlpt-progress-bar">
-        <span className="jlpt-progress-answered" style={{ width: pct(answered) }} />
-        <span className="jlpt-progress-correct" style={{ width: pct(correct) }} />
+    <div className="grid w-[180px] shrink-0 justify-items-end gap-1 max-[900px]:w-auto max-[900px]:flex-1" title={total ? `已答 ${answered} · 正确 ${correct}` : ''}>
+      <div className="relative h-[3px] w-full overflow-hidden rounded-full bg-border">
+        <span className="absolute inset-y-0 start-0 rounded-full bg-accent/45" style={{ width: pct(answered) }} />
+        <span className="absolute inset-y-0 start-0 rounded-full bg-green-500" style={{ width: pct(correct) }} />
       </div>
-      <span className="jlpt-progress-count">
+      <span className="text-xs tabular-nums text-muted">
         {answered}/{total}
       </span>
     </div>
@@ -55,24 +57,24 @@ function GroupRow({ group }: { group: QbankOverviewGroup }) {
   const meta = mondaiMeta(group.category, group.mondaiNo)
 
   return (
-    <li className="jlpt-group">
-      <div className="jlpt-row jlpt-row-group">
+    <li className="overflow-hidden rounded-[14px] border border-border bg-surface">
+      <div className="flex items-center gap-3.5 px-4 py-3 max-[900px]:flex-wrap max-[900px]:gap-x-3 max-[900px]:gap-y-2 bg-accent/5">
         <button
           type="button"
-          className="jlpt-row-toggle"
+          className="inline-flex min-h-0 cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 text-[13px] font-semibold text-accent"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
         >
-          {open ? <DownOutlined /> : <RightOutlined />}
-          <span className="jlpt-row-chapter">{mondaiLabel(group.category, group.mondaiNo)}</span>
+          {open ? <ChevronDown /> : <ChevronRight />}
+          <span className="min-w-[68px] shrink-0 text-[13px] font-semibold text-accent">{mondaiLabel(group.category, group.mondaiNo)}</span>
         </button>
-        <div className="jlpt-row-main">
-          <p className="jlpt-row-title">{meta.type}</p>
-          <p className="jlpt-row-instruction">{meta.instruction}</p>
+        <div className="min-w-0 flex-1 max-[900px]:order-3 max-[900px]:basis-full">
+          <p className="m-0 text-sm font-semibold text-foreground">{meta.type}</p>
+          <p className="mt-0.5 mb-0 line-clamp-2 text-xs/[1.5] text-muted max-[900px]:line-clamp-3">{meta.instruction}</p>
         </div>
         <Progress total={group.total} answered={group.answered} correct={group.correct} />
         <Link
-          className="jlpt-practice-button"
+          className="shrink-0 rounded-full border border-accent bg-surface px-3.5 py-[5px] text-[13px] font-semibold whitespace-nowrap text-accent hover:bg-accent hover:text-white"
           to={practiceHref({ category: group.category, mondaiNo: group.mondaiNo })}
         >
           练习
@@ -80,18 +82,18 @@ function GroupRow({ group }: { group: QbankOverviewGroup }) {
       </div>
 
       {open ? (
-        <ul className="jlpt-paper-list">
+        <ul className="m-0 list-none border-t border-border p-0">
           {group.papers.map((p) => (
-            <li className="jlpt-row jlpt-row-paper" key={`${p.year}-${p.month}`}>
-              <span className="jlpt-row-chapter jlpt-row-chapter-sub">
+            <li className="flex items-center gap-3.5 px-4 py-3 max-[900px]:flex-wrap max-[900px]:gap-x-3 max-[900px]:gap-y-2 [&:not(:first-child)]:border-t [&:not(:first-child)]:border-dashed [&:not(:first-child)]:border-border" key={`${p.year}-${p.month}`}>
+              <span className="min-w-[68px] shrink-0 text-[13px] font-semibold text-accent pl-5">
                 {paperLabel(p.year, p.month)}
               </span>
-              <div className="jlpt-row-main">
-                <p className="jlpt-row-title">{paperLabel(p.year, p.month)}新日本語能力試験</p>
+              <div className="min-w-0 flex-1 max-[900px]:order-3 max-[900px]:basis-full">
+                <p className="m-0 text-sm font-semibold text-foreground">{paperLabel(p.year, p.month)}新日本語能力試験</p>
               </div>
               <Progress total={p.total} answered={p.answered} correct={p.correct} />
               <Link
-                className="jlpt-practice-button"
+                className="shrink-0 rounded-full border border-accent bg-surface px-3.5 py-[5px] text-[13px] font-semibold whitespace-nowrap text-accent hover:bg-accent hover:text-white"
                 to={practiceHref({
                   category: group.category,
                   mondaiNo: group.mondaiNo,
@@ -130,16 +132,16 @@ function MarkedPanel({ overview }: { overview: QbankOverview }) {
         }
         setGroups([...byGroup.values()])
       })
-      .catch((e) => message.error(getErrorMessage(e, '加载失败')))
+      .catch((e) => toast.danger(getErrorMessage(e, '加载失败')))
       .finally(() => setIsLoading(false))
   }, [scope, overview])
 
   const total = groups?.reduce((sum, g) => sum + g.count, 0) ?? 0
 
   return (
-    <div className="jlpt-marked">
-      <div className="jlpt-marked-head">
-        <Segmented
+    <div className="grid gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <SegmentedControl
           value={scope}
           onChange={(v) => setScope(v as 'favorite' | 'wrong')}
           options={[
@@ -148,15 +150,15 @@ function MarkedPanel({ overview }: { overview: QbankOverview }) {
           ]}
         />
         {total > 0 ? (
-          <Link className="jlpt-practice-button is-primary" to={practiceHref({ scope })}>
+          <Link className="shrink-0 rounded-full border border-accent bg-surface px-3.5 py-[5px] text-[13px] font-semibold whitespace-nowrap text-accent hover:bg-accent hover:text-white bg-accent text-white" to={practiceHref({ scope })}>
             全部练习（{total}）
           </Link>
         ) : null}
       </div>
 
       {isLoading ? (
-        <div className="jlpt-loading">
-          <Spin />
+        <div className="grid place-items-center py-12">
+          <Spinner />
         </div>
       ) : total === 0 ? (
         <div className="card state-card">
@@ -167,18 +169,18 @@ function MarkedPanel({ overview }: { overview: QbankOverview }) {
           </p>
         </div>
       ) : (
-        <ul className="jlpt-list">
+        <ul className="m-0 grid list-none gap-2 p-0">
           {groups!.map((g) => (
-            <li className="jlpt-row jlpt-row-group" key={`${g.category}-${g.mondaiNo}`}>
-              <span className="jlpt-row-chapter">{categoryLabel(g.category)}</span>
-              <div className="jlpt-row-main">
-                <p className="jlpt-row-title">
+            <li className="flex items-center gap-3.5 px-4 py-3 max-[900px]:flex-wrap max-[900px]:gap-x-3 max-[900px]:gap-y-2 rounded-[14px] border border-border bg-accent/5" key={`${g.category}-${g.mondaiNo}`}>
+              <span className="min-w-[68px] shrink-0 text-[13px] font-semibold text-accent">{categoryLabel(g.category)}</span>
+              <div className="min-w-0 flex-1 max-[900px]:order-3 max-[900px]:basis-full">
+                <p className="m-0 text-sm font-semibold text-foreground">
                   {mondaiLabel(g.category, g.mondaiNo)} {mondaiMeta(g.category, g.mondaiNo).type}
                 </p>
               </div>
-              <span className="jlpt-row-count">{g.count} 题</span>
+              <span className="shrink-0 text-[13px] text-muted">{g.count} 题</span>
               <Link
-                className="jlpt-practice-button"
+                className="shrink-0 rounded-full border border-accent bg-surface px-3.5 py-[5px] text-[13px] font-semibold whitespace-nowrap text-accent hover:bg-accent hover:text-white"
                 to={practiceHref({ category: g.category, mondaiNo: g.mondaiNo, scope })}
               >
                 练习
@@ -207,7 +209,7 @@ export function JlptPage() {
     if (!isActive) return
     getQbankOverview()
       .then(setOverview)
-      .catch((e) => message.error(getErrorMessage(e, '加载题库失败')))
+      .catch((e) => toast.danger(getErrorMessage(e, '加载题库失败')))
       .finally(() => setIsLoading(false))
   }, [isActive])
 
@@ -226,7 +228,7 @@ export function JlptPage() {
   const totalQuestions = overview?.groups.reduce((s, g) => s + g.total, 0) ?? 0
 
   return (
-    <section className="page jlpt-page">
+    <section className="page">
       <div className="section-header">
         <div>
           <p className="eyebrow">JLPT 精练</p>
@@ -239,8 +241,8 @@ export function JlptPage() {
       </div>
 
       {isLoading ? (
-        <div className="jlpt-loading">
-          <Spin />
+        <div className="grid place-items-center py-12">
+          <Spinner />
         </div>
       ) : !overview ? (
         <div className="card state-card">
@@ -248,13 +250,12 @@ export function JlptPage() {
         </div>
       ) : (
         <>
-          <p className="muted jlpt-summary">
+          <p className="muted -mt-2 mb-0 text-[13px]">
             全库 {totalQuestions} 题，已做 {totalAnswered} 题
             {overview.wrongCount > 0 ? ` · 错题 ${overview.wrongCount}` : ''}
             {overview.favoriteCount > 0 ? ` · 收藏 ${overview.favoriteCount}` : ''}
           </p>
-          <Tabs
-            className="jlpt-tabs"
+          <TabsView
             activeKey={tab}
             onChange={setTab}
             items={[
@@ -262,7 +263,7 @@ export function JlptPage() {
                 key: c.key,
                 label: `${c.label} ${c.section}`,
                 children: (
-                  <ul className="jlpt-list">
+                  <ul className="m-0 grid list-none gap-2 p-0">
                     {(byCategory.get(c.key) ?? []).map((g) => (
                       <GroupRow group={g} key={`${g.category}-${g.mondaiNo}`} />
                     ))}

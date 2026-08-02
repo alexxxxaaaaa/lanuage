@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Input, Modal } from 'antd'
-import { SearchOutlined } from '@ant-design/icons'
+import { Button, Input, TextArea } from '@heroui/react'
+import { confirm, alertDialog } from '../components/ui/dialog'
+import { Search } from 'lucide-react'
 import { Link, useParams } from 'react-router'
 import { generateExpressionCasual, translateExpressionToZh } from '../api/ai'
 import {
@@ -116,7 +117,7 @@ export function ExpressionFolderDetailPage() {
   const handleAiGenerate = async () => {
     const zhText = form.zhText.trim()
     if (!zhText) {
-      Modal.warning({
+      void alertDialog.warning({
         title: t('expression.enterZhFirst'),
         content: t('expression.enterZhHint'),
         okText: t('expression.save'),
@@ -135,13 +136,13 @@ export function ExpressionFolderDetailPage() {
         sceneTag: generated.sceneTag || prev.sceneTag,
       }))
     } catch (aiError) {
-      Modal.confirm({
+      const retry = await confirm({
         title: t('expression.aiFailed'),
         content: getErrorMessage(aiError, t('expression.aiRetry')),
         okText: t('expression.retry'),
         cancelText: t('expression.cancel'),
-        onOk: () => handleAiGenerate(),
       })
+      if (retry) void handleAiGenerate()
     } finally {
       setIsAiLoading(false)
     }
@@ -150,7 +151,7 @@ export function ExpressionFolderDetailPage() {
   const handleAiTranslate = async () => {
     const sourceText = (folderLanguage === 'jp' ? form.jpCasual : form.enCasual).trim()
     if (!sourceText) {
-      Modal.warning({
+      void alertDialog.warning({
         title: t('expression.enterSourceFirst'),
         content: t('expression.enterSourceHint'),
         okText: t('expression.save'),
@@ -169,13 +170,13 @@ export function ExpressionFolderDetailPage() {
         sceneTag: prev.sceneTag || translated.sceneTag,
       }))
     } catch (aiError) {
-      Modal.confirm({
+      const retry = await confirm({
         title: t('expression.aiTranslateFailed'),
         content: getErrorMessage(aiError, t('expression.aiRetry')),
         okText: t('expression.retry'),
         cancelText: t('expression.cancel'),
-        onOk: () => handleAiTranslate(),
       })
+      if (retry) void handleAiTranslate()
     } finally {
       setIsAiTranslateLoading(false)
     }
@@ -236,21 +237,20 @@ export function ExpressionFolderDetailPage() {
   }
 
   const handleDelete = async (item: Expression) => {
-    Modal.confirm({
+    const ok = await confirm({
       title: t('expression.deleteConfirmTitle'),
       content: item.zhText,
       okText: t('expression.delete'),
-      okButtonProps: { danger: true },
       cancelText: t('expression.cancel'),
-      onOk: async () => {
-        try {
-          await deleteExpression(item.id)
-          await loadFolder()
-        } catch (deleteError) {
-          setError(getErrorMessage(deleteError, t('expression.deleteError')))
-        }
-      },
+      status: 'danger',
     })
+    if (!ok) return
+    try {
+      await deleteExpression(item.id)
+      await loadFolder()
+    } catch (deleteError) {
+      setError(getErrorMessage(deleteError, t('expression.deleteError')))
+    }
   }
 
   return (
@@ -266,20 +266,19 @@ export function ExpressionFolderDetailPage() {
             {folderLanguage === 'jp' ? t('expression.japanese') : t('expression.english')}
           </p>
         </div>
-        <button
+        <Button
           type="button"
-          className="primary-button"
-          onClick={() => setIsCreating((prev) => !prev)}
+          onPress={() => setIsCreating((prev) => !prev)}
         >
           {isCreating ? t('expression.collapseCreate') : t('expression.addExpression')}
-        </button>
+        </Button>
       </div>
 
       {isCreating ? (
         <form className="card word-form" onSubmit={(event) => void handleCreate(event)}>
           <label>
             {t('expression.zhText')} <span className="required-mark">*</span>
-            <Input.TextArea
+            <TextArea
               rows={3}
               value={form.zhText}
               onChange={(event) => setForm((prev) => ({ ...prev, zhText: event.target.value }))}
@@ -294,18 +293,17 @@ export function ExpressionFolderDetailPage() {
             />
           </label>
           <div className="form-actions">
-            <button
+            <Button variant="outline"
               type="button"
-              className="secondary-button"
-              onClick={() => void handleAiGenerate()}
-              disabled={isAiLoading}
+              onPress={() => void handleAiGenerate()}
+              isDisabled={isAiLoading}
             >
               {isAiLoading ? t('expression.generatingByAi') : t('expression.generateByAi')}
-            </button>
+            </Button>
           </div>
           <label>
             {folderLanguage === 'jp' ? t('expression.japanese') : t('expression.english')}
-            <Input.TextArea
+            <TextArea
               rows={3}
               value={folderLanguage === 'jp' ? form.jpCasual : form.enCasual}
               onChange={(event) =>
@@ -318,41 +316,42 @@ export function ExpressionFolderDetailPage() {
             />
           </label>
           <div className="form-actions">
-            <button
+            <Button variant="outline"
               type="button"
-              className="secondary-button"
-              onClick={() => void handleAiTranslate()}
-              disabled={isAiTranslateLoading}
+              onPress={() => void handleAiTranslate()}
+              isDisabled={isAiTranslateLoading}
             >
               {isAiTranslateLoading
                 ? t('expression.translatingByAi')
                 : t('expression.translateToZh')}
-            </button>
+            </Button>
           </div>
           <label>
             {t('expression.note')}
-            <Input.TextArea
+            <TextArea
               rows={3}
               value={form.note}
               onChange={(event) => setForm((prev) => ({ ...prev, note: event.target.value }))}
             />
           </label>
           <div className="form-actions">
-            <button type="submit" className="primary-button" disabled={isSubmitting}>
+            <Button type="submit" isDisabled={isSubmitting}>
               {isSubmitting ? t('expression.saving') : t('expression.saveExpression')}
-            </button>
+            </Button>
           </div>
         </form>
       ) : null}
 
       <div className="card expression-filter-row expression-filter-row-single">
-        <Input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={t('expression.searchPlaceholder')}
-          allowClear
-          prefix={<SearchOutlined style={{ color: 'rgba(0,0,0,0.35)' }} />}
-        />
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" />
+          <Input
+            className="w-full pl-9"
+            placeholder={t('expression.searchPlaceholder')}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
       </div>
 
       {isLoading ? <div className="card">{t('expression.loading')}</div> : null}
@@ -367,7 +366,7 @@ export function ExpressionFolderDetailPage() {
                 <div className="word-form">
                   <label>
                     {t('expression.zhText')}
-                    <Input.TextArea
+                    <TextArea
                       rows={2}
                       value={editingForm.zhText}
                       onChange={(event) =>
@@ -377,7 +376,7 @@ export function ExpressionFolderDetailPage() {
                   </label>
                   <label>
                     {folderLanguage === 'jp' ? t('expression.japanese') : t('expression.english')}
-                    <Input.TextArea
+                    <TextArea
                       rows={2}
                       value={
                         folderLanguage === 'jp'
@@ -404,7 +403,7 @@ export function ExpressionFolderDetailPage() {
                   </label>
                   <label>
                     {t('expression.note')}
-                    <Input.TextArea
+                    <TextArea
                       rows={2}
                       value={editingForm.note}
                       onChange={(event) =>
@@ -413,12 +412,12 @@ export function ExpressionFolderDetailPage() {
                     />
                   </label>
                   <div className="compact-actions">
-                    <button type="button" className="primary-button" onClick={() => void handleEditSave()}>
+                    <Button type="button" onPress={() => void handleEditSave()}>
                       {t('expression.save')}
-                    </button>
-                    <button type="button" className="secondary-button" onClick={() => setEditingId(null)}>
+                    </Button>
+                    <Button variant="outline" type="button" onPress={() => setEditingId(null)}>
                       {t('expression.cancel')}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ) : (
@@ -429,7 +428,7 @@ export function ExpressionFolderDetailPage() {
                       <p className="muted">{item.sceneTag || t('expression.unclassifiedScene')}</p>
                     </div>
                   </div>
-                  <div className="expression-body">
+                  <div className="grid gap-1.5">
                     <p
                       className="word-note-text"
                       style={{ visibility: revealedIds.has(item.id) ? 'visible' : 'hidden' }}
@@ -439,24 +438,23 @@ export function ExpressionFolderDetailPage() {
                         ? item.jpCasual || '-'
                         : item.enCasual || '-'}
                     </p>
-                    <button
+                    <Button variant="outline" size="sm" className="justify-self-start rounded-md text-xs"
                       type="button"
-                      className="ghost-button reveal-toggle"
-                      onClick={() => toggleReveal(item.id)}
+                      onPress={() => toggleReveal(item.id)}
                     >
                       {revealedIds.has(item.id)
                         ? t('expression.hideAnswer')
                         : t('expression.showAnswer')}
-                    </button>
+                    </Button>
                     {item.note ? <p className="muted word-note-text">{item.note}</p> : null}
                   </div>
                   <div className="compact-actions">
-                    <button type="button" className="secondary-button" onClick={() => startEdit(item)}>
+                    <Button variant="outline" type="button" onPress={() => startEdit(item)}>
                       {t('expression.edit')}
-                    </button>
-                    <button type="button" className="ghost-button danger" onClick={() => handleDelete(item)}>
+                    </Button>
+                    <Button variant="danger-soft" size="sm" type="button" onPress={() => handleDelete(item)}>
                       {t('expression.delete')}
-                    </button>
+                    </Button>
                   </div>
                 </>
               )}

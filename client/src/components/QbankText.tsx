@@ -17,7 +17,7 @@ function renderEmphasis(text: string, keyPrefix: string): ReactNode[] {
     const at = m.index ?? 0
     if (at > last) nodes.push(text.slice(last, at))
     nodes.push(
-      <em className="qbank-em" key={`${keyPrefix}-em-${at}`}>
+      <em className="font-normal font-bold underline underline-offset-[3px]" key={`${keyPrefix}-em-${at}`}>
         {m[1]}
       </em>,
     )
@@ -37,7 +37,7 @@ export function QbankText({ text, className }: { text: string; className?: strin
         <Fragment key={`t-${last}`}>{renderEmphasis(text.slice(last, at), `t-${last}`)}</Fragment>,
       )
     }
-    parts.push(<img className="qbank-figure" key={`img-${at}`} src={m[1]} alt="" loading="lazy" />)
+    parts.push(<img className="my-2.5 block max-w-full rounded-lg border border-border bg-white" key={`img-${at}`} src={m[1]} alt="" loading="lazy" />)
     last = at + m[0].length
   }
   if (last < text.length) {

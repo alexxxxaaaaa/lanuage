@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Input, Select } from 'antd'
+import { SelectField } from '../components/ui/SelectField'
+import { Button, Input, TextArea } from '@heroui/react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { fillGrammarByAi } from '../api/ai'
 import { deleteGrammar, getGrammar, updateGrammar } from '../api/grammar'
@@ -146,15 +147,15 @@ export function GrammarDetailPage() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {isEditing ? (
-            <button type="button" onClick={() => { setIsEditing(false); void load() }}>
+            <Button type="button" onPress={() => { setIsEditing(false); void load() }}>
               取消
-            </button>
+            </Button>
           ) : (
             <>
-              <button type="button" onClick={() => setIsEditing(true)}>编辑</button>
-              <button type="button" onClick={() => void handleDelete()} style={{ color: '#c33' }}>
+              <Button type="button" onPress={() => setIsEditing(true)}>编辑</Button>
+              <Button type="button" onPress={() => void handleDelete()} style={{ color: '#c33' }}>
                 删除
-              </button>
+              </Button>
             </>
           )}
         </div>
@@ -171,18 +172,18 @@ export function GrammarDetailPage() {
                 onChange={(e) => setForm((p) => ({ ...p, pattern: e.target.value }))}
                 style={{ flex: 1 }}
               />
-              <button
+              <Button
                 type="button"
-                onClick={() => void handleAiFill()}
-                disabled={isAiFilling || !form.pattern?.trim()}
-                title="根据句型用 AI 重新生成其它字段"
+                onPress={() => void handleAiFill()}
+                isDisabled={isAiFilling || !form.pattern?.trim()}
+                render={(props) => <button {...props} title="根据句型用 AI 重新生成其它字段" />}
               >
                 {isAiFilling ? 'AI 填充中...' : 'AI 填充'}
-              </button>
+              </Button>
             </div>
           </label>
           <label>接续
-            <Input.TextArea
+            <TextArea
               rows={2}
               value={form.connection ?? ''}
               onChange={(e) => setForm((p) => ({ ...p, connection: e.target.value }))}
@@ -195,28 +196,28 @@ export function GrammarDetailPage() {
             />
           </label>
           <label>例句(日文)
-            <Input.TextArea
+            <TextArea
               rows={4}
               value={form.example ?? ''}
               onChange={(e) => setForm((p) => ({ ...p, example: e.target.value }))}
             />
           </label>
           <label>例句翻译(中文)
-            <Input.TextArea
+            <TextArea
               rows={4}
               value={form.exampleZh ?? ''}
               onChange={(e) => setForm((p) => ({ ...p, exampleZh: e.target.value }))}
             />
           </label>
           <label>注意点
-            <Input.TextArea
+            <TextArea
               rows={2}
               value={form.note ?? ''}
               onChange={(e) => setForm((p) => ({ ...p, note: e.target.value }))}
             />
           </label>
           <label>级别
-            <Select
+            <SelectField
               value={form.level ?? 'N1'}
               onChange={(v) => setForm((p) => ({ ...p, level: v }))}
               options={['N1', 'N2', 'N3', 'N4', 'N5'].map((lv) => ({
@@ -226,9 +227,9 @@ export function GrammarDetailPage() {
             />
           </label>
           <div className="form-actions">
-            <button type="submit" className="primary-button" disabled={isSubmitting}>
+            <Button type="submit" isDisabled={isSubmitting}>
               {isSubmitting ? '保存中...' : '保存'}
-            </button>
+            </Button>
           </div>
         </form>
       ) : (
@@ -272,7 +273,7 @@ export function GrammarDetailPage() {
             ) : questions.length === 0 ? (
               <p className="muted">这条语法还没有题目</p>
             ) : (
-              <div className="grammar-question-group-body">
+              <div className="flex flex-col gap-3 border-t border-black/6 px-4.5 pt-1 pb-4.5">
                 {questions.map((q) => (
                   <GrammarQuestionCard key={q.id} question={q} />
                 ))}

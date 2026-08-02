@@ -4,6 +4,7 @@ import { HistoryEditor, withHistory } from 'slate-history'
 import { Editable, ReactEditor, Slate, useSlate, withReact } from 'slate-react'
 import type { BaseEditor, Descendant } from 'slate'
 import type { RenderElementProps, RenderLeafProps } from 'slate-react'
+import { Button } from '@heroui/react'
 
 type CustomElement = { type: 'paragraph' | 'bulleted-list' | 'numbered-list' | 'list-item'; children: CustomText[] }
 type CustomText = { text: string; bold?: boolean; italic?: boolean; underline?: boolean }
@@ -64,16 +65,18 @@ function toggleBlock(editor: Editor, format: CustomElement['type']) {
 
 function ToolbarButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button type="button" className="ghost-button" onMouseDown={(event) => event.preventDefault()} onClick={onClick}>
+    <Button variant="outline" size="sm"
+      type="button" onMouseDown={(event) => event.preventDefault()} onPress={onClick}
+    >
       {label}
-    </button>
+    </Button>
   )
 }
 
 function Toolbar() {
   const editor = useSlate()
   return (
-    <div className="slate-toolbar">
+    <div className="mb-2.5 flex flex-wrap gap-2">
       <ToolbarButton label="B" onClick={() => toggleMark(editor, 'bold')} />
       <ToolbarButton label="I" onClick={() => toggleMark(editor, 'italic')} />
       <ToolbarButton label="U" onClick={() => toggleMark(editor, 'underline')} />
@@ -129,7 +132,7 @@ export function SlateRichTextEditor({ value, onChange, readOnly = false, placeho
       }}
     >
       {!readOnly ? <Toolbar /> : null}
-      <div className={readOnly ? 'slate-readonly' : 'slate-editor-shell'}>
+      <div className="rounded-xl border border-border bg-white">
         <Editable
           readOnly={readOnly}
           renderElement={renderElementFn}

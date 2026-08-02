@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Input, Select } from 'antd'
+import { SelectField } from '../components/ui/SelectField'
+import { Button, Input } from '@heroui/react'
 import { Link } from 'react-router'
 import { createNote, getNotes } from '../api/notes'
 import { RichTextEditor } from '../components/RichTextEditor'
@@ -79,16 +80,15 @@ export function NotesPage() {
           <h2>课程笔记</h2>
         </div>
         <div className="compact-actions">
-          <button
+          <Button
             type="button"
-            className="primary-button"
-            onClick={() => {
+            onPress={() => {
               setIsCreating((prev) => !prev)
               setForm({ title: '', content: '', course: '新概念英语', lesson: '' })
             }}
           >
             {isCreating ? '收起添加' : '添加笔记'}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -126,21 +126,20 @@ export function NotesPage() {
             />
           </label>
           <div className="form-actions">
-            <button type="submit" className="primary-button" disabled={isSubmitting}>
+            <Button type="submit" isDisabled={isSubmitting}>
               {isSubmitting ? '保存中...' : '保存笔记'}
-            </button>
+            </Button>
           </div>
         </form>
       ) : null}
 
       {courseOptions.length > 0 ? (
         <div className="card expression-filter-row expression-filter-row-single">
-          <Select
+          <SelectField
             value={courseFilter || undefined}
             onChange={(v) => setCourseFilter(v ?? '')}
             placeholder="全部课程"
-            allowClear
-            style={{ minWidth: 180 }}
+              className="min-w-[180px]"
             options={courseOptions.map((course) => ({
               value: course,
               label: course,

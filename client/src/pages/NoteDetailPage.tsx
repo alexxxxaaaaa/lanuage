@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Input } from 'antd'
+import { Button, Input } from '@heroui/react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { getNoteById, type NoteDetail, updateNote } from '../api/notes'
 import { RichTextEditor } from '../components/RichTextEditor'
@@ -81,10 +81,9 @@ export function NoteDetailPage() {
         {note ? (
           <div className="compact-actions">
             {isEditing ? (
-              <button
+              <Button variant="outline"
                 type="button"
-                className="secondary-button"
-                onClick={() => {
+                onPress={() => {
                   setIsEditing(false)
                   setForm({
                     title: note.title,
@@ -95,11 +94,11 @@ export function NoteDetailPage() {
                 }}
               >
                 取消编辑
-              </button>
+              </Button>
             ) : (
-              <button type="button" className="primary-button" onClick={() => setIsEditing(true)}>
+              <Button type="button" onPress={() => setIsEditing(true)}>
                 编辑笔记
-              </button>
+              </Button>
             )}
           </div>
         ) : null}
@@ -144,9 +143,9 @@ export function NoteDetailPage() {
                 />
               </label>
               <div className="form-actions">
-                <button type="submit" className="primary-button" disabled={isSubmitting}>
+                <Button type="submit" isDisabled={isSubmitting}>
                   {isSubmitting ? '保存中...' : '保存修改'}
-                </button>
+                </Button>
               </div>
             </form>
           ) : (
@@ -157,13 +156,12 @@ export function NoteDetailPage() {
 
           <div className="section-header">
             <h3>关联单词</h3>
-            <button
+            <Button
               type="button"
-              className="primary-button"
-              onClick={() => navigate(`/words/new?noteId=${note.id}`)}
+              onPress={() => navigate(`/words/new?noteId=${note.id}`)}
             >
               从此笔记添加单词
-            </button>
+            </Button>
           </div>
 
           {note.words.length === 0 ? (
@@ -180,7 +178,7 @@ export function NoteDetailPage() {
                   </div>
                   {word.meaning ? <p className="word-meaning">{word.meaning}</p> : null}
                   <Link
-                    className="secondary-link"
+                    className="button button--outline"
                     to={`/folders/${word.folderId}#word-${word.id}`}
                   >
                     查看 / 编辑

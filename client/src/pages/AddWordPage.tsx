@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { SelectField } from '../components/ui/SelectField'
+import { Button, Input, ProgressBar, TextArea } from '@heroui/react'
+import { confirm, alertDialog } from '../components/ui/dialog'
 import type { FormEvent } from 'react'
-import { Input, Modal, Progress, Select } from 'antd'
-import type { InputRef } from 'antd'
 import { useNavigate, useSearchParams } from 'react-router'
 import { fillWordByAi } from '../api/ai'
 import { getErrorMessage, isDuplicateWordError } from '../api/error'
@@ -85,7 +86,7 @@ export function AddWordPage() {
     () => folderList.find((folder) => folder.id === form.folderId),
     [folderList, form.folderId],
   )
-  const wordInputRef = useRef<InputRef>(null)
+  const wordInputRef = useRef<HTMLInputElement>(null)
   const successTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -141,7 +142,7 @@ export function AddWordPage() {
     event.preventDefault()
 
     if (!selectedFolder) {
-      Modal.warning({
+      void alertDialog.warning({
         title: t('addWord.warningNoFolderTitle'),
         content: t('addWord.warningNoFolderContent'),
         okText: t('addWord.gotIt'),
@@ -176,7 +177,7 @@ export function AddWordPage() {
       wordInputRef.current?.focus()
     } catch (error) {
       if (isDuplicateWordError(error)) {
-        Modal.warning({
+        void alertDialog.warning({
           title: t('addWord.duplicateTitle'),
           content: t('addWord.duplicateContent', { word: savedWord }),
           okText: t('addWord.gotIt'),
@@ -189,7 +190,7 @@ export function AddWordPage() {
   const handleAiFill = async (extended = false) => {
     const term = aiTerm.trim() || form.word.trim()
     if (!term) {
-      Modal.warning({
+      void alertDialog.warning({
         title: t('addWord.warningInputTitle'),
         content: t('addWord.warningInputContent'),
         okText: t('addWord.gotIt'),
@@ -210,7 +211,7 @@ export function AddWordPage() {
       const result = await fillWordByAi({ word: term, extended })
       const nextFolderId = pickFolderByLanguage(folderList, result.language, form.folderId)
       if (!nextFolderId) {
-        Modal.warning({
+        void alertDialog.warning({
           title: t('addWord.warningNoLangFolderTitle'),
           content: t('addWord.warningNoLangFolderContent', {
             language: result.language === 'jp' ? t('expression.japanese') : t('expression.english'),
@@ -230,13 +231,13 @@ export function AddWordPage() {
       }))
       setAiTerm('')
     } catch (error) {
-      Modal.confirm({
+      const retry = await confirm({
         title: t('addWord.aiFailedTitle'),
         content: getErrorMessage(error, t('addWord.aiFailedContent')),
         okText: extended ? t('addWord.retry') : t('addWord.retryExtended'),
         cancelText: t('addWord.gotIt'),
-        onOk: () => handleAiFill(true),
       })
+      if (retry) void handleAiFill(true)
     } finally {
       window.clearInterval(progressTimer)
       setAiProgress(100)
@@ -254,29 +255,32 @@ export function AddWordPage() {
         <form className="word-form" onSubmit={(event) => void handleSubmit(event)}>
           <label>
             {t('addWord.aiFill')} <span className="optional-mark">{t('addWord.optional')}</span>
-            <div className="dict-lookup-row">
+            <div className="grid grid-cols-[minmax(0,1fr)_140px_auto] gap-2.5 max-sm:grid-cols-1">
               <Input
                 value={aiTerm}
                 onChange={(event) => setAiTerm(event.target.value)}
                 placeholder={t('addWord.aiPlaceholder')}
                 style={{ flex: 1 }}
               />
-              <button
+              <Button variant="outline"
                 type="button"
-                className="secondary-button"
-                onClick={() => void handleAiFill()}
-                disabled={isFillingByAi}
+                onPress={() => void handleAiFill()}
+                isDisabled={isFillingByAi}
               >
                 {isFillingByAi ? t('addWord.aiFilling') : t('addWord.aiFillButton')}
-              </button>
+              </Button>
             </div>
             {isFillingByAi || aiProgress > 0 ? (
-              <Progress
-                percent={aiProgress}
-                size="small"
-                showInfo={false}
-                status={isFillingByAi ? 'active' : 'success'}
-              />
+              <ProgressBar
+                aria-label={t('addWord.aiFilling')}
+                color={isFillingByAi ? 'accent' : 'success'}
+                size="sm"
+                value={aiProgress}
+              >
+                <ProgressBar.Track>
+                  <ProgressBar.Fill />
+                </ProgressBar.Track>
+              </ProgressBar>
             ) : null}
           </label>
           {selectedFolder ? (
@@ -284,13 +288,12 @@ export function AddWordPage() {
           ) : null}
           <label>
             {t('addWord.sourceNote')} <span className="optional-mark">{t('addWord.optional')}</span>
-            <Select
+            <SelectField
               value={form.sourceNoteId || undefined}
               onChange={(v) =>
                 setForm((current) => ({ ...current, sourceNoteId: v ?? '' }))
               }
               placeholder={t('addWord.noSourceNote')}
-              allowClear
               options={noteOptions.map((note) => ({
                 value: note.id,
                 label: note.title,
@@ -300,13 +303,12 @@ export function AddWordPage() {
           {!isLoadingFolders && folderList.length === 0 ? (
             <p className="error-text">
               {t('addWord.noFolder')}
-              <button
+              <Button variant="ghost" size="sm" className="h-auto min-h-0 px-1 underline"
                 type="button"
-                className="link-button"
-                onClick={() => navigate('/folders')}
+                onPress={() => navigate('/folders')}
               >
                 {t('addWord.folderPage')}
-              </button>
+              </Button>
               {t('addWord.createFolderHint')}
             </p>
           ) : null}
@@ -334,7 +336,7 @@ export function AddWordPage() {
 
           <label>
             {t('addWord.meaning')} <span className="optional-mark">{t('addWord.optional')}</span>
-            <Input.TextArea
+            <TextArea
               value={form.meaning}
               onChange={(event) =>
                 setForm((current) => ({ ...current, meaning: event.target.value }))
@@ -345,7 +347,7 @@ export function AddWordPage() {
 
           <label>
             {t('addWord.example')} <span className="optional-mark">{t('addWord.optional')}</span>
-            <Input.TextArea
+            <TextArea
               value={form.example}
               onChange={(event) =>
                 setForm((current) => ({ ...current, example: event.target.value }))
@@ -356,7 +358,7 @@ export function AddWordPage() {
 
           <label>
             {t('addWord.note')} <span className="optional-mark">{t('addWord.optional')}</span>
-            <Input.TextArea
+            <TextArea
               value={form.note}
               onChange={(event) =>
                 setForm((current) => ({ ...current, note: event.target.value }))
@@ -378,22 +380,21 @@ export function AddWordPage() {
           </label>
 
           <div className="form-actions">
-            <button type="submit" disabled={isSubmitting || isLoadingFolders}>
+            <Button type="submit" isDisabled={isSubmitting || isLoadingFolders}>
               {isSubmitting ? t('addWord.saving') : t('addWord.save')}
-            </button>
+            </Button>
             {selectedFolder ? (
-              <button
+              <Button variant="outline"
                 type="button"
-                className="secondary-button"
-                onClick={() => navigate(`/folders/${selectedFolder.id}`)}
+                onPress={() => navigate(`/folders/${selectedFolder.id}`)}
               >
                 {t('addWord.viewFolder')}
-              </button>
+              </Button>
             ) : null}
           </div>
 
           {successMessage ? (
-            <p className="success-text">{successMessage}</p>
+            <p className="mx-0 mt-3 mb-0 rounded-[10px] border border-green-600/25 bg-green-600/10 px-3.5 py-2.5 text-sm text-green-800">{successMessage}</p>
           ) : null}
           {error ? <p className="error-text">{error}</p> : null}
         </form>

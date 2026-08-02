@@ -3,7 +3,7 @@
 // 不用动 JSX。任何标准 HTML 标签都能用:h1/h2/h3/h4、p、ul/ol/li、
 // blockquote、pre、code、strong、table(class="backstage-note-table")、hr。
 const noteHtml = `
-<header class="backstage-note-header">
+<header>
   <h1>把团队默契装进 Claude Code —— 本周做的四件事</h1>
   <p class="backstage-note-meta">zyd · 2026-05-29</p>
   <p>

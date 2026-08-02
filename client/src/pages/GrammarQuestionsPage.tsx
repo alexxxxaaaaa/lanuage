@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Segmented, Spin, Input } from 'antd'
+import { Button, Input, Spinner } from '@heroui/react'
+import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { Link } from 'react-router'
 import {
   listGrammarQuestions,
@@ -76,7 +77,7 @@ export function GrammarQuestionsPage() {
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Segmented
+          <SegmentedControl
             value={mode}
             onChange={(v) => setMode(v as Mode)}
             options={[
@@ -85,15 +86,14 @@ export function GrammarQuestionsPage() {
             ]}
           />
           <Input
-            allowClear
             placeholder="按句型/意思/题干筛选"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            style={{ maxWidth: 260 }}
+            className="max-w-[260px]"
           />
-          <button type="button" onClick={() => void load(mode)}>
+          <Button type="button" onPress={() => void load(mode)}>
             重新洗牌
-          </button>
+          </Button>
           <span className="muted" style={{ marginLeft: 'auto' }}>
             共 {filtered.length} 题
             {answeredCount > 0 ? ` · 已答 ${answeredCount}` : ''}
@@ -104,7 +104,7 @@ export function GrammarQuestionsPage() {
 
       {isLoading ? (
         <div style={{ padding: 40, textAlign: 'center' }}>
-          <Spin />
+          <Spinner />
         </div>
       ) : error ? (
         <p className="error-text">{error}</p>
@@ -115,11 +115,11 @@ export function GrammarQuestionsPage() {
           </p>
         </div>
       ) : (
-        <div className="grammar-question-flat-list">
+        <div className="flex flex-col gap-3.5">
           {filtered.map((q, idx) => (
-            <div className="grammar-question-flat-item" key={q.id}>
-              <div className="grammar-question-flat-meta">
-                <span className="grammar-question-flat-index">
+            <div className="flex flex-col gap-1.5" key={q.id}>
+              <div className="flex flex-wrap items-baseline gap-2.5 px-1 text-[0.85rem]">
+                <span className="font-semibold tabular-nums text-foreground">
                   Q{idx + 1}
                 </span>
               </div>

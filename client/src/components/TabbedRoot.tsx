@@ -136,11 +136,12 @@ export function TabbedRoot() {
   return (
     <>
       <TabStrip />
-      <div className="tab-pages">
+      {/* `contents` so the wrapper doesn't sit between <main> and the pages —
+        * each page keeps participating in the shell's own layout. */}
+      <div className="contents">
         {tabs.map((tab) => (
           <div
             key={tab.id}
-            className="tab-page"
             style={{ display: tab.id === activeId ? 'block' : 'none' }}
           >
             <TabProvider tabId={tab.id} isActive={tab.id === activeId}>

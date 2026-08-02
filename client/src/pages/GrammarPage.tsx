@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Input, Select } from 'antd'
-import { SearchOutlined } from '@ant-design/icons'
+import { SelectField } from '../components/ui/SelectField'
+import { Button, Input, TextArea } from '@heroui/react'
+import { Search } from 'lucide-react'
 import { Link, useNavigate } from 'react-router'
 import { fillGrammarByAi } from '../api/ai'
 import { createGrammar, getGrammars, updateGrammar } from '../api/grammar'
@@ -18,6 +19,10 @@ const EMPTY_FORM: CreateGrammarPayload = {
   note: '',
   level: 'N1',
 }
+
+// 按钮里的计数胶囊。在 secondary / ghost 上要换成深色底才看得清。
+const BADGE =
+  'ml-1.5 inline-flex h-5 min-w-[22px] items-center justify-center rounded-full px-[7px] text-xs leading-none font-semibold'
 
 export function GrammarPage() {
   const navigate = useNavigate()
@@ -168,10 +173,10 @@ export function GrammarPage() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <label className="session-inline" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span className="muted">{t('grammar.learnCountLabel')}</span>
-            <Select
+            <SelectField
               value={learnCount === null ? 'all' : String(learnCount)}
               onChange={(v) => setLearnCount(v === 'all' ? null : Number(v))}
-              style={{ minWidth: 100 }}
+              className="min-w-[100px]"
               options={[
                 { value: '5', label: '5' },
                 { value: '10', label: '10' },
@@ -181,10 +186,9 @@ export function GrammarPage() {
               ]}
             />
           </label>
-          <button
+          <Button
             type="button"
-            className="primary-button"
-            onClick={() =>
+            onPress={() =>
               navigate(
                 learnCount === null
                   ? '/grammar/learn'
@@ -193,72 +197,72 @@ export function GrammarPage() {
             }
           >
             {t('grammar.learnNewBtn')}
-            {counts.unlearned > 0 ? <span className="btn-badge">{counts.unlearned}</span> : null}
-          </button>
-          <button
+            {counts.unlearned > 0 ? <span className={`${BADGE} bg-white/25`}>{counts.unlearned}</span> : null}
+          </Button>
+          <Button variant="outline"
             type="button"
-            className="secondary-button"
-            onClick={() => navigate('/grammar/review')}
+            onPress={() => navigate('/grammar/review')}
           >
             {t('grammar.reviewBtn')}
-            {counts.due > 0 ? <span className="btn-badge">{counts.due}</span> : null}
-          </button>
-          <button
+            {counts.due > 0 ? <span className={`${BADGE} bg-black/8 text-inherit`}>{counts.due}</span> : null}
+          </Button>
+          <Button variant="outline" size="sm"
             type="button"
-            className="ghost-button"
-            onClick={() => navigate('/grammar/questions')}
+            onPress={() => navigate('/grammar/questions')}
           >
             题库
-          </button>
-          <button
+          </Button>
+          <Button variant="outline" size="sm"
             type="button"
-            className="ghost-button"
-            onClick={() => setIsCreating((prev) => !prev)}
+            onPress={() => setIsCreating((prev) => !prev)}
           >
             {isCreating ? t('grammar.collapseBtn') : t('grammar.newPatternBtn')}
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className="card" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-        <Input
-          value={keyword}
-          onChange={(event) => setKeyword(event.target.value)}
-          placeholder={t('grammar.searchPlaceholder')}
-          style={{ flex: '1 1 240px' }}
-          allowClear
-          prefix={<SearchOutlined style={{ color: 'rgba(0,0,0,0.35)' }} />}
-        />
-        <Select
+        <div className="relative flex-[1_1_240px]">
+          <Search className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" />
+          <Input
+            className="w-full pl-9"
+            placeholder={t('grammar.searchPlaceholder')}
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+          />
+        </div>
+        <SelectField
           value={level || undefined}
           onChange={(v) => setLevel(v ?? '')}
           placeholder={t('grammar.levelAll')}
-          allowClear
-          style={{ minWidth: 120 }}
+              className="min-w-[120px]"
           options={levels.map((lv) => ({ value: lv, label: lv }))}
         />
-        <div className="grammar-learned-filter">
-          <button
+        <div className="flex flex-wrap gap-1.5">
+          <Button
             type="button"
-            className={learnedFilter === 'all' ? 'primary-button' : 'ghost-button'}
-            onClick={() => setLearnedFilter('all')}
+            size="sm"
+            variant={learnedFilter === 'all' ? 'primary' : 'outline'}
+            onPress={() => setLearnedFilter('all')}
           >
             {t('grammar.filterAll')} ({grammars.length})
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className={learnedFilter === 'learned' ? 'primary-button' : 'ghost-button'}
-            onClick={() => setLearnedFilter('learned')}
+            size="sm"
+            variant={learnedFilter === 'learned' ? 'primary' : 'outline'}
+            onPress={() => setLearnedFilter('learned')}
           >
             {t('grammar.filterLearned')} ({learnedCount})
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className={learnedFilter === 'unlearned' ? 'primary-button' : 'ghost-button'}
-            onClick={() => setLearnedFilter('unlearned')}
+            size="sm"
+            variant={learnedFilter === 'unlearned' ? 'primary' : 'outline'}
+            onPress={() => setLearnedFilter('unlearned')}
           >
             {t('grammar.filterUnlearned')} ({grammars.length - learnedCount})
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -273,14 +277,13 @@ export function GrammarPage() {
                 placeholder="〜にあたって"
                 style={{ flex: 1 }}
               />
-              <button
+              <Button
                 type="button"
-                onClick={() => void handleAiFill()}
-                disabled={isAiFilling || !form.pattern.trim()}
-                title="根据句型用 AI 补全其它字段"
+                onPress={() => void handleAiFill()}
+                isDisabled={isAiFilling || !form.pattern.trim()}
               >
                 {isAiFilling ? 'AI 填充中...' : 'AI 填充'}
-              </button>
+              </Button>
             </div>
           </label>
           <label>
@@ -301,7 +304,7 @@ export function GrammarPage() {
           </label>
           <label>
             例句(日文,多句用换行)
-            <Input.TextArea
+            <TextArea
               rows={3}
               value={form.example ?? ''}
               onChange={(event) => setForm((p) => ({ ...p, example: event.target.value }))}
@@ -309,7 +312,7 @@ export function GrammarPage() {
           </label>
           <label>
             例句翻译(中文)
-            <Input.TextArea
+            <TextArea
               rows={3}
               value={form.exampleZh ?? ''}
               onChange={(event) => setForm((p) => ({ ...p, exampleZh: event.target.value }))}
@@ -317,7 +320,7 @@ export function GrammarPage() {
           </label>
           <label>
             注意点
-            <Input.TextArea
+            <TextArea
               rows={2}
               value={form.note ?? ''}
               onChange={(event) => setForm((p) => ({ ...p, note: event.target.value }))}
@@ -325,7 +328,7 @@ export function GrammarPage() {
           </label>
           <label>
             级别
-            <Select
+            <SelectField
               value={form.level ?? 'N1'}
               onChange={(v) => setForm((p) => ({ ...p, level: v }))}
               options={['N1', 'N2', 'N3', 'N4', 'N5'].map((lv) => ({
@@ -335,9 +338,9 @@ export function GrammarPage() {
             />
           </label>
           <div className="form-actions">
-            <button type="submit" className="primary-button" disabled={isSubmitting}>
+            <Button type="submit" isDisabled={isSubmitting}>
               {isSubmitting ? '提交中...' : '保存'}
-            </button>
+            </Button>
           </div>
         </form>
       ) : null}
@@ -351,56 +354,66 @@ export function GrammarPage() {
         </div>
       ) : null}
 
-      <ul className="grammar-list">
+      <ul className="m-0 flex list-none flex-col gap-3 p-0">
         {filtered.map((g) => (
-          <li key={g.id} className="grammar-card">
-            <header className="grammar-card-head">
-              <div className="grammar-card-title-row">
-                <Link to={`/grammar/${g.id}`} className="grammar-card-pattern">
+          <li key={g.id} className="rounded-[14px] border border-border bg-white px-5 py-4.5 transition-[border-color,box-shadow] duration-150 hover:border-accent/35 hover:shadow-[0_6px_18px_rgba(15,23,42,0.06)]">
+            <header className="mb-2.5 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 flex-wrap items-baseline gap-2.5">
+                <Link to={`/grammar/${g.id}`} className="text-xl font-bold text-foreground no-underline [word-break:keep-all] hover:text-accent">
                   {g.pattern}
                 </Link>
-                <span className="grammar-card-level">{g.level}</span>
+                <span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold tracking-[0.04em] text-blue-700">{g.level}</span>
                 {g.isLearned ? (
-                  <span className="grammar-card-learned">{t('grammar.learnedPill')}</span>
+                  <span className="inline-flex items-center rounded-full bg-emerald-500/12 px-2 py-0.5 text-xs font-semibold text-emerald-800">{t('grammar.learnedPill')}</span>
                 ) : null}
               </div>
-              <div className="grammar-card-actions">
-                <button
+              <div className="flex shrink-0 gap-1.5">
+                <Button
                   type="button"
-                  className={`ghost-button grammar-card-pin ${g.isLearned ? 'is-learned' : ''}`}
-                  onClick={() => void toggleLearned(g)}
-                  title={
+                  size="sm"
+                  variant="outline"
+                  className={`shrink-0 text-xs ${
                     g.isLearned
-                      ? t('grammar.learnedTitleOn')
-                      : t('grammar.learnedTitleOff')
-                  }
+                      ? 'border-emerald-500/30 bg-emerald-500/8 text-emerald-800'
+                      : ''
+                  }`}
+                  onPress={() => void toggleLearned(g)}
+                  render={(props) => (
+                    <button
+                      {...props}
+                      title={
+                        g.isLearned
+                          ? t('grammar.learnedTitleOn')
+                          : t('grammar.learnedTitleOff')
+                      }
+                    />
+                  )}
                 >
                   {g.isLearned ? t('grammar.unmarkLearned') : t('grammar.markLearned')}
-                </button>
-                <button
+                </Button>
+                <Button variant="outline" size="sm" className="shrink-0 rounded-full text-xs"
                   type="button"
-                  className="ghost-button grammar-card-pin"
-                  onClick={() => void pinToTop(g)}
-                  title={t('grammar.pinTitle')}
+                  onPress={() => void pinToTop(g)}
+                  render={(props) => <button {...props} title={t('grammar.pinTitle')} />}
                 >
                   {t('grammar.pin')}
-                </button>
+                </Button>
               </div>
             </header>
             {g.connection ? (
-              <p className="grammar-card-line">
-                <span className="grammar-card-label">{t('grammar.labelConnection')}</span>
+              <p className="my-1.5 flex gap-2 text-sm/[1.6]">
+                <span className="min-w-16 shrink-0 pt-0.5 text-xs text-black/45">{t('grammar.labelConnection')}</span>
                 <span className="multiline-text">{g.connection}</span>
               </p>
             ) : null}
             {g.meaning ? (
-              <p className="grammar-card-line">
-                <span className="grammar-card-label">{t('grammar.labelMeaning')}</span>
-                <span className="grammar-card-meaning">{g.meaning}</span>
+              <p className="my-1.5 flex gap-2 text-sm/[1.6]">
+                <span className="min-w-16 shrink-0 pt-0.5 text-xs text-black/45">{t('grammar.labelMeaning')}</span>
+                <span className="font-medium text-foreground">{g.meaning}</span>
               </p>
             ) : null}
             {g.example ? (
-              <div className="grammar-card-example">
+              <div className="mt-2.5 flex flex-col gap-1 border-t border-dashed border-black/8 pt-2.5 text-[13.5px]/[1.65]">
                 <p className="multiline-text">{g.example}</p>
                 {g.exampleZh ? (
                   <p className="muted multiline-text">{g.exampleZh}</p>
