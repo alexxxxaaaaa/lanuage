@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 're
 import { Navigate, useLocation, useRoutes, type RouteObject } from 'react-router'
 
 import { PageActiveContext } from './pageContext'
+import { PageErrorBoundary } from './PageErrorBoundary'
 import { ROUTES, matchRoute } from '../../lib/routes'
 import { useActiveSessions } from '../../store/useActiveSessions'
 
@@ -79,7 +80,11 @@ function KeepAlivePage({
   const element = useRoutes(ROUTE_OBJECTS, location)
   return (
     <div style={{ display: isActive ? 'block' : 'none' }}>
-      <PageActiveContext.Provider value={isActive}>{element}</PageActiveContext.Provider>
+      {/* Per page, so one page throwing takes down only its own subtree —
+          the shell and every other kept-alive page keep running. */}
+      <PageErrorBoundary resetKey={location}>
+        <PageActiveContext.Provider value={isActive}>{element}</PageActiveContext.Provider>
+      </PageErrorBoundary>
     </div>
   )
 }
@@ -182,5 +187,5 @@ export function KeepAliveOutlet({
 }
 
 function FreshPage({ location }: { location: string }) {
-  return useRoutes(ROUTE_OBJECTS, location)
+  return <PageErrorBoundary resetKey={location}>{useRoutes(ROUTE_OBJECTS, location)}</PageErrorBoundary>
 }

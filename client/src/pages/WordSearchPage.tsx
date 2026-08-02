@@ -227,8 +227,20 @@ export function WordSearchPage() {
   }
   // Otherwise keep the select pointed at something real — the chosen word list
   // can disappear while the page is open.
+  //
+  // Both guards are load-bearing. A setState *during render* re-runs the
+  // component unconditionally — React skips the usual same-value bail-out for
+  // render-phase updates — so this branch has to stop firing on its own or the
+  // pass count hits React's limit and the whole page throws "Too many
+  // re-renders" and unmounts to a blank screen. That is exactly what a reload
+  // straight onto this route did: `folders` starts empty, so `.some()` was
+  // always false and the branch re-armed itself every pass. With no folders
+  // there is nothing to reconcile against, and re-selecting the value already
+  // held is never worth a render.
   if (
     !pickedFromResult &&
+    wordFolders.length > 0 &&
+    selectedWordFolderId !== defaultWordFolderId &&
     !wordFolders.some((folder) => folder.id === selectedWordFolderId)
   ) {
     setSelectedWordFolderId(defaultWordFolderId)
