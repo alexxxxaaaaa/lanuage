@@ -14,6 +14,7 @@ import { getTodayLearnedStats, markWordMastered } from '../api/review'
 import { getTodayNewWords } from '../api/words'
 import { useI18n, type UiLanguage } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
+import { sessionPath } from '../store/useActiveSessions'
 import { useAuthStore } from '../store/authStore'
 import type { Word } from '../types'
 
@@ -185,10 +186,7 @@ export function HomePage() {
     // requests each — 5 clicks = 15 concurrent D1 hits = 503s. Now: 1 mark
     // request, no refetch. If the mark itself fails, we reconcile.
     setTodayNewWords((prev) => prev.filter((w) => w.id !== wordId))
-    useAppStore.setState((state) => ({
-      todayReviews: state.todayReviews.filter((r) => r.wordId !== wordId),
-      dueReviews: state.dueReviews.filter((r) => r.wordId !== wordId),
-    }))
+    useAppStore.getState().dropDueWords([wordId])
     try {
       await markWordMastered(wordId)
       toast.success(t('home.markedMastered', { word: wordLabel }))
@@ -206,10 +204,10 @@ export function HomePage() {
     }
   }
 
+  // Reviewing is per-wordlist: the session lives on the wordlist's own route,
+  // so it can be left and resumed without disturbing any other list's session.
   const handleStartReviewByFolder = (folderId: string) => {
-    useAppStore.getState().setReviewFolderId(folderId)
-    void useAppStore.getState().fetchTodayReviews()
-    navigate('/review')
+    navigate(sessionPath('review', folderId))
   }
 
   const displayName = user?.username || '—'
@@ -408,7 +406,7 @@ export function HomePage() {
                 size="sm"
                 variant="ghost"
                 render={(props) => <button {...props} title={t('home.shuffleTip')} />}
-                onPress={() => useAppStore.getState().shuffleTodayReviews()}
+                onPress={() => useAppStore.getState().shuffleDueReviews()}
               >
                 <Shuffle className="size-4" aria-hidden />
                 {t('home.shuffle')}
@@ -448,9 +446,9 @@ export function HomePage() {
               isDisabled={newWordsForLearnFolder.length === 0}
               onPress={() => {
                 if (!learnFolderId) return
-                useAppStore.getState().setReviewFolderId(learnFolderId)
+                const target = sessionPath('learn', learnFolderId)
                 setLearnFolderId(null)
-                navigate('/learn')
+                navigate(target)
               }}
             >
               {t('home.learnNew')}

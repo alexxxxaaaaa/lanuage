@@ -1,12 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Volume2 } from 'lucide-react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 import { correctReviewResult, submitReviewResult } from '../api/review'
 import type { ReviewSnapshot } from '../api/review'
 import { getTodayNewWords } from '../api/words'
 import { SpeakButton } from '../components/SpeakButton'
+import {
+  useOnPageReactivated,
+  usePageActive,
+  usePageTitle,
+} from '../components/layout/pageContext'
 import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
+import { sessionPath, useReportSession } from '../store/useActiveSessions'
 import type { ReviewRating, Word } from '../types'
 import { pickSpeakableText, speak, stopSpeaking } from '../utils/speech'
 import { Button } from '@heroui/react'
@@ -184,17 +190,29 @@ function chunkInto<T>(items: T[], size: number): T[][] {
   return out
 }
 
+/**
+ * Learns one wordlist's new words.
+ *
+ * Session state is local to this page instance — see the note on `ReviewPage`:
+ * one mounted page per wordlist means two sessions can be half-finished at
+ * once, and keep-alive resumes whichever the user comes back to.
+ */
 export function LearnPage() {
   const navigate = useNavigate()
   const { t } = useI18n()
-  const reviewFolderId = useAppStore((state) => state.reviewFolderId)
-  const sessionLimit = useAppStore((state) => state.sessionLimit)
-  const todayReviews = useAppStore((state) => state.todayReviews)
-  const dueCount = Array.isArray(todayReviews) ? todayReviews.length : 0
+  const { id: folderId = '' } = useParams<{ id: string }>()
+  const isActive = usePageActive()
+  const folderName = useAppStore(
+    (state) => state.folders.find((folder) => folder.id === folderId)?.name ?? '',
+  )
+  const dueCount = useAppStore(
+    (state) =>
+      state.dueReviews.filter((item) => item.word.folderId === folderId).length,
+  )
 
   const [allWords, setAllWords] = useState<Word[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [hasLoadError, setHasLoadError] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Session state machine
@@ -238,49 +256,75 @@ export function LearnPage() {
       ? 0
       : Math.round((sessionSummary.length / allWords.length) * 100)
 
-  const folderName = useMemo(() => {
-    if (!reviewFolderId) return t('home.all')
-    const folders = useAppStore.getState().folders
-    return folders.find((item) => item.id === reviewFolderId)?.name ?? t('home.all')
-  }, [reviewFolderId, t])
-
-  // Load words once per folder/limit change
-  useEffect(() => {
-    const run = async () => {
-      setIsLoading(true)
-      setError(null)
-      try {
-        const list = await getTodayNewWords(
-          reviewFolderId ? { folderId: reviewFolderId } : undefined,
-        )
-        const safeList = Array.isArray(list) ? list : []
-        const limited =
-          sessionLimit === null ? safeList : safeList.slice(0, sessionLimit)
-        setAllWords(limited)
-        setBatchIdx(0)
-        setPhase('study')
-        setItemIdx(0)
-        setErrorsByWord({})
-        setRecoveryQueue([])
-        setRecoveryAttempts({})
-        setTypedAnswer('')
-        setStatus('idle')
-        setUsedHintByWord({})
-        setSessionSummary([])
-        setCorrectionDraft({})
-        setCorrectionApplied(false)
-      } catch {
-        setError(t('learn.loadFailed'))
-      } finally {
-        setIsLoading(false)
-      }
+  /** Loads this wordlist's unlearned words and starts a fresh session. */
+  const startSession = useCallback(async () => {
+    setIsLoading(true)
+    setHasLoadError(false)
+    try {
+      const list = await getTodayNewWords({ folderId })
+      const safeList = Array.isArray(list) ? list : []
+      // Read the cap now instead of subscribing to it: changing 学习个数 on
+      // the dashboard must not wipe a session that is already under way.
+      const limit = useAppStore.getState().sessionLimit
+      setAllWords(limit === null ? safeList : safeList.slice(0, limit))
+      setBatchIdx(0)
+      setPhase('study')
+      setItemIdx(0)
+      setErrorsByWord({})
+      setRecoveryQueue([])
+      setRecoveryAttempts({})
+      setTypedAnswer('')
+      setStatus('idle')
+      setUsedHintByWord({})
+      setSessionSummary([])
+      setCorrectionDraft({})
+      setCorrectionApplied(false)
+    } catch {
+      setHasLoadError(true)
+    } finally {
+      setIsLoading(false)
     }
-    void run()
-  }, [reviewFolderId, sessionLimit])
+  }, [folderId])
 
   useEffect(() => {
-    void useAppStore.getState().fetchTodayReviews()
-  }, [reviewFolderId])
+    // Loading the wordlist IS the synchronisation this effect exists for; the
+    // loading flag it flips first is part of that, not a cascading render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void startSession()
+  }, [startSession])
+
+  useEffect(() => {
+    const store = useAppStore.getState()
+    // Only for the "you still have N due words" nudge — never refetch on top
+    // of a pool another session may already be working from.
+    if (!store.hasLoadedReviews && !store.isLoadingReviews) {
+      void store.fetchTodayReviews()
+    }
+    if (store.folders.length === 0 && !store.isLoadingFolders) {
+      void store.fetchFolders()
+    }
+  }, [])
+
+  // Returning to a finished session reloads instead of re-showing a recap the
+  // user has already read: either there are new words to learn, or the empty
+  // state says so. Only on re-entry — finishing a session in place keeps its
+  // summary on screen.
+  useOnPageReactivated(() => {
+    if (phase === 'session-done') void startSession()
+  })
+
+  usePageTitle(`/folders/${folderId}`, folderName || null)
+  useReportSession(
+    sessionPath('learn', folderId),
+    phase !== 'session-done' && allWords.length > 0
+      ? {
+          kind: 'learn',
+          folderId,
+          done: sessionSummary.length,
+          total: allWords.length,
+        }
+      : null,
+  )
 
   // Reset typed answer on item change
   useEffect(() => {
@@ -289,7 +333,10 @@ export function LearnPage() {
   }, [phase, itemIdx, batchIdx, recoveryQueue[0]?.id])
 
   // Auto-focus the recall input when entering a test phase or advancing to next item.
+  // Gated on `isActive`: a backgrounded session must not steal focus from the
+  // page the user is actually on.
   useEffect(() => {
+    if (!isActive) return
     if (phase === 'cloze' || phase === 'recall' || phase === 'recovery') {
       if (status === 'idle') {
         // wait a tick for the input to mount/enable
@@ -297,11 +344,11 @@ export function LearnPage() {
         return () => window.clearTimeout(id)
       }
     }
-  }, [phase, itemIdx, batchIdx, recoveryQueue[0]?.id, status])
+  }, [isActive, phase, itemIdx, batchIdx, recoveryQueue[0]?.id, status])
 
   // Auto-speak word on study + when answer revealed
   useEffect(() => {
-    if (!currentWord) return
+    if (!isActive || !currentWord) return
     if (phase === 'study') {
       stopSpeaking()
       speak(
@@ -309,10 +356,10 @@ export function LearnPage() {
         currentWord.language,
       )
     }
-  }, [phase, currentWord?.id])
+  }, [isActive, phase, currentWord?.id])
 
   useEffect(() => {
-    if (!currentWord) return
+    if (!isActive || !currentWord) return
     if (status === 'correct' || status === 'wrong') {
       speak(
         pickSpeakableText(currentWord.word, currentWord.reading, currentWord.language),
@@ -324,7 +371,7 @@ export function LearnPage() {
     // and a re-run here would speak the NEW word right when the user is
     // about to type it, giving away the answer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status])
+  }, [isActive, status])
 
   // ----- transition helpers -----
   const advanceStudy = () => {
@@ -385,7 +432,6 @@ export function LearnPage() {
 
   const finishBatch = async () => {
     setIsSubmitting(true)
-    setError(null)
     try {
       // Final review round is a self-check only — every word already had its
       // FSRS review submitted in its original 5-word batch. Submitting again
@@ -511,8 +557,12 @@ export function LearnPage() {
     }
   }
 
-  // Keyboard shortcuts: Enter advances the current step
+  // Keyboard shortcuts: Enter advances the current step. Only while this page
+  // is on screen — a backgrounded session would otherwise advance on every
+  // Enter the user presses elsewhere in the app.
   useEffect(() => {
+    if (!isActive) return
+
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target
       if (target instanceof HTMLInputElement && !target.disabled) {
@@ -526,7 +576,7 @@ export function LearnPage() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [phase, status, currentWord, typedAnswer, isSubmitting])
+  }, [isActive, phase, status, currentWord, typedAnswer, isSubmitting])
 
   // ===== Rendering =====
 
@@ -541,12 +591,17 @@ export function LearnPage() {
     )
   }
 
-  if (error) {
+  if (hasLoadError) {
     return (
       <section className="page">
         <div className="card state-card mx-auto w-full max-w-[660px] p-7 text-left max-md:px-4.5 max-md:py-5.5">
-          <h2>{error}</h2>
+          <h2>{t('learn.loadFailed')}</h2>
           <p className="muted">{t('learn.retryLater')}</p>
+          <div className="actions">
+            <Button type="button" onPress={() => void startSession()}>
+              {t('learn.retry')}
+            </Button>
+          </div>
         </div>
       </section>
     )
@@ -566,16 +621,16 @@ export function LearnPage() {
             {dueCount > 0 ? (
               <Button
                 type="button"
-                onPress={() => navigate('/review')}
+                onPress={() => navigate(`/folders/${folderId}/review`)}
               >
                 {t('learn.goReview', { count: dueCount })}
               </Button>
             ) : null}
-            <Link
-              className={`button `}
-              to="/words/new"
-            >
+            <Link className="button" to={`/words/new?folderId=${folderId}`}>
               {t('learn.addWord')}
+            </Link>
+            <Link className="button button--outline" to={`/folders/${folderId}`}>
+              {t('learn.backToFolder')}
             </Link>
           </div>
         </div>
@@ -733,16 +788,18 @@ export function LearnPage() {
             {dueCount > 0 ? (
               <Button
                 type="button"
-                onPress={() => navigate('/review')}
+                onPress={() => navigate(`/folders/${folderId}/review`)}
               >
                 {t('learn.goReview', { count: dueCount })}
               </Button>
             ) : null}
-            <Link
-              className={`button `}
-              to="/"
-            >
-              {t('learn.backHome')}
+            {/* Another batch of unlearned words may be waiting in this
+                wordlist — reload rather than leaving the user at a dead end. */}
+            <Button variant="outline" type="button" onPress={() => void startSession()}>
+              {t('learn.nextBatch')}
+            </Button>
+            <Link className="button button--outline" to={`/folders/${folderId}`}>
+              {t('learn.backToFolder')}
             </Link>
           </div>
         </div>
@@ -789,7 +846,11 @@ export function LearnPage() {
         <div className="mb-1.5 flex items-start justify-between gap-3 max-md:flex-col max-md:items-start">
           <div>
             <p className="eyebrow">{phaseDisplay}</p>
-            <h2>{t('learn.cardTitle', { folder: folderName })}</h2>
+            <h2>
+              {t('learn.cardTitle', {
+                folder: folderName || currentWord.folder?.name || '',
+              })}
+            </h2>
             <p className="muted">
               {t('learn.batchInfo', { current: batchIdx + 1, total: totalBatches })}
               {phase !== 'recovery'

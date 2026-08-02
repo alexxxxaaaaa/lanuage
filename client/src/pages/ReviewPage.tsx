@@ -1,13 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { SelectField } from '../components/ui/SelectField'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Volume2 } from 'lucide-react'
-import { Link } from 'react-router'
-import { correctReviewResult } from '../api/review'
+import { Link, useParams } from 'react-router'
+import { correctReviewResult, submitReviewResult } from '../api/review'
 import type { ReviewSnapshot } from '../api/review'
+import { getErrorMessage } from '../api/error'
 import { SpeakButton } from '../components/SpeakButton'
 import { VoicePicker } from '../components/VoicePicker'
+import {
+  useOnPageReactivated,
+  usePageActive,
+  usePageTitle,
+} from '../components/layout/pageContext'
 import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
+import { sessionPath, useReportSession } from '../store/useActiveSessions'
+import type { ReviewItem, ReviewRating } from '../types'
 import { pickSpeakableText, speak, stopSpeaking } from '../utils/speech'
 import { Button } from '@heroui/react'
 
@@ -37,8 +44,20 @@ type AgainEntry = {
 
 type ReviewStepKey = 'recognition' | 'recall' | 'pronunciation'
 
+/**
+ * Reviews one wordlist's due words.
+ *
+ * The whole session — queue, position, per-word debt, retry stages — is local
+ * component state, not global store state: `/folders/a/review` and
+ * `/folders/b/review` are separate kept-alive pages, and a shared queue would
+ * let whichever one mounted last overwrite the other. Leaving mid-session and
+ * coming back re-shows this same mounted page, so it simply resumes; the page
+ * is also exempt from keep-alive eviction while it reports progress.
+ */
 export function ReviewPage() {
   const { t } = useI18n()
+  const { id: folderId = '' } = useParams<{ id: string }>()
+  const isActive = usePageActive()
   const REVIEW_STEPS = useMemo(
     () =>
       [
@@ -60,16 +79,23 @@ export function ReviewPage() {
       ],
     [t],
   )
-  const folders = useAppStore((state) => state.folders)
-  const isLoadingFolders = useAppStore((state) => state.isLoadingFolders)
-  const todayReviews = useAppStore((state) => state.todayReviews)
-  const totalReviewCount = useAppStore((state) => state.totalReviewCount)
-  const reviewFolderId = useAppStore((state) => state.reviewFolderId)
-  const currentIndex = useAppStore((state) => state.currentIndex)
-  const isCardFlipped = useAppStore((state) => state.isCardFlipped)
+  const dueReviews = useAppStore((state) => state.dueReviews)
+  const hasLoadedReviews = useAppStore((state) => state.hasLoadedReviews)
   const isLoadingReviews = useAppStore((state) => state.isLoadingReviews)
-  const isSubmitting = useAppStore((state) => state.isSubmitting)
-  const error = useAppStore((state) => state.error)
+  const loadError = useAppStore((state) => state.error)
+  const folderName = useAppStore(
+    (state) => state.folders.find((folder) => folder.id === folderId)?.name ?? '',
+  )
+
+  // --- session state --------------------------------------------------------
+  // `null` means "not started yet"; the bootstrap effect below snapshots the
+  // due pool into it exactly once.
+  const [queue, setQueue] = useState<ReviewItem[] | null>(null)
+  const [total, setTotal] = useState(0)
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [isCardFlipped, setIsCardFlipped] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
   // Per-word retry queue: the LIST of failed stage indices that still need
   // redoing. Failing at step 2 stores [2]; failing at step 0 and 2 stores
@@ -110,33 +136,70 @@ export function ReviewPage() {
   // remembered". FSRS finalRating stays unchanged (scheduling is separate).
   const [hadAgainByWord, setHadAgainByWord] = useState<Record<string, boolean>>({})
 
-  const folderList = Array.isArray(folders) ? folders : []
-
-  useEffect(() => {
-    useAppStore.getState().clearError()
-    void useAppStore.getState().fetchFolders()
-    void useAppStore.getState().fetchTodayReviews()
-    useAppStore.getState().resetReviewSession()
-  }, [])
-
-  useEffect(() => {
+  const startSession = useCallback((items: ReviewItem[]) => {
+    setQueue(items)
+    setTotal(items.length)
+    setCurrentIndex(0)
+    setIsCardFlipped(false)
     setStepIndex(0)
     setStepRatings({})
     setDebtByWord({})
     setRepeatCountByWord({})
+    setRetryStagesByWord({})
     setAgainEntries([])
     setCorrectionDraft({})
     setCorrectionApplied(false)
     setSessionStats({ easy: 0, hard: 0, again: 0 })
     setHadAgainByWord({})
-    setRetryStagesByWord({})
-    useAppStore.getState().resetReviewSession()
-  }, [reviewFolderId])
+    setSubmitError(null)
+  }, [])
 
-  const reviews = Array.isArray(todayReviews) ? todayReviews : []
+  useEffect(() => {
+    const store = useAppStore.getState()
+    if (!store.hasLoadedReviews && !store.isLoadingReviews) {
+      void store.fetchTodayReviews()
+    }
+    if (store.folders.length === 0 && !store.isLoadingFolders) {
+      void store.fetchFolders()
+    }
+  }, [])
+
+  /** Words of this wordlist still due — the pool a (re)start draws from. */
+  const pool = useMemo(
+    () => dueReviews.filter((item) => item.word.folderId === folderId),
+    [dueReviews, folderId],
+  )
+
+  // Snapshot the pool once, during render rather than in an effect — an effect
+  // would paint one empty "nothing due" frame first. Guarded on
+  // `queue === null` so later pool changes (a day-rollover refetch, another
+  // page marking a word mastered) can never reshuffle a session already under
+  // way; that guard is also what stops this from looping.
+  if (queue === null && hasLoadedReviews) {
+    startSession(pool)
+  }
+
+  const reviews = queue ?? []
   const currentReview = reviews[currentIndex]
   const currentWord = currentReview?.word
-  const completedWords = Math.max(0, totalReviewCount - reviews.length)
+  const completedWords = Math.max(0, total - reviews.length)
+
+  // Coming back to a finished session that has fresh due words (an `again`
+  // rating resurfaces the word later the same day) starts the next round
+  // straight away — clicking 复习 on the wordlist should never land on the
+  // "all done" screen the user has already seen.
+  useOnPageReactivated(() => {
+    if (queue !== null && queue.length === 0 && pool.length > 0) startSession(pool)
+  })
+
+  usePageTitle(`/folders/${folderId}`, folderName || null)
+  useReportSession(
+    sessionPath('review', folderId),
+    reviews.length > 0
+      ? { kind: 'review', folderId, done: completedWords, total }
+      : null,
+  )
+
   // Words in retry-mode use their private failed-stage queue; everyone
   // else uses the global stepIndex. `retryStages` is the head of the
   // failed-stage list to redo, so if a user only failed at recall, they
@@ -153,10 +216,8 @@ export function ReviewPage() {
   const isInRetry = retryStep !== null
   /** 当前是第几个单词（1…总词数），三种复习方式共用同一个「第几词」，不会变成 60/30 */
   const currentWordPosition =
-    totalReviewCount === 0
-      ? 0
-      : Math.min(totalReviewCount, completedWords + currentIndex + 1)
-  const totalCards = totalReviewCount * REVIEW_STEPS.length
+    total === 0 ? 0 : Math.min(total, completedWords + currentIndex + 1)
+  const totalCards = total * REVIEW_STEPS.length
   const completedCards =
     completedWords * REVIEW_STEPS.length + stepIndex * reviews.length + currentIndex
   const progressPercent = totalCards === 0 ? 0 : (completedCards / totalCards) * 100
@@ -173,13 +234,19 @@ export function ReviewPage() {
     return 'easy'
   }
 
+  /** Moves to `index` within the round and always lands on the card's front. */
+  const goToIndex = (index: number) => {
+    setCurrentIndex(Math.max(0, Math.min(index, Math.max(0, reviews.length - 1))))
+    setIsCardFlipped(false)
+  }
+
   const goNextInRound = () => {
     if (currentIndex < reviews.length - 1) {
-      useAppStore.getState().goToNextReview()
+      goToIndex(currentIndex + 1)
       return
     }
     setStepIndex((prev) => Math.min(prev + 1, REVIEW_STEPS.length - 1))
-    useAppStore.getState().setReviewIndex(0)
+    goToIndex(0)
   }
 
   // Skip the ENTIRE current step (not just this word). Jumps stepIndex forward
@@ -191,9 +258,27 @@ export function ReviewPage() {
   const handleSkipStep = () => {
     if (isLastStep) return
     setStepIndex(stepIndex + 1)
-    useAppStore.getState().setReviewIndex(0)
-    if (isCardFlipped) {
-      useAppStore.getState().toggleCard()
+    goToIndex(0)
+  }
+
+  /** Commits the FSRS rating and drops the word from this session's queue. */
+  const commitRating = async (item: ReviewItem, rating: ReviewRating) => {
+    setIsSubmitting(true)
+    setSubmitError(null)
+    try {
+      await submitReviewResult({ wordId: item.wordId, rating })
+      const next = reviews.filter((entry) => entry.wordId !== item.wordId)
+      setQueue(next)
+      setCurrentIndex((prev) =>
+        next.length === 0 ? 0 : Math.min(prev, next.length - 1),
+      )
+      setIsCardFlipped(false)
+      // Keep the dashboard's due counter honest without a refetch.
+      useAppStore.getState().dropDueWords([item.wordId])
+    } catch (error) {
+      setSubmitError(getErrorMessage(error, '更新复习结果失败'))
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -232,11 +317,9 @@ export function ReviewPage() {
           ...prev,
           [wordId]: currentRetryQueue.slice(1),
         }))
+        setIsCardFlipped(false)
       } else {
         goNextInRound()
-      }
-      if (isCardFlipped) {
-        useAppStore.getState().toggleCard()
       }
       return
     }
@@ -279,23 +362,16 @@ export function ReviewPage() {
       setRetryStagesByWord((prev) => ({ ...prev, [wordId]: failedStages }))
       // Keep stepRatings intact — retry stages will overwrite their own
       // slots, non-failed stages keep their previous non-again ratings.
-      if (currentIndex < reviews.length - 1) {
-        useAppStore.getState().goToNextReview()
-      } else {
-        useAppStore.getState().setReviewIndex(0)
-      }
-      if (isCardFlipped) {
-        useAppStore.getState().toggleCard()
-      }
+      goToIndex(currentIndex < reviews.length - 1 ? currentIndex + 1 : 0)
       return
     }
 
     // Ready to submit — clear per-word bookkeeping. DO NOT clear the
     // retry queue here: doing so would let `effectiveStep` fall back to
     // the (unrelated) global stepIndex mid-transition, which briefly
-    // renders the wrong step's UI before submitReview drops the word from
-    // the queue. The stale entry is harmless once the wordId leaves
-    // todayReviews. Session-scope resets (folder change) wipe it anyway.
+    // renders the wrong step's UI before the commit drops the word from
+    // the queue. The stale entry is harmless once the wordId leaves the
+    // queue, and a restart wipes it anyway.
     setStepRatings((prev) => {
       const next = { ...prev }
       delete next[wordId]
@@ -314,7 +390,7 @@ export function ReviewPage() {
     // Snapshot the pre-submission FSRS state if this word is about to be
     // submitted as `again`. Used by the rescue panel at session-done to let
     // the user fix a misclick.
-    if (finalRating === 'again' && currentReview) {
+    if (finalRating === 'again') {
       const snapshot: ReviewSnapshot = {
         interval: currentReview.interval ?? 1,
         repetition: currentReview.repetition ?? 0,
@@ -353,7 +429,7 @@ export function ReviewPage() {
       hard: prev.hard + (displayRating === 'hard' ? 1 : 0),
       again: prev.again + (displayRating === 'again' ? 1 : 0),
     }))
-    await useAppStore.getState().submitReview(finalRating)
+    await commitRating(currentReview, finalRating)
     setDebtByWord((prev) => {
       const next = { ...prev }
       delete next[wordId]
@@ -367,6 +443,10 @@ export function ReviewPage() {
   }
 
   useEffect(() => {
+    // Backgrounded sessions stay mounted; without this gate their shortcuts
+    // would fire while the user is typing on a different page.
+    if (!isActive) return
+
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target
 
@@ -382,7 +462,7 @@ export function ReviewPage() {
 
       if (event.code === 'Space' && currentWord) {
         event.preventDefault()
-        useAppStore.getState().toggleCard()
+        setIsCardFlipped((prev) => !prev)
       }
 
       if ((event.key === 'p' || event.key === 'P') && currentWord) {
@@ -419,9 +499,18 @@ export function ReviewPage() {
       window.removeEventListener('keydown', handleKeyDown)
       stopSpeaking()
     }
-  }, [currentWord, isCardFlipped, currentStep.key, recallStatus, recallUsedHint, isSubmitting])
+  }, [
+    isActive,
+    currentWord,
+    isCardFlipped,
+    currentStep.key,
+    recallStatus,
+    recallUsedHint,
+    isSubmitting,
+  ])
 
   useEffect(() => {
+    if (!isActive) return
     if (currentStep.key !== 'pronunciation' || !currentWord) return
     const speakText = pickSpeakableText(
       currentWord.word,
@@ -435,6 +524,7 @@ export function ReviewPage() {
     }, 250)
     return () => window.clearTimeout(id)
   }, [
+    isActive,
     currentStep.key,
     currentReview?.wordId,
     currentWord?.word,
@@ -451,11 +541,12 @@ export function ReviewPage() {
   // After moving to the next word inside the recall step, re-focus the input —
   // autoFocus only fires on first mount, so swapping to a new word keeps it blurred.
   useEffect(() => {
+    if (!isActive) return
     if (currentStep.key !== 'recall') return
     if (recallStatus !== 'idle') return
     const id = window.setTimeout(() => recallInputRef.current?.focus(), 0)
     return () => window.clearTimeout(id)
-  }, [currentStep.key, currentReview?.wordId, recallStatus])
+  }, [isActive, currentStep.key, currentReview?.wordId, recallStatus])
 
   const katakanaToHiragana = (value: string) =>
     value.replace(/[ァ-ヶ]/g, (ch) =>
@@ -477,11 +568,7 @@ export function ReviewPage() {
   const handleRecallSubmit = () => {
     if (recallStatus !== 'idle') return
     if (!typedRecall.trim()) return
-    if (isRecallCorrect(typedRecall)) {
-      setRecallStatus('correct')
-    } else {
-      setRecallStatus('wrong')
-    }
+    setRecallStatus(isRecallCorrect(typedRecall) ? 'correct' : 'wrong')
   }
 
   const handleRecallHint = () => {
@@ -499,7 +586,9 @@ export function ReviewPage() {
     setRecallStatus('wrong')
   }
 
-  if (isLoadingReviews) {
+  const error = submitError ?? loadError
+
+  if (queue === null) {
     return (
       <section className="page">
         <div className="card review-card state-card">
@@ -507,12 +596,11 @@ export function ReviewPage() {
           <h2>{t('review.loading')}</h2>
           <p className="muted">{t('review.loadingHint')}</p>
           <div className="actions">
-            <Button variant="outline"
+            <Button
+              variant="outline"
               type="button"
-              onPress={() => {
-                void useAppStore.getState().fetchFolders()
-                void useAppStore.getState().fetchTodayReviews()
-              }}
+              isDisabled={isLoadingReviews}
+              onPress={() => void useAppStore.getState().fetchTodayReviews()}
             >
               {t('review.retry')}
             </Button>
@@ -523,9 +611,6 @@ export function ReviewPage() {
   }
 
   if (!currentReview || !currentWord) {
-    const folderFilterLabel = reviewFolderId
-      ? folderList.find((f) => f.id === reviewFolderId)?.name ?? ''
-      : null
     const pendingFixes = Object.entries(correctionDraft)
     const applyCorrections = async () => {
       if (pendingFixes.length === 0) return
@@ -562,31 +647,24 @@ export function ReviewPage() {
       <section className="page">
         <div className="card review-card state-card">
           <div className="state-illustration">100%</div>
-          <h2>
-            {reviewFolderId ? t('review.sessionDoneFolder') : t('review.sessionDoneTitle')}
-          </h2>
+          <h2>{t('review.sessionDoneFolder')}</h2>
           <p className="muted">
-            {reviewFolderId
-              ? t('review.sessionDoneWithFolder', { name: folderFilterLabel ?? '' })
-              : t('review.sessionDoneNoFolder')}
+            {t('review.sessionDoneWithFolder', { name: folderName })}
           </p>
 
           {(() => {
-            const total = sessionStats.easy + sessionStats.hard + sessionStats.again
-            if (total === 0) return null
+            const done = sessionStats.easy + sessionStats.hard + sessionStats.again
+            if (done === 0) return null
             // "Correctness rate" counts Easy + Hard as understood, Again as
             // wrong. Hard is included because after FSRS it still marks
             // "user recalled", just with more effort.
             const correct = sessionStats.easy + sessionStats.hard
-            const rate = Math.round((correct / total) * 100)
+            const rate = Math.round((correct / done) * 100)
             return (
               <div className="mx-auto mt-4 max-w-[420px] rounded-xl bg-indigo-500/6 px-4 py-3.5 text-left">
                 <div className="mb-2.5 flex items-baseline gap-2">
                   <span className="text-[32px] leading-none font-bold text-indigo-600">{rate}%</span>
-                  <span className="muted">
-                    {' '}
-                    正确率 · 共 {total} 词
-                  </span>
+                  <span className="muted">{t('review.accuracySummary', { count: done })}</span>
                 </div>
                 <ul className="m-0 flex list-none flex-wrap gap-4 p-0 text-[13px] text-foreground [&>li]:inline-flex [&>li]:items-center [&>li]:gap-1.5 [&_strong]:font-semibold [&_strong]:text-foreground [&_.dot]:inline-block [&_.dot]:size-2 [&_.dot]:rounded-full [&_.dot-easy]:bg-green-500 [&_.dot-hard]:bg-amber-500 [&_.dot-again]:bg-red-500">
                   <li>
@@ -693,14 +771,18 @@ export function ReviewPage() {
           ) : null}
 
           <div className="actions">
-            <Link className="button button--primary" to="/learn">
+            {/* More words came due while the session ran (or the user marked
+                some in another page) — offer another round instead of a dead end. */}
+            {pool.length > 0 ? (
+              <Button type="button" onPress={() => startSession(pool)}>
+                {t('review.restart', { count: pool.length })}
+              </Button>
+            ) : null}
+            <Link className="button button--outline" to={`/folders/${folderId}/learn`}>
               {t('review.goLearn')}
             </Link>
-            <Link className="button button--outline" to="/words/new">
-              {t('review.addWord')}
-            </Link>
-            <Link className="button button--outline" to="/folders">
-              {t('review.viewFolders')}
+            <Link className="button button--outline" to={`/folders/${folderId}`}>
+              {t('review.backToFolder')}
             </Link>
           </div>
         </div>
@@ -715,31 +797,14 @@ export function ReviewPage() {
           <div className="review-progress-copy">
             <p className="eyebrow">{t('review.progressLabel')}</p>
             <strong className="progress-text">
-              {currentWordPosition} / {totalReviewCount}
+              {currentWordPosition} / {total}
             </strong>
           </div>
           <div className="flex flex-wrap items-center gap-3 max-md:w-full max-md:gap-2">
-            <label className="session-inline">
-              <span className="muted">{t('review.folderLabel')}</span>
-              <SelectField
-                value={reviewFolderId ?? ''}
-                isDisabled={isLoadingFolders || isLoadingReviews}
-                onChange={(v) => {
-                  const next = v === '' ? null : v
-                  useAppStore.getState().setReviewFolderId(next)
-                  void useAppStore.getState().fetchTodayReviews()
-                }}
-              className="min-w-[160px]"
-                options={[
-                  { value: '', label: t('review.allFolders') },
-                  ...folderList.map((folder) => ({
-                    value: folder.id,
-                    label: folder.name,
-                  })),
-                ]}
-              />
-            </label>
-            <span className="review-tag">{currentWord.folder.name}</span>
+            {/* The wordlist this session belongs to — and the way back to it. */}
+            <Link className="review-tag no-underline" to={`/folders/${folderId}`}>
+              {folderName || currentWord.folder.name}
+            </Link>
           </div>
         </div>
 
@@ -897,7 +962,7 @@ export function ReviewPage() {
         <button
           type="button"
           className={`flip-card ${isCardFlipped ? 'is-flipped' : ''}`}
-          onClick={() => useAppStore.getState().toggleCard()}
+          onClick={() => setIsCardFlipped((prev) => !prev)}
           aria-label="翻转单词卡片"
         >
           <span className="flip-card-face flip-card-front">
@@ -914,7 +979,7 @@ export function ReviewPage() {
               </span>
             ) : null}
             <small className="inline-flex min-h-6 items-center justify-center">
-              {currentWord.partOfSpeech ? t('review.partOfSpeech', { value: currentWord.partOfSpeech }) : '\u00A0'}
+              {currentWord.partOfSpeech ? t('review.partOfSpeech', { value: currentWord.partOfSpeech }) : ' '}
             </small>
             {currentStep.key === 'pronunciation' ? (
               <div className="flex flex-col items-center gap-4 py-4">
@@ -945,7 +1010,7 @@ export function ReviewPage() {
                   <small>{t('review.readingLabel', { value: currentWord.reading })}</small>
                 ) : null}
                 <small className="inline-flex min-h-6 items-center justify-center">
-                  {currentWord.partOfSpeech ? t('review.partOfSpeech', { value: currentWord.partOfSpeech }) : '\u00A0'}
+                  {currentWord.partOfSpeech ? t('review.partOfSpeech', { value: currentWord.partOfSpeech }) : ' '}
                 </small>
                 <small className="multiline-text">{currentWord.example}</small>
                 <small>{currentWord.note}</small>
@@ -958,7 +1023,7 @@ export function ReviewPage() {
                   <small>{t('review.readingLabel', { value: currentWord.reading })}</small>
                 ) : null}
                 <small className="inline-flex min-h-6 items-center justify-center">
-                  {currentWord.partOfSpeech ? t('review.partOfSpeech', { value: currentWord.partOfSpeech }) : '\u00A0'}
+                  {currentWord.partOfSpeech ? t('review.partOfSpeech', { value: currentWord.partOfSpeech }) : ' '}
                 </small>
                 <small className="multiline-text">
                   {currentWord.meaning || t('review.meaningEmpty')}
@@ -1012,11 +1077,11 @@ export function ReviewPage() {
                 className={`${RATING_BTN} ${RATING_TONE.skip}`}
                 disabled={isSubmitting}
                 onClick={handleSkipStep}
-                title="跳过整个步骤,直接进入下一步"
+                title={t('review.skipStepTip')}
               >
-                跳过此步骤
+                {t('review.skipStep')}
               </button>
-              <span className="rating-caption">直接进入下一步</span>
+              <span className="rating-caption">{t('review.skipStepCaption')}</span>
             </div>
           ) : null}
         </div>
@@ -1068,8 +1133,6 @@ export function ReviewPage() {
             </button>
           </div>
         ) : null}
-
-        {/* AI Quiz is temporarily disabled. */}
 
         {error ? <p className="error-text">{error}</p> : null}
       </div>

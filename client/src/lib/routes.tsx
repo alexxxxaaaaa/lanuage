@@ -2,12 +2,10 @@ import type { LucideIcon } from 'lucide-react'
 import {
   BookOpen,
   FileText,
-  FolderTree,
-  GraduationCap,
   Headphones,
+  Library,
   MessagesSquare,
   NotebookPen,
-  RefreshCw,
   Search,
   Settings,
   SpellCheck,
@@ -95,10 +93,17 @@ export const ROUTES: readonly RouteDefinition[] = [
 
   // --- 词汇 -----------------------------------------------------------------
   {
+    path: '/words/search',
+    titleKey: 'wordSearch',
+    element: <WordSearchPage />,
+    icon: Search,
+    showInSidebar: true,
+  },
+  {
     path: '/folders',
     titleKey: 'folders',
     element: <FoldersPage />,
-    icon: FolderTree,
+    icon: Library,
     showInSidebar: true,
   },
   {
@@ -108,33 +113,27 @@ export const ROUTES: readonly RouteDefinition[] = [
     parent: '/folders',
   },
   {
-    // Reached from a folder, from the quick-search float, and from a note —
+    // Learning and reviewing are always *of a wordlist*, so they hang off one
+    // instead of owning sidebar slots. One page instance per wordlist means
+    // two half-finished sessions can coexist, and keep-alive resumes either.
+    path: '/folders/:id/learn',
+    titleKey: 'learn',
+    element: <LearnPage />,
+    parent: '/folders/:id',
+  },
+  {
+    path: '/folders/:id/review',
+    titleKey: 'review',
+    element: <ReviewPage />,
+    parent: '/folders/:id',
+  },
+  {
+    // Reached from a wordlist, from the quick-search float, and from a note —
     // so it hangs off /folders rather than owning a sidebar slot of its own.
     path: '/words/new',
     titleKey: 'addWord',
     element: <AddWordPage />,
     parent: '/folders',
-  },
-  {
-    path: '/words/search',
-    titleKey: 'wordSearch',
-    element: <WordSearchPage />,
-    icon: Search,
-    showInSidebar: true,
-  },
-  {
-    path: '/learn',
-    titleKey: 'learn',
-    element: <LearnPage />,
-    icon: GraduationCap,
-    showInSidebar: true,
-  },
-  {
-    path: '/review',
-    titleKey: 'review',
-    element: <ReviewPage />,
-    icon: RefreshCw,
-    showInSidebar: true,
   },
 
   // --- 笔记 / 表达 ----------------------------------------------------------

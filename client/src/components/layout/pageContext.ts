@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react'
+import { createContext, useContext, useEffect, useRef } from 'react'
 
 import { useSetBreadcrumbOverride } from '../../providers/breadcrumbContext'
 
@@ -14,6 +14,30 @@ export const PageActiveContext = createContext(true)
  */
 export function usePageActive(): boolean {
   return useContext(PageActiveContext)
+}
+
+/**
+ * Runs `onReactivate` each time this page comes back to the foreground —
+ * never on the first render, which is a plain mount rather than a return.
+ *
+ * Lets a kept-alive page refresh what went stale while it sat in the
+ * background without re-running its whole mount path.
+ */
+export function useOnPageReactivated(onReactivate: () => void): void {
+  const isActive = usePageActive()
+  const latest = useRef(onReactivate)
+  const wasActive = useRef(isActive)
+
+  // Keep the callback fresh so it sees this render's state, without making it
+  // a dependency of the effect below (which must fire only on the transition).
+  useEffect(() => {
+    latest.current = onReactivate
+  })
+
+  useEffect(() => {
+    if (isActive && !wasActive.current) latest.current()
+    wasActive.current = isActive
+  }, [isActive])
 }
 
 /**

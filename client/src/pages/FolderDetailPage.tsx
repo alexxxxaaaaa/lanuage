@@ -94,6 +94,9 @@ export function FolderDetailPage() {
   const isLoadingFolders = useAppStore((state) => state.isLoadingFolders)
   const isSubmitting = useAppStore((state) => state.isSubmitting)
   const error = useAppStore((state) => state.error)
+  const dueCount = useAppStore(
+    (state) => state.dueReviews.filter((item) => item.word.folderId === id).length,
+  )
 
   // Per-tab folder snapshot. Used to live in useAppStore.currentFolder but
   // that singleton is shared across tabs — opening a second folder in another
@@ -153,8 +156,14 @@ export function FolderDetailPage() {
 
   useEffect(() => {
     if (!id) return
-    useAppStore.getState().clearError()
-    void useAppStore.getState().fetchFolders()
+    const store = useAppStore.getState()
+    store.clearError()
+    void store.fetchFolders()
+    // Powers the review button's count. Never refetch on top of an already
+    // loaded pool — a running session snapshots from it.
+    if (!store.hasLoadedReviews && !store.isLoadingReviews) {
+      void store.fetchTodayReviews()
+    }
     void reloadFolder()
     void getNotes().then((rows) =>
       setNoteOptions((rows ?? []).map((item) => ({ id: item.id, title: item.title })),
@@ -584,8 +593,19 @@ export function FolderDetailPage() {
           </div>
         </div>
         <div className="hero-actions compact-actions">
+          {/* Learning and reviewing belong to a wordlist, so the entry points
+              live here (and on the wordlist cards) rather than in the sidebar.
+              Both resume an unfinished session instead of restarting it. */}
+          <Link className="button button--primary" to={`/folders/${id}/learn`}>
+            {t('folderDetail.learn')}
+          </Link>
+          <Link className="button button--outline" to={`/folders/${id}/review`}>
+            {dueCount > 0
+              ? t('folderDetail.reviewWithCount', { count: dueCount })
+              : t('folderDetail.review')}
+          </Link>
           <Link
-            className="button button--primary"
+            className="button button--outline"
             to={`/words/new${folder ? `?folderId=${folder.id}` : ''}`}
           >
             {t('folderDetail.addWord')}
@@ -595,7 +615,7 @@ export function FolderDetailPage() {
             className="button button--outline"
             disabled={!folder}
             onClick={openBatchModal}
-            title="粘贴多个词,AI 自动查并加到本分类"
+            title="粘贴多个词,AI 自动查并加到本词单"
           >
             批量添加
           </button>
@@ -901,7 +921,7 @@ export function FolderDetailPage() {
         {batchResults.length === 0 ? (
           <>
             <p className="muted" style={{ marginTop: 0 }}>
-              用逗号、空格或换行分隔多个词。AI 会逐个查并加到当前分类。
+              用逗号、空格或换行分隔多个词。AI 会逐个查并加到当前词单。
             </p>
             <TextArea
               value={batchInput}
@@ -976,7 +996,7 @@ export function FolderDetailPage() {
                       style={{ fontSize: 12, padding: '2px 10px', borderRadius: 999 }}
                       onPress={() => void pinExistingFromBatch(i, r.existingWordId!)}
                       isDisabled={pinningId === r.existingWordId}
-                      render={(props) => <button {...props} title="把这个已存在的词置顶到分类第一个" />}
+                      render={(props) => <button {...props} title="把这个已存在的词置顶到词单第一个" />}
                     >
                       置顶
                     </Button>

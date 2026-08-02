@@ -3,6 +3,7 @@ import { Navigate, useLocation, useRoutes, type RouteObject } from 'react-router
 
 import { PageActiveContext } from './pageContext'
 import { ROUTES, isRouteVisible, matchRoute, type RouteCapabilities } from '../../lib/routes'
+import { useActiveSessions } from '../../store/useActiveSessions'
 
 /**
  * How many pages stay mounted in the background. Each kept page holds its own
@@ -41,9 +42,14 @@ function upsert(entries: Entry[], key: string, location: string): Entry[] {
     : [...entries, { key, location, seq }]
 
   if (next.length <= MAX_KEPT_PAGES) return next
+  // A half-finished learn/review session lives in its page's component state,
+  // so evicting that page silently discards it. Those pages stay regardless of
+  // recency — the budget is a memory hint, not a promise, and the exemption is
+  // bounded by how many sessions the user can realistically have open.
+  const busy = useActiveSessions.getState().sessions
   // Never evict the pinned page or the one being navigated to.
   const evictable = next
-    .filter((e) => e.key !== PINNED_KEY && e.key !== key)
+    .filter((e) => e.key !== PINNED_KEY && e.key !== key && !(e.key in busy))
     .sort((a, b) => a.seq - b.seq)
   const dropped = new Set(
     evictable.slice(0, next.length - MAX_KEPT_PAGES).map((e) => e.key),
