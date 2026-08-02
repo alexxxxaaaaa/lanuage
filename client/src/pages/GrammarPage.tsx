@@ -161,7 +161,6 @@ export function GrammarPage() {
     <section className="page">
       <div className="section-header">
         <div>
-          <p className="eyebrow">{t('grammar.eyebrow')}</p>
           <h2>{t('grammar.title')}</h2>
           <p className="muted">
             {t('grammar.summary', {

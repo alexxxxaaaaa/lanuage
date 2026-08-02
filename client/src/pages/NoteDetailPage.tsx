@@ -70,9 +70,6 @@ export function NoteDetailPage() {
     <section className="page">
       <div className="section-header">
         <div>
-          <p className="eyebrow">
-            <Link to="/notes">← 返回笔记</Link>
-          </p>
           <h2>{note?.title ?? '笔记详情'}</h2>
           <p className="muted">
             {note?.course || '未分类课程'} · {note?.lesson || '未分课次'}

@@ -158,9 +158,6 @@ export function ExamDetailPage() {
     <section className="page exam-detail">
       <div className="section-header">
         <div>
-          <p className="eyebrow">
-            <Link to="/exams">真题</Link>
-          </p>
           <h2>
             {exam.title}
             <span className="folder-language tag-inline">{exam.level}</span>

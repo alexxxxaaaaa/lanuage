@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Spinner, toast } from '@heroui/react'
+import { Button, Card, Chip, Disclosure, ProgressCircle, Spinner, toast } from '@heroui/react'
 import { Link } from 'react-router'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { TabsView } from '../components/ui/TabsView'
-import { ChevronDown, ChevronRight } from 'lucide-react'
 import {
   getQbankOverview,
   getQbankSet,
@@ -14,15 +13,17 @@ import {
 } from '../api/qbank'
 import { getErrorMessage } from '../api/error'
 import { usePageActive } from '../components/layout/pageContext'
-import {
-  CATEGORIES,
-  categoryLabel,
-  mondaiLabel,
-  mondaiMeta,
-  paperLabel,
-} from './jlpt/constants'
+import { CATEGORIES, categoryLabel, mondaiLabel, mondaiMeta, paperLabel } from './jlpt/constants'
 
-type TabKey = string
+// 目录里的每一行都是同一个骨架：左边标签、中间題型说明、右边进度 + 练习入口。
+// ≤900px 时说明文字换到第三行独占一行，标签和进度并排。
+const ROW =
+  'flex items-center gap-3.5 px-4 py-3 max-[900px]:flex-wrap max-[900px]:gap-x-3 max-[900px]:gap-y-2'
+const ROW_LABEL = 'min-w-[76px] shrink-0 text-[13px] font-semibold text-accent'
+const ROW_MAIN = 'min-w-0 flex-1 max-[900px]:order-3 max-[900px]:basis-full'
+const ROW_TITLE = 'm-0 text-sm font-semibold text-foreground'
+// 练习入口是路由跳转，用 <Link> 套 HeroUI 的按钮类，样式和别处的按钮一致。
+const PRACTICE_LINK = 'button button--outline button--sm shrink-0 text-accent'
 
 function practiceHref(filter: QbankSetFilter): string {
   const params = new URLSearchParams()
@@ -36,78 +37,85 @@ function practiceHref(filter: QbankSetFilter): string {
   return `/jlpt/practice?${params.toString()}`
 }
 
-/** 一行进度：已答 / 总数 + 细进度条，做对的部分是绿的。 */
+/** 一行进度：小圆环是已答 / 总数，做对多少写在旁边的数字里。 */
 function Progress({ total, answered, correct }: { total: number; answered: number; correct: number }) {
-  const pct = (n: number) => (total > 0 ? `${(n / total) * 100}%` : '0%')
   return (
-    <div className="grid w-[180px] shrink-0 justify-items-end gap-1 max-[900px]:w-auto max-[900px]:flex-1" title={total ? `已答 ${answered} · 正确 ${correct}` : ''}>
-      <div className="relative h-[3px] w-full overflow-hidden rounded-full bg-border">
-        <span className="absolute inset-y-0 start-0 rounded-full bg-accent/45" style={{ width: pct(answered) }} />
-        <span className="absolute inset-y-0 start-0 rounded-full bg-green-500" style={{ width: pct(correct) }} />
-      </div>
+    <div className="flex w-[160px] shrink-0 items-center justify-end gap-2 max-[900px]:w-auto max-[900px]:flex-1">
+      <ProgressCircle aria-label="作答进度" maxValue={Math.max(total, 1)} size="sm" value={answered}>
+        <ProgressCircle.Track>
+          <ProgressCircle.TrackCircle />
+          <ProgressCircle.FillCircle />
+        </ProgressCircle.Track>
+      </ProgressCircle>
       <span className="text-xs tabular-nums text-muted">
         {answered}/{total}
+        {answered > 0 ? ` · 正确 ${correct}` : ''}
       </span>
     </div>
   )
 }
 
 function GroupRow({ group }: { group: QbankOverviewGroup }) {
-  const [open, setOpen] = useState(false)
   const meta = mondaiMeta(group.category, group.mondaiNo)
 
   return (
-    <li className="overflow-hidden rounded-[14px] border border-border bg-surface">
-      <div className="flex items-center gap-3.5 px-4 py-3 max-[900px]:flex-wrap max-[900px]:gap-x-3 max-[900px]:gap-y-2 bg-accent/5">
-        <button
-          type="button"
-          className="inline-flex min-h-0 cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 text-[13px] font-semibold text-accent"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-        >
-          {open ? <ChevronDown /> : <ChevronRight />}
-          <span className="min-w-[68px] shrink-0 text-[13px] font-semibold text-accent">{mondaiLabel(group.category, group.mondaiNo)}</span>
-        </button>
-        <div className="min-w-0 flex-1 max-[900px]:order-3 max-[900px]:basis-full">
-          <p className="m-0 text-sm font-semibold text-foreground">{meta.type}</p>
-          <p className="mt-0.5 mb-0 line-clamp-2 text-xs/[1.5] text-muted max-[900px]:line-clamp-3">{meta.instruction}</p>
+    <Card<'li'> className="gap-0 overflow-hidden p-0" render={(props) => <li {...props} />}>
+      <Disclosure>
+        {/* 只有題型标签那一块是折叠触发器：练习入口和进度得留在按钮外面才点得到。 */}
+        <div className={`${ROW} bg-accent/5`}>
+          <Button
+            className={`${ROW_LABEL} justify-start gap-1.5 px-2`}
+            size="sm"
+            slot="trigger"
+            variant="ghost"
+          >
+            {mondaiLabel(group.category, group.mondaiNo)}
+            <Disclosure.Indicator />
+          </Button>
+          <div className={ROW_MAIN}>
+            <p className={ROW_TITLE}>{meta.type}</p>
+            <p className="mt-0.5 mb-0 line-clamp-2 text-xs/[1.5] text-muted max-[900px]:line-clamp-3">
+              {meta.instruction}
+            </p>
+          </div>
+          <Progress total={group.total} answered={group.answered} correct={group.correct} />
+          <Link
+            className={PRACTICE_LINK}
+            to={practiceHref({ category: group.category, mondaiNo: group.mondaiNo })}
+          >
+            练习
+          </Link>
         </div>
-        <Progress total={group.total} answered={group.answered} correct={group.correct} />
-        <Link
-          className="shrink-0 rounded-full border border-accent bg-surface px-3.5 py-[5px] text-[13px] font-semibold whitespace-nowrap text-accent hover:bg-accent hover:text-white"
-          to={practiceHref({ category: group.category, mondaiNo: group.mondaiNo })}
-        >
-          练习
-        </Link>
-      </div>
 
-      {open ? (
-        <ul className="m-0 list-none border-t border-border p-0">
-          {group.papers.map((p) => (
-            <li className="flex items-center gap-3.5 px-4 py-3 max-[900px]:flex-wrap max-[900px]:gap-x-3 max-[900px]:gap-y-2 [&:not(:first-child)]:border-t [&:not(:first-child)]:border-dashed [&:not(:first-child)]:border-border" key={`${p.year}-${p.month}`}>
-              <span className="min-w-[68px] shrink-0 text-[13px] font-semibold text-accent pl-5">
-                {paperLabel(p.year, p.month)}
-              </span>
-              <div className="min-w-0 flex-1 max-[900px]:order-3 max-[900px]:basis-full">
-                <p className="m-0 text-sm font-semibold text-foreground">{paperLabel(p.year, p.month)}新日本語能力試験</p>
-              </div>
-              <Progress total={p.total} answered={p.answered} correct={p.correct} />
-              <Link
-                className="shrink-0 rounded-full border border-accent bg-surface px-3.5 py-[5px] text-[13px] font-semibold whitespace-nowrap text-accent hover:bg-accent hover:text-white"
-                to={practiceHref({
-                  category: group.category,
-                  mondaiNo: group.mondaiNo,
-                  year: p.year,
-                  month: p.month,
-                })}
+        <Disclosure.Content>
+          <ul className="m-0 list-none border-t border-border p-0">
+            {group.papers.map((p) => (
+              <li
+                className={`${ROW} [&:not(:first-child)]:border-t [&:not(:first-child)]:border-dashed [&:not(:first-child)]:border-border`}
+                key={`${p.year}-${p.month}`}
               >
-                练习
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </li>
+                <span className={`${ROW_LABEL} pl-5`}>{paperLabel(p.year, p.month)}</span>
+                <div className={ROW_MAIN}>
+                  <p className={ROW_TITLE}>新日本語能力試験</p>
+                </div>
+                <Progress total={p.total} answered={p.answered} correct={p.correct} />
+                <Link
+                  className={PRACTICE_LINK}
+                  to={practiceHref({
+                    category: group.category,
+                    mondaiNo: group.mondaiNo,
+                    year: p.year,
+                    month: p.month,
+                  })}
+                >
+                  练习
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Disclosure.Content>
+      </Disclosure>
+    </Card>
   )
 }
 
@@ -150,7 +158,7 @@ function MarkedPanel({ overview }: { overview: QbankOverview }) {
           ]}
         />
         {total > 0 ? (
-          <Link className="shrink-0 rounded-full border border-accent bg-surface px-3.5 py-[5px] text-[13px] font-semibold whitespace-nowrap text-accent hover:bg-accent hover:text-white bg-accent text-white" to={practiceHref({ scope })}>
+          <Link className="button button--primary button--sm shrink-0" to={practiceHref({ scope })}>
             全部练习（{total}）
           </Link>
         ) : null}
@@ -164,23 +172,26 @@ function MarkedPanel({ overview }: { overview: QbankOverview }) {
         <div className="card state-card">
           <p className="muted">
             {scope === 'favorite'
-              ? '还没有收藏的题。做题时点右上角的星标就能收进来。'
+              ? '还没有收藏的题。做题时点题目下面的星标就能收进来。'
               : '还没有错题——答错的题会自动进这里，答对后自动移出。'}
           </p>
         </div>
       ) : (
         <ul className="m-0 grid list-none gap-2 p-0">
           {groups!.map((g) => (
-            <li className="flex items-center gap-3.5 px-4 py-3 max-[900px]:flex-wrap max-[900px]:gap-x-3 max-[900px]:gap-y-2 rounded-[14px] border border-border bg-accent/5" key={`${g.category}-${g.mondaiNo}`}>
-              <span className="min-w-[68px] shrink-0 text-[13px] font-semibold text-accent">{categoryLabel(g.category)}</span>
-              <div className="min-w-0 flex-1 max-[900px]:order-3 max-[900px]:basis-full">
-                <p className="m-0 text-sm font-semibold text-foreground">
+            <li
+              className={`${ROW} rounded-[14px] border border-border bg-accent/5`}
+              key={`${g.category}-${g.mondaiNo}`}
+            >
+              <span className={ROW_LABEL}>{categoryLabel(g.category)}</span>
+              <div className={ROW_MAIN}>
+                <p className={ROW_TITLE}>
                   {mondaiLabel(g.category, g.mondaiNo)} {mondaiMeta(g.category, g.mondaiNo).type}
                 </p>
               </div>
-              <span className="shrink-0 text-[13px] text-muted">{g.count} 题</span>
+              <Chip>{g.count} 题</Chip>
               <Link
-                className="shrink-0 rounded-full border border-accent bg-surface px-3.5 py-[5px] text-[13px] font-semibold whitespace-nowrap text-accent hover:bg-accent hover:text-white"
+                className={PRACTICE_LINK}
                 to={practiceHref({ category: g.category, mondaiNo: g.mondaiNo, scope })}
               >
                 练习
@@ -194,14 +205,14 @@ function MarkedPanel({ overview }: { overview: QbankOverview }) {
 }
 
 /**
- * JLPT 精练：大类（词汇/语法/阅读/听力/收藏）→ 題型 → 年份 三级目录。
+ * JLPT：大类（词汇/语法/阅读/听力/收藏）→ 題型 → 年份 三级目录。
  * 每一级都能直接开练，題型级是「该題型全部年份连着做」。
  */
 export function JlptPage() {
   const isActive = usePageActive()
   const [overview, setOverview] = useState<QbankOverview | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [tab, setTab] = useState<TabKey>('vocab')
+  const [tab, setTab] = useState<string>('vocab')
 
   // 每次切回这个 tab 都重拉一次进度：练习页是另一个 tab，做完题回来
   // 这边的树是 keep-alive 挂着的，不刷新就一直显示旧的 x/y。
@@ -231,8 +242,7 @@ export function JlptPage() {
     <section className="page">
       <div className="section-header">
         <div>
-          <p className="eyebrow">JLPT 精练</p>
-          <h2>N1 分类精练</h2>
+          <h2>N1 题库</h2>
           <p className="muted">
             2010–2025 共 31 套真题拆成单题，按題型和年份练。选完选项立刻出答案和解析，
             做过的题会记在答题卡里。
@@ -250,11 +260,22 @@ export function JlptPage() {
         </div>
       ) : (
         <>
-          <p className="muted -mt-2 mb-0 text-[13px]">
-            全库 {totalQuestions} 题，已做 {totalAnswered} 题
-            {overview.wrongCount > 0 ? ` · 错题 ${overview.wrongCount}` : ''}
-            {overview.favoriteCount > 0 ? ` · 收藏 ${overview.favoriteCount}` : ''}
-          </p>
+          <div className="-mt-2 flex flex-wrap gap-1.5">
+            <Chip>全库 {totalQuestions} 题</Chip>
+            <Chip color="accent" variant="soft">
+              已做 {totalAnswered}
+            </Chip>
+            {overview.wrongCount > 0 ? (
+              <Chip color="danger" variant="soft">
+                错题 {overview.wrongCount}
+              </Chip>
+            ) : null}
+            {overview.favoriteCount > 0 ? (
+              <Chip color="warning" variant="soft">
+                收藏 {overview.favoriteCount}
+              </Chip>
+            ) : null}
+          </div>
           <TabsView
             activeKey={tab}
             onChange={setTab}

@@ -588,7 +588,6 @@ export function PodcastDetailPage() {
     <section className="page pb-24">
       <div className="section-header">
         <div>
-          <p className="eyebrow"><Link to="/podcasts">播客</Link></p>
           <h2>{podcast.title}</h2>
           <p className="muted">
             {podcast.primaryLang.toUpperCase()} · {lines.length} 句

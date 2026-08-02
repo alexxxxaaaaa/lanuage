@@ -527,9 +527,6 @@ export function FolderDetailPage() {
     <section className="page">
       <div className="section-header">
         <div>
-          <p className="eyebrow">
-            <Link to="/folders">{t('folderDetail.back')}</Link>
-          </p>
           <h2>
             {folder ? folder.name : t('folderDetail.title')}
             {folder ? (

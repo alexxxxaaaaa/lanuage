@@ -140,10 +140,10 @@ export function GrammarDetailPage() {
     <section className="page">
       <div className="section-header">
         <div>
-          <p className="eyebrow">
-            <Link to="/grammar">语法</Link> / {grammar.level}
-          </p>
-          <h2 style={{ fontFamily: 'serif' }}>{grammar.pattern}</h2>
+          <h2 style={{ fontFamily: 'serif' }}>
+            {grammar.pattern}
+            <span className="folder-language tag-inline">{grammar.level}</span>
+          </h2>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {isEditing ? (

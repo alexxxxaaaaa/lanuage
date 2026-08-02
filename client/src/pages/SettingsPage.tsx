@@ -14,7 +14,6 @@ export function SettingsPage() {
   return (
     <section className="page">
       <div>
-        <p className="eyebrow">Settings</p>
         <h2>{t('routes.settings')}</h2>
       </div>
 

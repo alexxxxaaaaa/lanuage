@@ -66,7 +66,6 @@ export function ReadingPage() {
     <section className="page">
       <div className="section-header">
         <div>
-          <p className="eyebrow">N1 読解</p>
           <h2>精读</h2>
           <p className="muted">
             真题阅读拆成独立一篇,每天做一篇。点开即做,含答案与解析。

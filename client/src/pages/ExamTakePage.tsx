@@ -242,9 +242,6 @@ export function ExamTakePage() {
     <section className="page">
       <header className="sticky top-0 z-10 mb-4 flex items-center justify-between gap-4 rounded-xl border border-foreground/6 bg-surface/95 px-4 py-3 backdrop-blur-lg">
         <div className="[&>h2]:my-1 [&>h2]:text-lg">
-          <p className="eyebrow">
-            <Link to={`/exams/${id}`}>← 返回详情</Link>
-          </p>
           <h2>{exam.title}</h2>
           <p className="muted">
             {isInListeningPhase ? '聴解 阶段' : '语言知识 · 読解 阶段'} · 已作答 {answeredCount} / {flat.length}

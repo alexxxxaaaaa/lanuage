@@ -76,7 +76,6 @@ export function NotesPage() {
     <section className="page">
       <div className="section-header">
         <div>
-          <p className="eyebrow">Notes</p>
           <h2>课程笔记</h2>
         </div>
         <div className="compact-actions">

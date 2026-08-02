@@ -60,7 +60,6 @@ export function ExpressionsPage() {
     <section className="page">
       <div className="section-header">
         <div>
-          <p className="eyebrow">Expressions</p>
           <h2>{t('expression.title')}</h2>
           <p className="muted">{t('expression.subtitle')}</p>
         </div>

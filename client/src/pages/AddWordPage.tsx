@@ -249,7 +249,6 @@ export function AddWordPage() {
   return (
     <section className="page">
       <div className="card">
-        <p className="eyebrow">New Word</p>
         <h2>{t('addWord.title')}</h2>
 
         <form className="word-form" onSubmit={(event) => void handleSubmit(event)}>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button, Input, TextArea } from '@heroui/react'
 import { confirm, alertDialog } from '../components/ui/dialog'
 import { Search } from 'lucide-react'
-import { Link, useParams } from 'react-router'
+import { useParams } from 'react-router'
 import { generateExpressionCasual, translateExpressionToZh } from '../api/ai'
 import {
   deleteExpression,
@@ -257,9 +257,6 @@ export function ExpressionFolderDetailPage() {
     <section className="page">
       <div className="section-header">
         <div>
-          <p className="eyebrow">
-            <Link to="/expressions">{t('expression.backToFolders')}</Link>
-          </p>
           <h2>{folderName || t('expression.folderDetailTitle')}</h2>
           <p className="muted">
             {t('expression.language')}：

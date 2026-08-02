@@ -268,7 +268,6 @@ export function WordSearchPage() {
     <section className="page">
       <div className="section-header">
         <div>
-          <p className="eyebrow">Search</p>
           <h2>{t('wordSearch.title')}</h2>
           <p className="muted">{t('wordSearch.subtitle')}</p>
         </div>

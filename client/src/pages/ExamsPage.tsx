@@ -34,7 +34,6 @@ export function ExamsPage() {
     <section className="page">
       <div className="section-header">
         <div>
-          <p className="eyebrow">JLPT 真题</p>
           <h2>真题</h2>
           <p className="muted">
             共享真题库。点开一份开始刷题;每次答题记录只属于你自己。

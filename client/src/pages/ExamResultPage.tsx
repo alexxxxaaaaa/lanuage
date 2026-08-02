@@ -212,9 +212,6 @@ export function ExamResultPage() {
     <section className="page exam-detail">
       <div className="section-header">
         <div>
-          <p className="eyebrow">
-            <Link to={`/exams/${id}`}>← 返回真题</Link>
-          </p>
           <h2>{exam.title} · 成绩</h2>
           <p className="muted">
             {formatDateTime(attempt.startedAt)} → {formatDateTime(attempt.finishedAt)}

@@ -226,7 +226,6 @@ export function PodcastsPage() {
     <section className="page">
       <div className="section-header">
         <div>
-          <p className="eyebrow">Podcasts</p>
           <h2>播客 / 视频</h2>
           <p className="muted">粘贴 YouTube 链接,导入字幕逐句精听。共 {list.length} 个</p>
         </div>

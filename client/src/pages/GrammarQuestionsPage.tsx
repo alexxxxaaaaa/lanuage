@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Input, Spinner } from '@heroui/react'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
-import { Link } from 'react-router'
 import {
   listGrammarQuestions,
   type GrammarQuestion,
@@ -68,9 +67,6 @@ export function GrammarQuestionsPage() {
     <section className="page">
       <div className="section-header">
         <div>
-          <p className="eyebrow">
-            <Link to="/grammar">语法</Link> / 题库
-          </p>
           <h2>语法选择题</h2>
         </div>
       </div>
