@@ -17,6 +17,8 @@ import { createNodePrismaClient } from '../src/lib/prisma'
 
 const prisma = createNodePrismaClient()
 const OUT_DIR = resolve(process.cwd(), 'd1_qbank')
+// 建表用的迁移目录名，写进 apply.sh。改了迁移名记得同步这里。
+const MIGRATION = '20260802000000_qbank'
 
 function sqlValue(v: unknown): string {
   if (v === null || v === undefined) return 'NULL'
@@ -72,23 +74,28 @@ async function main() {
 
   const apply = [
     '#!/usr/bin/env bash',
-    '# 把题库打到线上 D1。先确保表结构已经建好：',
-    '#   npx wrangler d1 execute word-sprint-db --remote \\',
-    '#     --file=./prisma/migrations/20260802000000_qbank/migration.sql',
+    '# 把题库打到线上 D1：先建表，再逐片灌数据。',
+    '# 两步都可以重复跑 —— 建表的 CREATE 全带 IF NOT EXISTS，数据是 INSERT OR REPLACE，',
+    '# 行 id 又是稳定值，所以中途失败直接重跑本脚本即可，不会写重也不会碰用户数据。',
     'set -euo pipefail',
     'cd "$(dirname "$0")/.."',
+    'D1="npx wrangler d1 execute word-sprint-db --remote --yes"',
+    '',
+    'echo "→ 建表"',
+    `$D1 --file=./prisma/migrations/${MIGRATION}/migration.sql`,
+    '',
     'for f in d1_qbank/*.sql; do',
     '  echo "→ $f"',
-    '  npx wrangler d1 execute word-sprint-db --remote --yes --file="$f"',
+    '  $D1 --file="$f"',
     'done',
-    'npx wrangler d1 execute word-sprint-db --remote --command \\',
-    '  "SELECT COUNT(*) AS questions FROM QbankQuestion;"',
+    '',
+    '$D1 --command "SELECT COUNT(*) AS questions FROM QbankQuestion;"',
     '',
   ].join('\n')
   writeFileSync(resolve(OUT_DIR, 'apply.sh'), apply, { mode: 0o755 })
 
   console.log(`\n✅ ${files.length} 个分片 → ${OUT_DIR}`)
-  console.log('   上线：bash d1_qbank/apply.sh（先跑 migration.sql 建表）')
+  console.log('   上线：bash d1_qbank/apply.sh（建表 + 灌数据，可重复跑）')
 }
 
 main()

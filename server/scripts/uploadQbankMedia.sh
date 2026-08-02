@@ -28,7 +28,10 @@ PREFIX="qbank"
 JOBS=6
 ONLY="all"
 LOG=".qbank-upload.log"
+# workspace 会把 wrangler 提到仓库根的 node_modules，两处都找一下；
+# 都没有才退回 npx（每个文件多 1–2 秒，1000 多个文件差别很大）。
 WRANGLER="./node_modules/.bin/wrangler"
+[[ -x "$WRANGLER" ]] || WRANGLER="../node_modules/.bin/wrangler"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
