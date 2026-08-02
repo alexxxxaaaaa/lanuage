@@ -143,16 +143,29 @@ export function FolderDetailPage() {
     }>
   >([])
 
-  const reloadFolder = async () => {
+  // Bumping this re-runs the folder fetch below. Mutation handlers use it
+  // instead of calling the fetch directly, so there is exactly one place that
+  // loads the folder and it can cancel itself on unmount / id change.
+  const [reloadToken, setReloadToken] = useState(0)
+  const reloadFolder = () => setReloadToken((token) => token + 1)
+
+  useEffect(() => {
     if (!id) return
-    setIsLoadingFolder(true)
-    try {
-      const data = await getFolderById(id)
-      setFolder(data)
-    } finally {
-      setIsLoadingFolder(false)
+    let ignore = false
+    async function loadFolder(folderId: string) {
+      setIsLoadingFolder(true)
+      try {
+        const data = await getFolderById(folderId)
+        if (!ignore) setFolder(data)
+      } finally {
+        if (!ignore) setIsLoadingFolder(false)
+      }
     }
-  }
+    void loadFolder(id)
+    return () => {
+      ignore = true
+    }
+  }, [id, reloadToken])
 
   useEffect(() => {
     if (!id) return
@@ -164,23 +177,23 @@ export function FolderDetailPage() {
     if (!store.hasLoadedReviews && !store.isLoadingReviews) {
       void store.fetchTodayReviews()
     }
-    void reloadFolder()
-    void getNotes().then((rows) =>
-      setNoteOptions((rows ?? []).map((item) => ({ id: item.id, title: item.title })),
-      ),
-    )
-    // reloadFolder is closure-stable for this id; safe to omit.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let ignore = false
+    void getNotes().then((rows) => {
+      if (!ignore) {
+        setNoteOptions((rows ?? []).map((item) => ({ id: item.id, title: item.title })))
+      }
+    })
+    return () => {
+      ignore = true
+    }
   }, [id])
-
-  if (!id) {
-    return null
-  }
 
   const folderList = Array.isArray(folders) ? folders : []
 
-  usePageTitle(`/folders/${id}`, folder?.name ?? null)
-  const words = folder?.words ?? []
+  usePageTitle(`/folders/${id ?? ''}`, folder?.name ?? null)
+  // Memoised so the derived lists below don't get a fresh array identity on
+  // every render just because `folder` hasn't loaded yet.
+  const words = useMemo(() => folder?.words ?? [], [folder])
   // Count words added today (user-local midnight onwards).
   const todayNewCount = useMemo(() => {
     const startOfToday = new Date()
@@ -223,6 +236,41 @@ export function FolderDetailPage() {
           .includes(normalizedKeyword.toLowerCase()),
       )
   const totalPages = Math.max(1, Math.ceil(filteredWords.length / PAGE_SIZE))
+
+  // Deleting or filtering can shrink the list out from under the current page.
+  // Adjusting state during render is React's documented answer to "this value
+  // changed, fix that one" — an effect would paint an empty page first.
+  if (page > totalPages) setPage(totalPages)
+
+  const [pagedFor, setPagedFor] = useState({ filter, id })
+
+  // `#word-<id>` in the URL means "jump to this word": clear whatever filter
+  // could be hiding it and page to where it lands. Only counts as applied once
+  // the word is actually in `words` — on a fresh mount the hash is there long
+  // before the folder finishes loading. Claiming `pagedFor` in the same breath
+  // stops the page-1 reset below from undoing the jump.
+  const hashWordId = location.hash.match(/^#word-(.+)$/)?.[1] ?? null
+  const [appliedHash, setAppliedHash] = useState<string | null>(null)
+  let jumpedToHash = false
+  if (hashWordId && appliedHash !== location.hash) {
+    const indexInWords = words.findIndex((word) => word.id === hashWordId)
+    if (indexInWords >= 0) {
+      jumpedToHash = true
+      setAppliedHash(location.hash)
+      setFilter('all')
+      setSearchKeyword('')
+      setPagedFor({ filter: 'all', id })
+      setPage(Math.floor(indexInWords / PAGE_SIZE) + 1)
+      setHighlightedWordId(hashWordId)
+    }
+  }
+
+  // Changing folder or filter starts over at page 1.
+  if (!jumpedToHash && (pagedFor.filter !== filter || pagedFor.id !== id)) {
+    setPagedFor({ filter, id })
+    setPage(1)
+  }
+
   const safePage = Math.min(page, totalPages)
   const pagedWords = filteredWords.slice(
     (safePage - 1) * PAGE_SIZE,
@@ -231,39 +279,19 @@ export function FolderDetailPage() {
   const learnedPercent =
     words.length === 0 ? 0 : Math.round((learnedWords.length / words.length) * 100)
 
+  // Scroll the highlighted row into view, then let the highlight fade out.
   useEffect(() => {
-    setPage(1)
-  }, [filter, id])
-
-  useEffect(() => {
-    const match = location.hash.match(/^#word-(.+)$/)
-    if (!match) return
-    const targetId = match[1]
-    const target = words.find((word) => word.id === targetId)
-    if (!target) return
-    if (filter !== 'all') setFilter('all')
-    if (searchKeyword) setSearchKeyword('')
-    const indexInFiltered = words.findIndex((word) => word.id === targetId)
-    if (indexInFiltered >= 0) {
-      setPage(Math.floor(indexInFiltered / PAGE_SIZE) + 1)
-    }
-    setHighlightedWordId(targetId)
-    const timer = window.setTimeout(() => {
-      const el = document.getElementById(`word-${targetId}`)
+    if (!highlightedWordId) return
+    const scrollTimer = window.setTimeout(() => {
+      const el = document.getElementById(`word-${highlightedWordId}`)
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }, 80)
     const fadeTimer = window.setTimeout(() => setHighlightedWordId(null), 2200)
     return () => {
-      window.clearTimeout(timer)
+      window.clearTimeout(scrollTimer)
       window.clearTimeout(fadeTimer)
     }
-  }, [location.hash, words.length])
-
-  useEffect(() => {
-    if (page > totalPages) {
-      setPage(totalPages)
-    }
-  }, [page, totalPages])
+  }, [highlightedWordId])
 
   const beginEdit = (word: Word) => {
     setEditingWordId(word.id)
@@ -291,7 +319,7 @@ export function FolderDetailPage() {
         sourceNoteId: form.sourceNoteId || null,
         folderId: form.folderId,
       })
-      await reloadFolder()
+      reloadFolder()
 
       cancelEdit()
     } catch (error) {
@@ -309,7 +337,7 @@ export function FolderDetailPage() {
     const confirmed = window.confirm(t('folderDetail.deleteConfirm', { word: word.word }))
     if (!confirmed) return
     await useAppStore.getState().deleteWord(word.id)
-    await reloadFolder()
+    reloadFolder()
   }
 
   // Sort comparator matching the server's orderBy on /api/folders/:id —
@@ -474,7 +502,7 @@ export function FolderDetailPage() {
     }
 
     setBatchRunning(false)
-    await reloadFolder()
+    reloadFolder()
 
     // Auto-open the retry panel if any words failed. The user asked for this
     // to appear right after batch completion — one-click retry saves them
@@ -520,8 +548,12 @@ export function FolderDetailPage() {
     }
 
     setRetryRunning(false)
-    await reloadFolder()
+    reloadFolder()
   }
+
+  // Route can't actually match without an id, but the param type allows it.
+  // Bailing out here rather than above keeps every hook unconditional.
+  if (!id) return null
 
   return (
     <section className="page">

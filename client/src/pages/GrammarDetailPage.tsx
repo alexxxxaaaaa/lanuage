@@ -12,54 +12,72 @@ import { GrammarQuestionCard } from '../components/GrammarQuestionCard'
 import { getErrorMessage } from '../api/error'
 import type { Grammar, UpdateGrammarPayload } from '../types'
 
+function toForm(g: Grammar): UpdateGrammarPayload {
+  return {
+    pattern: g.pattern,
+    connection: g.connection,
+    meaning: g.meaning,
+    example: g.example,
+    exampleZh: g.exampleZh,
+    note: g.note,
+    level: g.level,
+  }
+}
+
 export function GrammarDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [grammar, setGrammar] = useState<Grammar | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isAiFilling, setIsAiFilling] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState<UpdateGrammarPayload>({})
   const [questions, setQuestions] = useState<GrammarQuestion[]>([])
-  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false)
-
-  const load = async () => {
-    if (!id) return
-    setIsLoading(true)
-    setError(null)
-    try {
-      const g = await getGrammar(id)
-      setGrammar(g)
-      setForm({
-        pattern: g.pattern,
-        connection: g.connection,
-        meaning: g.meaning,
-        example: g.example,
-        exampleZh: g.exampleZh,
-        note: g.note,
-        level: g.level,
-      })
-    } catch (err) {
-      setError(getErrorMessage(err, '加载失败'))
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(true)
 
   useEffect(() => {
-    void load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!id) return
+    let ignore = false
+    async function load(grammarId: string) {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const g = await getGrammar(grammarId)
+        if (ignore) return
+        setGrammar(g)
+        setForm(toForm(g))
+      } catch (err) {
+        if (!ignore) setError(getErrorMessage(err, '加载失败'))
+      } finally {
+        if (!ignore) setIsLoading(false)
+      }
+    }
+    void load(id)
+    return () => {
+      ignore = true
+    }
   }, [id])
 
   useEffect(() => {
     if (!id) return
-    setIsLoadingQuestions(true)
-    listGrammarQuestionsFor(id)
-      .then((rows) => setQuestions(rows))
-      .catch(() => setQuestions([]))
-      .finally(() => setIsLoadingQuestions(false))
+    let ignore = false
+    async function loadQuestions(grammarId: string) {
+      setIsLoadingQuestions(true)
+      try {
+        const rows = await listGrammarQuestionsFor(grammarId)
+        if (!ignore) setQuestions(rows)
+      } catch {
+        if (!ignore) setQuestions([])
+      } finally {
+        if (!ignore) setIsLoadingQuestions(false)
+      }
+    }
+    void loadQuestions(id)
+    return () => {
+      ignore = true
+    }
   }, [id])
 
   const handleAiFill = async () => {
@@ -100,6 +118,7 @@ export function GrammarDetailPage() {
     try {
       const updated = await updateGrammar(id, form)
       setGrammar(updated)
+      setForm(toForm(updated))
       setIsEditing(false)
     } catch (err) {
       setError(getErrorMessage(err, '保存失败'))
@@ -147,7 +166,7 @@ export function GrammarDetailPage() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {isEditing ? (
-            <Button type="button" onPress={() => { setIsEditing(false); void load() }}>
+            <Button type="button" onPress={() => { setIsEditing(false); setForm(toForm(grammar)) }}>
               取消
             </Button>
           ) : (

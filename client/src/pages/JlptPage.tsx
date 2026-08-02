@@ -120,9 +120,12 @@ function MarkedPanel({ overview }: { overview: QbankOverview }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    setIsLoading(true)
-    getQbankSet({ scope })
-      .then(({ items }) => {
+    let ignore = false
+    async function loadGroups() {
+      setIsLoading(true)
+      try {
+        const { items } = await getQbankSet({ scope })
+        if (ignore) return
         const byGroup = new Map<string, { category: string; mondaiNo: number; count: number }>()
         for (const item of items) {
           const key = `${item.category}-${item.mondaiNo}`
@@ -131,9 +134,16 @@ function MarkedPanel({ overview }: { overview: QbankOverview }) {
           else byGroup.set(key, { category: item.category, mondaiNo: item.mondaiNo, count: 1 })
         }
         setGroups([...byGroup.values()])
-      })
-      .catch((e) => toast.danger(getErrorMessage(e, '加载失败')))
-      .finally(() => setIsLoading(false))
+      } catch (e) {
+        if (!ignore) toast.danger(getErrorMessage(e, '加载失败'))
+      } finally {
+        if (!ignore) setIsLoading(false)
+      }
+    }
+    void loadGroups()
+    return () => {
+      ignore = true
+    }
   }, [scope, overview])
 
   const total = groups?.reduce((sum, g) => sum + g.count, 0) ?? 0

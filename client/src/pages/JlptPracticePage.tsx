@@ -88,9 +88,8 @@ export function JlptPracticePage() {
   // 但后台 tab 读到的 useSearchParams 是浏览器地址栏（别的 tab 的），
   // 所以只在自己是前台 tab 时才认这份参数。
   const [filterKey, setFilterKey] = useState(() => params.toString())
-  useEffect(() => {
-    if (isActive) setFilterKey(params.toString())
-  }, [isActive, params])
+  const liveFilterKey = params.toString()
+  if (isActive && filterKey !== liveFilterKey) setFilterKey(liveFilterKey)
   const filter = useMemo(() => parseFilter(new URLSearchParams(filterKey)), [filterKey])
 
   const [items, setItems] = useState<QbankSetItem[]>([])
@@ -118,16 +117,17 @@ export function JlptPracticePage() {
   // 换一组题：目录、正文缓存、进度全部重来。
   useEffect(() => {
     let cancelled = false
-    setIsLoading(true)
-    setItems([])
-    setDetails({})
-    setHidden(new Set())
-    setFailed(new Set())
-    setPeekId(null)
-    setAiPending(new Set())
-    inFlight.current.clear()
-    getQbankSet(filter)
-      .then(({ items: rows }) => {
+    async function loadSet() {
+      setIsLoading(true)
+      setItems([])
+      setDetails({})
+      setHidden(new Set())
+      setFailed(new Set())
+      setPeekId(null)
+      setAiPending(new Set())
+      inFlight.current.clear()
+      try {
+        const { items: rows } = await getQbankSet(filter)
         if (cancelled) return
         setItems(rows)
         // 收藏/错题是拿来重做的，先把旧答案盖上。
@@ -137,9 +137,13 @@ export function JlptPracticePage() {
         // 从第一道没做过的题开始，做过一半的组能接着往下做。
         const firstUndone = rows.findIndex((r) => r.status === null)
         setIndex(firstUndone >= 0 ? firstUndone : 0)
-      })
-      .catch((e) => toast.danger(getErrorMessage(e, '加载题目失败')))
-      .finally(() => !cancelled && setIsLoading(false))
+      } catch (e) {
+        if (!cancelled) toast.danger(getErrorMessage(e, '加载题目失败'))
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+    void loadSet()
     return () => {
       cancelled = true
     }

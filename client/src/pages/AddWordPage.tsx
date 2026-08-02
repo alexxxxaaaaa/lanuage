@@ -74,8 +74,9 @@ export function AddWordPage() {
   const [form, setForm] = useState({
     ...initialForm,
     // URL param wins; otherwise fall back to the last-saved folder from
-    // localStorage. Validated against `folderList` after fetchFolders below.
+    // localStorage. Validated against `folderList` once folders load, below.
     folderId: prefillFolderId || loadLastFolder(),
+    sourceNoteId: prefillNoteId,
   })
   const [aiTerm, setAiTerm] = useState('')
   const [noteOptions, setNoteOptions] = useState<Array<{ id: string; title: string }>>([])
@@ -102,30 +103,29 @@ export function AddWordPage() {
     }
   }, [])
 
-  useEffect(() => {
-    if (prefillFolderId) {
-      setForm((current) => ({ ...current, folderId: prefillFolderId }))
-    }
-  }, [prefillFolderId])
+  // The page stays mounted when the user follows another "add to this folder /
+  // note" link, so re-apply the prefill whenever the URL params change. Doing
+  // it during render (not in an effect) keeps it to a single render pass.
+  const [appliedPrefill, setAppliedPrefill] = useState({
+    folderId: prefillFolderId,
+    noteId: prefillNoteId,
+  })
+  if (appliedPrefill.folderId !== prefillFolderId || appliedPrefill.noteId !== prefillNoteId) {
+    setAppliedPrefill({ folderId: prefillFolderId, noteId: prefillNoteId })
+    setForm((current) => ({
+      ...current,
+      folderId: prefillFolderId || current.folderId,
+      sourceNoteId: prefillNoteId || current.sourceNoteId,
+    }))
+  }
 
   // Validate the persisted folder id once folders load — if the user deleted
   // that folder in another tab / session, drop the stale reference so the
   // Select shows its placeholder instead of a broken value.
-  useEffect(() => {
-    if (isLoadingFolders) return
-    if (folderList.length === 0) return
-    setForm((current) => {
-      if (!current.folderId) return current
-      const stillExists = folderList.some((f) => f.id === current.folderId)
-      return stillExists ? current : { ...current, folderId: '' }
-    })
-  }, [isLoadingFolders, folderList])
-
-  useEffect(() => {
-    if (prefillNoteId) {
-      setForm((current) => ({ ...current, sourceNoteId: prefillNoteId }))
-    }
-  }, [prefillNoteId])
+  const hasFolders = !isLoadingFolders && folderList.length > 0
+  if (hasFolders && form.folderId && !folderList.some((f) => f.id === form.folderId)) {
+    setForm((current) => ({ ...current, folderId: '' }))
+  }
 
   const showSuccess = (message: string) => {
     setSuccessMessage(message)

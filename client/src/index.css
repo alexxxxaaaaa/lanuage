@@ -264,21 +264,6 @@
     }
   }
 
-  /* Slate renders its own element tree from the document model, so the block
-     spacing has to be addressed by tag rather than by className. */
-  .slate-content {
-    @apply min-h-[170px] px-3.5 py-3 text-[15px]/[1.7] text-foreground;
-
-    &.editable:focus {
-      @apply outline-none;
-    }
-    & p,
-    & ul,
-    & ol {
-      @apply mb-[0.9em] last:mb-0;
-    }
-  }
-
   /* Podcast seek bar. A native range input keeps its thumb and track in vendor
      pseudo-elements, which no utility class can reach — so this one stays a
      component class rather than a wall of `[&::-webkit-slider-thumb]:` hacks. */

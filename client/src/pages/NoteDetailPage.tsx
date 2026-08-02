@@ -8,10 +8,11 @@ export function NoteDetailPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const [note, setNote] = useState<NoteDetail | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
   const [form, setForm] = useState({
     title: '',
     course: '',
@@ -19,29 +20,33 @@ export function NoteDetailPage() {
     content: '',
   })
 
-  const loadNote = async (noteId: string) => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      const data = await getNoteById(noteId)
-      setNote(data)
-      setForm({
-        title: data.title,
-        course: data.course,
-        lesson: data.lesson,
-        content: data.content ?? '',
-      })
-    } catch {
-      setError('加载笔记失败')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   useEffect(() => {
     if (!id) return
+    let ignore = false
+    async function loadNote(noteId: string) {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const data = await getNoteById(noteId)
+        if (ignore) return
+        setNote(data)
+        setForm({
+          title: data.title,
+          course: data.course,
+          lesson: data.lesson,
+          content: data.content ?? '',
+        })
+      } catch {
+        if (!ignore) setError('加载笔记失败')
+      } finally {
+        if (!ignore) setIsLoading(false)
+      }
+    }
     void loadNote(id)
-  }, [id])
+    return () => {
+      ignore = true
+    }
+  }, [id, reloadToken])
 
   const handleUpdate = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -56,7 +61,7 @@ export function NoteDetailPage() {
     try {
       await updateNote(id, form)
       setIsEditing(false)
-      await loadNote(id)
+      setReloadToken((token) => token + 1)
     } catch {
       setError('更新笔记失败')
     } finally {

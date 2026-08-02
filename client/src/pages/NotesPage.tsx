@@ -8,11 +8,12 @@ import type { Note } from '../types'
 
 export function NotesPage() {
   const [notes, setNotes] = useState<Note[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [courseFilter, setCourseFilter] = useState<string>('')
+  const [reloadToken, setReloadToken] = useState(0)
   const [form, setForm] = useState({
     title: '',
     content: '',
@@ -34,22 +35,25 @@ export function NotesPage() {
     return notes.filter((note) => (note.course ?? '').trim() === courseFilter)
   }, [notes, courseFilter])
 
-  const loadNotes = async () => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      const rows = await getNotes()
-      setNotes(Array.isArray(rows) ? rows : [])
-    } catch {
-      setError('加载笔记失败')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   useEffect(() => {
+    let ignore = false
+    async function loadNotes() {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const rows = await getNotes()
+        if (!ignore) setNotes(Array.isArray(rows) ? rows : [])
+      } catch {
+        if (!ignore) setError('加载笔记失败')
+      } finally {
+        if (!ignore) setIsLoading(false)
+      }
+    }
     void loadNotes()
-  }, [])
+    return () => {
+      ignore = true
+    }
+  }, [reloadToken])
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -64,7 +68,7 @@ export function NotesPage() {
       await createNote(form)
       setForm((prev) => ({ ...prev, title: '', content: '', lesson: '' }))
       setIsCreating(false)
-      await loadNotes()
+      setReloadToken((token) => token + 1)
     } catch {
       setError('创建笔记失败')
     } finally {

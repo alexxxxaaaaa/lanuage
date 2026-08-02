@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { Volume2 } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { correctReviewResult, submitReviewResult } from '../api/review'
@@ -326,11 +326,18 @@ export function LearnPage() {
       : null,
   )
 
-  // Reset typed answer on item change
-  useEffect(() => {
+  // Identifies "which prompt is on screen right now". Everything that has to
+  // reset between items keys off this instead of listing the four pieces of
+  // state that make it up.
+  const itemKey = `${phase}:${batchIdx}:${itemIdx}:${recoveryQueue[0]?.id ?? ''}`
+
+  // Reset typed answer on item change.
+  const [answeredItemKey, setAnsweredItemKey] = useState(itemKey)
+  if (answeredItemKey !== itemKey) {
+    setAnsweredItemKey(itemKey)
     setTypedAnswer('')
     setStatus('idle')
-  }, [phase, itemIdx, batchIdx, recoveryQueue[0]?.id])
+  }
 
   // Auto-focus the recall input when entering a test phase or advancing to next item.
   // Gated on `isActive`: a backgrounded session must not steal focus from the
@@ -344,33 +351,36 @@ export function LearnPage() {
         return () => window.clearTimeout(id)
       }
     }
-  }, [isActive, phase, itemIdx, batchIdx, recoveryQueue[0]?.id, status])
+  }, [isActive, itemKey, phase, status])
+
+  // What the speech synthesiser should read for the current word, as plain
+  // values — so the effects below depend on the text rather than on the word
+  // object's identity.
+  const speakableText = currentWord
+    ? pickSpeakableText(currentWord.word, currentWord.reading, currentWord.language)
+    : null
+  const speakableLang = currentWord?.language
 
   // Auto-speak word on study + when answer revealed
   useEffect(() => {
-    if (!isActive || !currentWord) return
+    if (!isActive || !speakableText || !speakableLang) return
     if (phase === 'study') {
       stopSpeaking()
-      speak(
-        pickSpeakableText(currentWord.word, currentWord.reading, currentWord.language),
-        currentWord.language,
-      )
+      speak(speakableText, speakableLang)
     }
-  }, [isActive, phase, currentWord?.id])
+  }, [isActive, phase, speakableText, speakableLang])
+
+  // Speaking the revealed answer must fire on the status change only. Reading
+  // the text through an effect event keeps it out of the dependency list —
+  // otherwise advancing to the next recall item (status still 'correct' from
+  // the previous answer) would speak the NEW word and give away the answer.
+  const speakRevealed = useEffectEvent(() => {
+    if (speakableText && speakableLang) speak(speakableText, speakableLang)
+  })
 
   useEffect(() => {
-    if (!isActive || !currentWord) return
-    if (status === 'correct' || status === 'wrong') {
-      speak(
-        pickSpeakableText(currentWord.word, currentWord.reading, currentWord.language),
-        currentWord.language,
-      )
-    }
-    // currentWord.id is intentionally excluded — when advancing to the next
-    // recall item, status is still 'correct'/'wrong' from the previous answer
-    // and a re-run here would speak the NEW word right when the user is
-    // about to type it, giving away the answer.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!isActive) return
+    if (status === 'correct' || status === 'wrong') speakRevealed()
   }, [isActive, status])
 
   // ----- transition helpers -----
@@ -499,11 +509,13 @@ export function LearnPage() {
   }
 
   // ----- recovery queue completion watcher -----
+  const onRecoveryDrained = useEffectEvent(() => {
+    void finishBatch()
+  })
+
   useEffect(() => {
     if (phase !== 'recovery') return
-    if (recoveryQueue.length === 0) {
-      void finishBatch()
-    }
+    if (recoveryQueue.length === 0) onRecoveryDrained()
   }, [phase, recoveryQueue.length])
 
   // ----- typed-answer submit -----
@@ -559,7 +571,15 @@ export function LearnPage() {
 
   // Keyboard shortcuts: Enter advances the current step. Only while this page
   // is on screen — a backgrounded session would otherwise advance on every
-  // Enter the user presses elsewhere in the app.
+  // Enter the user presses elsewhere in the app. The handler reads the live
+  // session state through an effect event, so the listener is bound once
+  // instead of re-subscribing on every keystroke.
+  const onEnterPressed = useEffectEvent((event: KeyboardEvent) => {
+    if (isSubmitting || !currentWord) return
+    event.preventDefault()
+    advancePrimary()
+  })
+
   useEffect(() => {
     if (!isActive) return
 
@@ -569,14 +589,11 @@ export function LearnPage() {
         // input handles its own Enter via onKeyDown
         return
       }
-      if (event.key === 'Enter' && !isSubmitting && currentWord) {
-        event.preventDefault()
-        advancePrimary()
-      }
+      if (event.key === 'Enter') onEnterPressed(event)
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isActive, phase, status, currentWord, typedAnswer, isSubmitting])
+  }, [isActive])
 
   // ===== Rendering =====
 

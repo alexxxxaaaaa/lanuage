@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { Volume2 } from 'lucide-react'
 import { Link, useParams } from 'react-router'
 import { correctReviewResult, submitReviewResult } from '../api/review'
@@ -442,6 +442,47 @@ export function ReviewPage() {
     })
   }
 
+  // The shortcut body reads the whole live session state. As an effect event it
+  // stays out of the dependency list, so the listener is bound once per
+  // activation instead of being torn down and rebound on every keystroke.
+  const onShortcutKey = useEffectEvent((event: KeyboardEvent) => {
+    if (!currentWord) return
+
+    if (event.code === 'Space') {
+      event.preventDefault()
+      setIsCardFlipped((prev) => !prev)
+      return
+    }
+
+    if (event.key === 'p' || event.key === 'P') {
+      event.preventDefault()
+      speak(
+        pickSpeakableText(currentWord.word, currentWord.reading, currentWord.language),
+        currentWord.language,
+      )
+      return
+    }
+
+    if (event.key === 'Enter' && !isSubmitting) {
+      if (currentStep.key === 'recall') {
+        if (recallStatus === 'correct') {
+          event.preventDefault()
+          void handleStepRating(recallUsedHint ? 'hard' : 'easy')
+        } else if (recallStatus === 'wrong') {
+          event.preventDefault()
+          void handleStepRating('again')
+        }
+      } else {
+        // Stages 1 (pronunciation) and 2 (recognition): Enter = Easy.
+        // No card-flip requirement — the user asked for a straight
+        // "I got this, next" shortcut for these two stages. Recall stage
+        // has its own Enter behavior wired to the typed-answer verdict.
+        event.preventDefault()
+        void handleStepRating('easy')
+      }
+    }
+  })
+
   useEffect(() => {
     // Backgrounded sessions stay mounted; without this gate their shortcuts
     // would fire while the user is typing on a different page.
@@ -456,41 +497,9 @@ export function ReviewPage() {
         ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) &&
         !(target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement).disabled
 
-      if (isEnabledFormControl) {
-        return
-      }
+      if (isEnabledFormControl) return
 
-      if (event.code === 'Space' && currentWord) {
-        event.preventDefault()
-        setIsCardFlipped((prev) => !prev)
-      }
-
-      if ((event.key === 'p' || event.key === 'P') && currentWord) {
-        event.preventDefault()
-        speak(
-          pickSpeakableText(currentWord.word, currentWord.reading, currentWord.language),
-          currentWord.language,
-        )
-      }
-
-      if (event.key === 'Enter' && currentWord && !isSubmitting) {
-        if (currentStep.key === 'recall') {
-          if (recallStatus === 'correct') {
-            event.preventDefault()
-            void handleStepRating(recallUsedHint ? 'hard' : 'easy')
-          } else if (recallStatus === 'wrong') {
-            event.preventDefault()
-            void handleStepRating('again')
-          }
-        } else {
-          // Stages 1 (pronunciation) and 2 (recognition): Enter = Easy.
-          // No card-flip requirement — the user asked for a straight
-          // "I got this, next" shortcut for these two stages. Recall stage
-          // has its own Enter behavior wired to the typed-answer verdict.
-          event.preventDefault()
-          void handleStepRating('easy')
-        }
-      }
+      onShortcutKey(event)
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -499,44 +508,37 @@ export function ReviewPage() {
       window.removeEventListener('keydown', handleKeyDown)
       stopSpeaking()
     }
-  }, [
-    isActive,
-    currentWord,
-    isCardFlipped,
-    currentStep.key,
-    recallStatus,
-    recallUsedHint,
-    isSubmitting,
-  ])
+  }, [isActive])
+
+  // Plain values rather than the word object, so the effect below depends on
+  // what is actually spoken instead of on the object's identity.
+  const speakableText = currentWord
+    ? pickSpeakableText(currentWord.word, currentWord.reading, currentWord.language)
+    : null
+  const speakableLang = currentWord?.language
 
   useEffect(() => {
     if (!isActive) return
-    if (currentStep.key !== 'pronunciation' || !currentWord) return
-    const speakText = pickSpeakableText(
-      currentWord.word,
-      currentWord.reading,
-      currentWord.language,
-    )
+    if (currentStep.key !== 'pronunciation') return
+    if (!speakableText || !speakableLang) return
     // Delay the first speak: voices may still be loading on first page hit, and
     // sibling effects' cleanup (stopSpeaking) needs to settle before we queue.
     const id = window.setTimeout(() => {
-      speak(speakText, currentWord.language)
+      speak(speakableText, speakableLang)
     }, 250)
     return () => window.clearTimeout(id)
-  }, [
-    isActive,
-    currentStep.key,
-    currentReview?.wordId,
-    currentWord?.word,
-    currentWord?.reading,
-    currentWord?.language,
-  ])
+  }, [isActive, currentStep.key, speakableText, speakableLang])
 
-  useEffect(() => {
+  // Reset the recall answer whenever the prompt changes. Done during render —
+  // an effect would paint the previous word's verdict on the new card first.
+  const promptKey = `${currentStep.key}:${currentReview?.wordId ?? ''}`
+  const [answeredPromptKey, setAnsweredPromptKey] = useState(promptKey)
+  if (answeredPromptKey !== promptKey) {
+    setAnsweredPromptKey(promptKey)
     setTypedRecall('')
     setRecallStatus('idle')
     setRecallUsedHint(false)
-  }, [currentStep.key, currentReview?.wordId])
+  }
 
   // After moving to the next word inside the recall step, re-focus the input —
   // autoFocus only fires on first mount, so swapping to a new word keeps it blurred.

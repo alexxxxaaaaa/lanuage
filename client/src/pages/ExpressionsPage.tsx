@@ -10,31 +10,35 @@ import type { ExpressionFolder } from '../types'
 export function ExpressionsPage() {
   const { t } = useI18n()
   const [folders, setFolders] = useState<ExpressionFolder[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
+  const [reloadToken, setReloadToken] = useState(0)
   const [form, setForm] = useState({
     name: '',
     language: 'en' as 'en' | 'jp',
   })
 
-  const loadFolders = async () => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      const list = await getExpressionFolders()
-      setFolders(Array.isArray(list) ? list : [])
-    } catch (loadError) {
-      setError(getErrorMessage(loadError, t('expression.loadFolderError')))
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   useEffect(() => {
+    let ignore = false
+    async function loadFolders() {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const list = await getExpressionFolders()
+        if (!ignore) setFolders(Array.isArray(list) ? list : [])
+      } catch (loadError) {
+        if (!ignore) setError(getErrorMessage(loadError, t('expression.loadFolderError')))
+      } finally {
+        if (!ignore) setIsLoading(false)
+      }
+    }
     void loadFolders()
-  }, [])
+    return () => {
+      ignore = true
+    }
+  }, [reloadToken, t])
 
   const handleCreateFolder = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -48,7 +52,7 @@ export function ExpressionsPage() {
       await createExpressionFolder(form)
       setForm({ name: '', language: 'en' })
       setIsCreating(false)
-      await loadFolders()
+      setReloadToken((token) => token + 1)
     } catch (submitError) {
       setError(getErrorMessage(submitError, t('expression.createFolderError')))
     } finally {

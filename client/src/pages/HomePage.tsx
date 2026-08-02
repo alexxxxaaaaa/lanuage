@@ -82,6 +82,20 @@ function WordPreviewList({
 }
 
 /**
+ * localStorage key marking this Friday's weekly review as already shown, or
+ * null on any other day. The date is part of the key, so "dismissed" expires
+ * on its own each week.
+ */
+function fridayReviewKey(): string | null {
+  const now = new Date()
+  if (now.getDay() !== 5) return null // 5 = Friday
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return `weekly-review-seen:${y}-${m}-${d}`
+}
+
+/**
  * The dashboard: who is signed in, what is due today, the folders to work
  * through, and what the AI features have cost. Everything that used to live on
  * a separate account page is folded in here — this is the only page a session
@@ -129,21 +143,18 @@ export function HomePage() {
   const [learnFolderId, setLearnFolderId] = useState<string | null>(null)
   const [todayNewWords, setTodayNewWords] = useState<Word[]>([])
   const [masteringWordId, setMasteringWordId] = useState<string | null>(null)
-  const [weeklyOpen, setWeeklyOpen] = useState(false)
 
-  // Auto-open the weekly review modal on Fridays, once per week. localStorage
-  // key includes the date so the "dismissed" state resets each Friday.
+  // Auto-open the weekly review modal on Fridays, once per week. Decided while
+  // initialising state rather than in an effect, so the modal is part of the
+  // first paint instead of popping in one render later.
+  const [weeklySeenKey] = useState(fridayReviewKey)
+  const [weeklyOpen, setWeeklyOpen] = useState(
+    () => weeklySeenKey !== null && !localStorage.getItem(weeklySeenKey),
+  )
+
   useEffect(() => {
-    const now = new Date()
-    if (now.getDay() !== 5) return // 5 = Friday
-    const y = now.getFullYear()
-    const m = String(now.getMonth() + 1).padStart(2, '0')
-    const d = String(now.getDate()).padStart(2, '0')
-    const key = `weekly-review-seen:${y}-${m}-${d}`
-    if (localStorage.getItem(key)) return
-    setWeeklyOpen(true)
-    localStorage.setItem(key, '1')
-  }, [])
+    if (weeklyOpen && weeklySeenKey) localStorage.setItem(weeklySeenKey, '1')
+  }, [weeklyOpen, weeklySeenKey])
 
   const newWordsForLearnFolder = useMemo(() => {
     if (!learnFolderId) return [] as Word[]

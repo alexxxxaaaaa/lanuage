@@ -22,13 +22,26 @@ const initialForm = {
   jpCasual: '',
 }
 
+function readRevealedIds(storageKey: string | null): Set<string> {
+  if (typeof window === 'undefined' || !storageKey) return new Set()
+  try {
+    const raw = window.localStorage.getItem(storageKey)
+    if (!raw) return new Set()
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) ? new Set(parsed.map(String)) : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
 export function ExpressionFolderDetailPage() {
   const { t } = useI18n()
   const { id } = useParams<{ id: string }>()
   const [folderName, setFolderName] = useState('')
   const [folderLanguage, setFolderLanguage] = useState<'en' | 'jp'>('en')
   const [rows, setRows] = useState<Expression[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [reloadToken, setReloadToken] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isAiLoading, setIsAiLoading] = useState(false)
   const [isAiTranslateLoading, setIsAiTranslateLoading] = useState(false)
@@ -39,17 +52,17 @@ export function ExpressionFolderDetailPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingForm, setEditingForm] = useState(initialForm)
   const revealStorageKey = id ? `expr-revealed:${id}` : null
-  const [revealedIds, setRevealedIds] = useState<Set<string>>(() => {
-    if (typeof window === 'undefined' || !id) return new Set()
-    try {
-      const raw = window.localStorage.getItem(`expr-revealed:${id}`)
-      if (!raw) return new Set()
-      const parsed = JSON.parse(raw)
-      return Array.isArray(parsed) ? new Set(parsed.map(String)) : new Set()
-    } catch {
-      return new Set()
-    }
-  })
+  const [revealedIds, setRevealedIds] = useState<Set<string>>(() =>
+    readRevealedIds(revealStorageKey),
+  )
+
+  // 换文件夹时把「已揭晓」重新从 localStorage 读一遍。渲染期直接调整 state 是
+  // React 官方给 props 变化重置 state 的写法，比放 effect 少一轮渲染。
+  const [revealedKey, setRevealedKey] = useState(revealStorageKey)
+  if (revealedKey !== revealStorageKey) {
+    setRevealedKey(revealStorageKey)
+    setRevealedIds(readRevealedIds(revealStorageKey))
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined' || !revealStorageKey) return
@@ -60,21 +73,6 @@ export function ExpressionFolderDetailPage() {
     }
   }, [revealedIds, revealStorageKey])
 
-  useEffect(() => {
-    if (typeof window === 'undefined' || !revealStorageKey) return
-    try {
-      const raw = window.localStorage.getItem(revealStorageKey)
-      if (!raw) {
-        setRevealedIds(new Set())
-        return
-      }
-      const parsed = JSON.parse(raw)
-      setRevealedIds(Array.isArray(parsed) ? new Set(parsed.map(String)) : new Set())
-    } catch {
-      setRevealedIds(new Set())
-    }
-  }, [revealStorageKey])
-
   const toggleReveal = (expressionId: string) => {
     setRevealedIds((prev) => {
       const next = new Set(prev)
@@ -84,25 +82,29 @@ export function ExpressionFolderDetailPage() {
     })
   }
 
-  const loadFolder = async () => {
-    if (!id) return
-    setIsLoading(true)
-    setError(null)
-    try {
-      const folder = await getExpressionFolderById(id)
-      setFolderName(folder.name)
-      setFolderLanguage(folder.language)
-      setRows(folder.expressions ?? [])
-    } catch (loadError) {
-      setError(getErrorMessage(loadError, t('expression.loadFolderError')))
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   useEffect(() => {
-    void loadFolder()
-  }, [id])
+    if (!id) return
+    let ignore = false
+    async function loadFolder(folderId: string) {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const folder = await getExpressionFolderById(folderId)
+        if (ignore) return
+        setFolderName(folder.name)
+        setFolderLanguage(folder.language)
+        setRows(folder.expressions ?? [])
+      } catch (loadError) {
+        if (!ignore) setError(getErrorMessage(loadError, t('expression.loadFolderError')))
+      } finally {
+        if (!ignore) setIsLoading(false)
+      }
+    }
+    void loadFolder(id)
+    return () => {
+      ignore = true
+    }
+  }, [id, reloadToken, t])
 
   const filteredRows = useMemo(() => {
     const keyword = query.trim()
@@ -202,7 +204,7 @@ export function ExpressionFolderDetailPage() {
       })
       setForm(initialForm)
       setIsCreating(false)
-      await loadFolder()
+      setReloadToken((token) => token + 1)
     } catch (submitError) {
       setError(getErrorMessage(submitError, t('expression.createError')))
     } finally {
@@ -230,7 +232,7 @@ export function ExpressionFolderDetailPage() {
         jpCasual: folderLanguage === 'jp' ? editingForm.jpCasual : '',
       })
       setEditingId(null)
-      await loadFolder()
+      setReloadToken((token) => token + 1)
     } catch (updateError) {
       setError(getErrorMessage(updateError, t('expression.updateError')))
     }
@@ -247,7 +249,7 @@ export function ExpressionFolderDetailPage() {
     if (!ok) return
     try {
       await deleteExpression(item.id)
-      await loadFolder()
+      setReloadToken((token) => token + 1)
     } catch (deleteError) {
       setError(getErrorMessage(deleteError, t('expression.deleteError')))
     }

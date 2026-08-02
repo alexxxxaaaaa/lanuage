@@ -59,7 +59,9 @@ export function WordSearchPage() {
   const [error, setError] = useState<string | null>(null)
   const [wordResult, setWordResult] = useState<DictResult | null>(null)
   const [localMatches, setLocalMatches] = useState<Word[]>([])
-  const [isSearchingLocal, setIsSearchingLocal] = useState(false)
+  // A `?q=` already in the URL on mount means the effect below is about to run,
+  // so start out in the searching state instead of flashing "no results".
+  const [isSearchingLocal, setIsSearchingLocal] = useState(() => q.trim().length > 0)
   const [autoAiFiredFor, setAutoAiFiredFor] = useState('')
 
   // Persist last chosen target language so the next zh search defaults to it.
@@ -82,104 +84,10 @@ export function WordSearchPage() {
     void useAppStore.getState().fetchFolders()
   }, [])
 
-  useEffect(() => {
-    setKeyword(q)
-    setWordResult(null)
-  }, [q])
-
-  useEffect(() => {
-    const trimmed = q.trim()
-    if (!trimmed) {
-      setLocalMatches([])
-      setIsSearchingLocal(false)
-      return
-    }
-    let cancelled = false
-    setIsSearchingLocal(true)
-    void (async () => {
-      try {
-        const results = await getWords({ q: trimmed })
-        if (cancelled) return
-        const list = results ?? []
-        setLocalMatches(list)
-        // Fire AI auto-lookup only AFTER local search completes with zero
-        // hits — keeping the two as separate useEffects had a race where the
-        // AI fired before isSearchingLocal flipped to true on first render.
-        if (list.length === 0 && autoAiFiredFor !== trimmed) {
-          setAutoAiFiredFor(trimmed)
-          // Pass `trimmed` (the URL q we just searched for) explicitly —
-          // can't rely on the `keyword` state, see runAiLookup comment.
-          void runAiLookup(trimmed)
-        }
-      } catch {
-        if (!cancelled) setLocalMatches([])
-      } finally {
-        if (!cancelled) setIsSearchingLocal(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-    // runAiLookup / autoAiFiredFor are intentionally excluded — we re-fire on
-    // q change only; same-q re-search is handled in submitKeyword.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q])
-
-  const wordFolders = useMemo(
-    () => (Array.isArray(folders) ? folders : []),
-    [folders],
-  )
-  // Once an AI result arrives the result's detected language takes priority
-  // over the EN/JP toggle the user originally clicked.
-  const effectiveLanguage: 'en' | 'jp' = wordResult?.language ?? targetLanguage
-  const defaultWordFolderId =
-    wordFolders.find((folder) => folder.language === effectiveLanguage)?.id ??
-    wordFolders[0]?.id ??
-    ''
-  const [selectedWordFolderId, setSelectedWordFolderId] = useState('')
-
-  useEffect(() => {
-    setSelectedWordFolderId((current) =>
-      wordFolders.some((folder) => folder.id === current) ? current : defaultWordFolderId,
-    )
-  }, [wordFolders, defaultWordFolderId])
-
-  // When a new AI result arrives with a detected language that differs from
-  // the current selection, switch to a matching folder so JP results land in
-  // a JP folder even if the user kept the default EN toggle.
-  useEffect(() => {
-    if (!wordResult) return
-    const matching = wordFolders.find((f) => f.language === wordResult.language)
-    if (matching) {
-      setSelectedWordFolderId(matching.id)
-    }
-  }, [wordResult, wordFolders])
-
-  const submitKeyword = () => {
-    const text = keyword.trim()
-    if (!text) {
-      setError(t('wordSearch.enterKeyword'))
-      return
-    }
-    setError(null)
-    if (text !== q) {
-      // URL change will pick up via the auto-fire useEffect below, which
-      // itself skips AI when the local library already has matches.
-      setSearchParams({ q: text })
-      return
-    }
-    // Same query as the URL — URL won't re-trigger the auto-fire effect, so
-    // we handle the re-search manually here. Skip AI when the library
-    // already has the word; no point burning tokens on something we have.
-    if (localMatches.length > 0 || isSearchingLocal) return
-    void runAiLookup(text)
-  }
-
   // Takes the search text explicitly. Reading from `keyword` state via closure
-  // was buggy: when this is called from the q-change useEffect, setKeyword(q)
-  // and runAiLookup() fire in the same render cycle — the setState hasn't
-  // committed yet, so `keyword` is still the previous render's value (often
-  // empty on fresh mount), and the AI call ends up firing for the wrong text.
+  // was buggy: when this is called from the q-change useEffect, the keyword
+  // hasn't been committed yet, so `keyword` is still the previous render's
+  // value (often empty on fresh mount) and the AI fires for the wrong text.
   const runAiLookup = async (rawText?: string) => {
     const text = (rawText ?? keyword).trim()
     if (!text) {
@@ -223,10 +131,108 @@ export function WordSearchPage() {
     }
   }
 
-  // Auto-fire AI on q-change is now folded into the local-search effect above
-  // (had to combine them — running as two parallel useEffects raced on the
-  // initial isSearchingLocal flip and burned AI calls even when the library
-  // had a match).
+  // A new `?q=` is a fresh search: mirror it into the box and drop the previous
+  // round's results. Done during render rather than in an effect so the stale
+  // result never gets a frame on screen.
+  const [appliedQuery, setAppliedQuery] = useState(q)
+  if (appliedQuery !== q) {
+    setAppliedQuery(q)
+    setKeyword(q)
+    setWordResult(null)
+    setLocalMatches([])
+    setIsSearchingLocal(q.trim().length > 0)
+  }
+
+  useEffect(() => {
+    const trimmed = q.trim()
+    if (!trimmed) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const results = await getWords({ q: trimmed })
+        if (cancelled) return
+        const list = results ?? []
+        setLocalMatches(list)
+        // Fire AI auto-lookup only AFTER local search completes with zero
+        // hits — keeping the two as separate useEffects had a race where the
+        // AI fired before isSearchingLocal flipped to true on first render.
+        if (list.length === 0 && autoAiFiredFor !== trimmed) {
+          setAutoAiFiredFor(trimmed)
+          // Pass `trimmed` (the URL q we just searched for) explicitly —
+          // can't rely on the `keyword` state, see runAiLookup comment.
+          void runAiLookup(trimmed)
+        }
+      } catch {
+        if (!cancelled) setLocalMatches([])
+      } finally {
+        if (!cancelled) setIsSearchingLocal(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // runAiLookup / autoAiFiredFor are intentionally excluded — we re-fire on
+    // q change only; same-q re-search is handled in submitKeyword.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q])
+
+  const wordFolders = useMemo(
+    () => (Array.isArray(folders) ? folders : []),
+    [folders],
+  )
+  // Once an AI result arrives the result's detected language takes priority
+  // over the EN/JP toggle the user originally clicked.
+  const effectiveLanguage: 'en' | 'jp' = wordResult?.language ?? targetLanguage
+  const defaultWordFolderId =
+    wordFolders.find((folder) => folder.language === effectiveLanguage)?.id ??
+    wordFolders[0]?.id ??
+    ''
+  const [selectedWordFolderId, setSelectedWordFolderId] = useState('')
+
+  // When a new AI result arrives, its detected language wins over the EN/JP
+  // toggle, so JP results land in a JP word list even if the user left the
+  // default EN toggle alone.
+  const [folderPickedFor, setFolderPickedFor] = useState<DictResult | null>(null)
+  let pickedFromResult = false
+  if (wordResult && folderPickedFor !== wordResult) {
+    setFolderPickedFor(wordResult)
+    pickedFromResult = true
+    const matching = wordFolders.find((f) => f.language === wordResult.language)
+    if (matching) setSelectedWordFolderId(matching.id)
+  }
+  // Otherwise keep the select pointed at something real — the chosen word list
+  // can disappear while the page is open.
+  if (
+    !pickedFromResult &&
+    !wordFolders.some((folder) => folder.id === selectedWordFolderId)
+  ) {
+    setSelectedWordFolderId(defaultWordFolderId)
+  }
+
+  const submitKeyword = () => {
+    const text = keyword.trim()
+    if (!text) {
+      setError(t('wordSearch.enterKeyword'))
+      return
+    }
+    setError(null)
+    if (text !== q) {
+      // URL change will pick up via the auto-fire useEffect below, which
+      // itself skips AI when the local library already has matches.
+      setSearchParams({ q: text })
+      return
+    }
+    // Same query as the URL — URL won't re-trigger the auto-fire effect, so
+    // we handle the re-search manually here. Skip AI when the library
+    // already has the word; no point burning tokens on something we have.
+    if (localMatches.length > 0 || isSearchingLocal) return
+    void runAiLookup(text)
+  }
+
+  // Auto-fire AI on q-change is folded into the local-search effect above (had
+  // to combine them — running as two parallel useEffects raced on the initial
+  // isSearchingLocal flip and burned AI calls even when the library had a
+  // match), which is why runAiLookup is declared before it.
 
   const handleAddWord = async () => {
     if (!wordResult) return

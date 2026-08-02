@@ -57,7 +57,7 @@ function plainTextToHtml(text: string) {
     .join('')
 }
 
-export function normalizeNoteContentForEditor(value: string): string {
+function normalizeNoteContentForEditor(value: string): string {
   if (!value) return '<p></p>'
   const fromSlate = legacySlateToHtml(value)
   if (fromSlate !== null) return fromSlate

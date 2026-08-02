@@ -1,14 +1,14 @@
-import { createContext, useContext, useMemo, useState } from 'react'
+import { createContext, useContext } from 'react'
 
 export type UiLanguage = 'zh' | 'en' | 'jp'
 
-const LANGUAGE_KEY = 'word-sprint-ui-language'
+export const LANGUAGE_KEY = 'word-sprint-ui-language'
 
 type DictNode = {
   [key: string]: string | DictNode
 }
 
-const messages: Record<UiLanguage, DictNode> = {
+export const messages: Record<UiLanguage, DictNode> = {
   zh: {
     common: {
       ok: '确定',
@@ -1482,22 +1482,22 @@ const messages: Record<UiLanguage, DictNode> = {
   },
 }
 
-type I18nContextValue = {
+export type I18nContextValue = {
   language: UiLanguage
   setLanguage: (language: UiLanguage) => void
   t: (key: string, vars?: Record<string, string | number>) => string
 }
 
-const I18nContext = createContext<I18nContextValue | null>(null)
+export const I18nContext = createContext<I18nContextValue | null>(null)
 
-function loadLanguage(): UiLanguage {
+export function loadLanguage(): UiLanguage {
   if (typeof window === 'undefined') return 'zh'
   const raw = window.localStorage.getItem(LANGUAGE_KEY)
   if (raw === 'en' || raw === 'jp' || raw === 'zh') return raw
   return 'zh'
 }
 
-function lookup(dict: DictNode, key: string): string {
+export function lookup(dict: DictNode, key: string): string {
   const parts = key.split('.')
   let node: string | DictNode | undefined = dict
   for (const part of parts) {
@@ -1507,30 +1507,11 @@ function lookup(dict: DictNode, key: string): string {
   return typeof node === 'string' ? node : key
 }
 
-function interpolate(template: string, vars?: Record<string, string | number>) {
+export function interpolate(template: string, vars?: Record<string, string | number>) {
   if (!vars) return template
   return template.replace(/\{(\w+)\}/g, (_, name: string) =>
     vars[name] !== undefined ? String(vars[name]) : `{${name}}`,
   )
-}
-
-export function I18nProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguageState] = useState<UiLanguage>(loadLanguage)
-  const setLanguage = (next: UiLanguage) => {
-    setLanguageState(next)
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(LANGUAGE_KEY, next)
-    }
-  }
-  const value = useMemo<I18nContextValue>(
-    () => ({
-      language,
-      setLanguage,
-      t: (key, vars) => interpolate(lookup(messages[language], key), vars),
-    }),
-    [language],
-  )
-  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
 }
 
 export function useI18n() {

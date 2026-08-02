@@ -66,7 +66,7 @@ export function LearnGrammarPage() {
       }
     }
     void run()
-  }, [])
+  }, [countLimit])
 
   const batches = useMemo(() => chunkInto(allGrammars, BATCH_SIZE), [allGrammars])
   const currentBatch = batches[batchIdx] ?? []

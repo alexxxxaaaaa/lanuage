@@ -24,27 +24,30 @@ function shuffled<T>(items: readonly T[]): T[] {
 export function GrammarQuestionsPage() {
   const [mode, setMode] = useState<Mode>('all')
   const [questions, setQuestions] = useState<GrammarQuestion[] | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-
-  const load = async (nextMode: Mode) => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      const rows = await listGrammarQuestions(nextMode)
-      setQuestions(shuffled(rows))
-    } catch (err) {
-      setError(getErrorMessage(err, '加载失败'))
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const [reloadToken, setReloadToken] = useState(0)
 
   useEffect(() => {
-    void load(mode)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode])
+    let ignore = false
+    async function load() {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const rows = await listGrammarQuestions(mode)
+        if (!ignore) setQuestions(shuffled(rows))
+      } catch (err) {
+        if (!ignore) setError(getErrorMessage(err, '加载失败'))
+      } finally {
+        if (!ignore) setIsLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      ignore = true
+    }
+  }, [mode, reloadToken])
 
   const filtered = useMemo(() => {
     if (!questions) return []
@@ -87,7 +90,7 @@ export function GrammarQuestionsPage() {
             onChange={(e) => setQuery(e.target.value)}
             className="max-w-[260px]"
           />
-          <Button type="button" onPress={() => void load(mode)}>
+          <Button type="button" onPress={() => setReloadToken((token) => token + 1)}>
             重新洗牌
           </Button>
           <span className="muted" style={{ marginLeft: 'auto' }}>

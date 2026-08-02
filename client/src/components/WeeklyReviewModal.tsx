@@ -102,12 +102,23 @@ export function WeeklyReviewModal({ open, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return
-    setIsLoading(true)
-    setError(null)
-    getWeeklyReview()
-      .then((r) => setData(r))
-      .catch((e) => setError(getErrorMessage(e, '加载失败')))
-      .finally(() => setIsLoading(false))
+    let ignore = false
+    async function load() {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const summary = await getWeeklyReview()
+        if (!ignore) setData(summary)
+      } catch (e) {
+        if (!ignore) setError(getErrorMessage(e, '加载失败'))
+      } finally {
+        if (!ignore) setIsLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      ignore = true
+    }
   }, [open])
 
   return (

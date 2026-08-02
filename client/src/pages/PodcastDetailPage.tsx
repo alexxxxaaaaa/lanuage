@@ -110,55 +110,78 @@ export function PodcastDetailPage() {
   const playerRef = useRef<YTPlayer | null>(null)
   const playerHostRef = useRef<HTMLDivElement | null>(null)
   const linesRef = useRef<Podcast['transcript']['lines']>([])
-  const currentIdxRef = useRef(currentIdx)
-  currentIdxRef.current = currentIdx
-  // Mutable mirrors so the mp3 <audio> ref-callback (attachMp3) — which is
-  // stable across renders — can read the latest podcast / playback rate
-  // without being torn down and rebuilt on every change.
+  // Mutable mirrors so the poll timers, key handlers and the mp3 <audio>
+  // ref-callback (attachMp3) — all stable across renders — can read the latest
+  // values without being torn down and rebuilt on every change.
+  //
+  // `podcastRef` is written where the podcast is fetched, not after render:
+  // attachMp3 runs during commit, i.e. before passive effects, so a mirror
+  // updated in an effect would still read null the one time it matters.
   const podcastRef = useRef<Podcast | null>(null)
-  podcastRef.current = podcast
+  const currentIdxRef = useRef(currentIdx)
   const playbackRateRef = useRef(playbackRate)
-  playbackRateRef.current = playbackRate
+  useEffect(() => {
+    currentIdxRef.current = currentIdx
+    playbackRateRef.current = playbackRate
+  })
   // Teardown (listeners + poll timer) for the currently-attached mp3 element.
   const mp3CleanupRef = useRef<null | (() => void)>(null)
 
+  const podcastId = podcast?.id
+  const primaryLang = podcast?.primaryLang
+
   useEffect(() => {
     if (!id) return
-    setIsLoading(true)
-    setError(null)
-    void getPodcast(id)
-      .then((p) => {
+    let ignore = false
+    async function load(podcastId: string) {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const p = await getPodcast(podcastId)
+        if (ignore) return
         setPodcast(p)
+        podcastRef.current = p
         linesRef.current = p.transcript.lines
         setTitle(p.title ?? null)
-      })
-      .catch((err) => setError(getErrorMessage(err, '加载失败')))
-      .finally(() => setIsLoading(false))
+      } catch (err) {
+        if (!ignore) setError(getErrorMessage(err, '加载失败'))
+      } finally {
+        if (!ignore) setIsLoading(false)
+      }
+    }
+    void load(id)
+    return () => {
+      ignore = true
+    }
   }, [id])
 
   // Lazy-build per-line furigana for Japanese podcasts. ~12MB dict downloads
   // on first use, then a few hundred lines tokenize within ~1s.
+  //
+  // Keyed on the id, not the podcast object: editing a caption line makes a new
+  // object, and re-tokenizing the whole transcript for one line would be
+  // absurd — saveEditLine patches that single line's ruby instead. The lines
+  // therefore come from `linesRef`, which the fetch keeps in step.
   useEffect(() => {
-    if (!podcast || podcast.primaryLang !== 'jp') return
+    if (!podcastId || primaryLang !== 'jp') return
     let cancelled = false
-    setFuriganaState('loading')
-    void getTokenizer()
-      .then((tk) => {
+    const lines = linesRef.current
+    async function buildFurigana() {
+      setFuriganaState('loading')
+      try {
+        const tk = await getTokenizer()
         if (cancelled) return
-        const html = podcast.transcript.lines.map((ln) =>
-          renderFuriganaHtml(tk, ln.text),
-        )
-        if (cancelled) return
-        setFuriganaHtml(html)
+        setFuriganaHtml(lines.map((ln) => renderFuriganaHtml(tk, ln.text)))
         setFuriganaState('ready')
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) setFuriganaState('error')
-      })
+      }
+    }
+    void buildFurigana()
     return () => {
       cancelled = true
     }
-  }, [podcast?.id, podcast?.primaryLang])
+  }, [podcastId, primaryLang])
 
   // Initialize the player once we have the podcast. Mp3-based podcasts get an
   // HTMLAudioElement adapter; YouTube ones go through the iframe API.
@@ -353,7 +376,9 @@ export function PodcastDetailPage() {
         if (el.currentTime > 5) {
           savePodcastPositionBeacon(pod.id, el.currentTime, getStoredToken())
         }
-      } catch {}
+      } catch {
+        // best-effort on teardown — a failed beacon must not break unmount
+      }
       el.removeEventListener('play', onPlay)
       el.removeEventListener('pause', onPause)
       el.removeEventListener('ended', onEnded)
@@ -362,22 +387,21 @@ export function PodcastDetailPage() {
     // Deps intentionally empty: all values read via stable refs so the
     // callback identity never changes (React would otherwise re-run it,
     // tearing down + rebuilding the player on every render).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Persist position when the user navigates away / closes the tab — the
   // component cleanup isn't guaranteed to run in those cases. Use the
   // keepalive fetch so the request survives the page going away.
   useEffect(() => {
-    if (!podcast) return
+    if (!podcastId) return
     const persist = () => {
       try {
         const sec = playerRef.current?.getCurrentTime() ?? 0
         if (sec > 5) {
-          savePodcastPositionBeacon(podcast.id, sec, getStoredToken())
+          savePodcastPositionBeacon(podcastId, sec, getStoredToken())
         }
       } catch {
-        // ignore
+        // player already torn down — nothing left to persist
       }
     }
     const onVisibility = () => {
@@ -389,7 +413,7 @@ export function PodcastDetailPage() {
       window.removeEventListener('beforeunload', persist)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [podcast?.id])
+  }, [podcastId])
 
   // Push rate changes into the player.
   useEffect(() => {
@@ -458,13 +482,17 @@ export function PodcastDetailPage() {
       })
       // Patch the local podcast object so the rendered list updates without
       // a full refetch. Keep all other lines intact.
-      setPodcast((prev) => {
-        if (!prev) return prev
-        const nextLines = prev.transcript.lines.map((ln, i) =>
-          i === editingIdx ? { ...ln, text: updated.text, zh: updated.zh } : ln,
-        )
-        return { ...prev, transcript: { ...prev.transcript, lines: nextLines } }
-      })
+      const base = podcastRef.current ?? podcast
+      const nextLines = base.transcript.lines.map((ln, i) =>
+        i === editingIdx ? { ...ln, text: updated.text, zh: updated.zh } : ln,
+      )
+      const nextPodcast = {
+        ...base,
+        transcript: { ...base.transcript, lines: nextLines },
+      }
+      setPodcast(nextPodcast)
+      podcastRef.current = nextPodcast
+      linesRef.current = nextLines
       // If this is a JP podcast and furigana is already loaded, recompute
       // furigana HTML for just this line so the ruby annotations don't go
       // stale. Fire and forget — failure just means this one line falls back

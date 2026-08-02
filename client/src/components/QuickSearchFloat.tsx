@@ -3,7 +3,7 @@ import { SelectField } from './ui/SelectField'
 import { Button, ProgressBar, toast } from '@heroui/react'
 import { FloatButton } from './ui/FloatButton'
 import { Modal } from './ui/Modal'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { fillWordByAi, type AiFillWordResult } from '../api/ai'
 import { getErrorMessage, isDuplicateWordError } from '../api/error'
@@ -32,7 +32,6 @@ export function QuickSearchFloat() {
   const [isAiSearching, setIsAiSearching] = useState(false)
   const [aiProgress, setAiProgress] = useState(0)
   const [targetFolderId, setTargetFolderId] = useState<string>('')
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const folderList = useMemo(
     () => (Array.isArray(folders) ? folders : []),
@@ -66,18 +65,22 @@ export function QuickSearchFloat() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [open])
 
+  // The moment the query changes the previous round's results are stale. Reset
+  // during render (React's documented way to react to a changed value) so the
+  // old hits never get a frame on screen.
+  const [searchedQuery, setSearchedQuery] = useState(query)
+  if (searchedQuery !== query) {
+    setSearchedQuery(query)
+    setAiResult(null)
+    setLocalResults(null)
+    setIsSearching(query.trim().length > 0)
+  }
+
   // Debounced local search
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    setAiResult(null)
     const term = query.trim()
-    if (!term) {
-      setLocalResults(null)
-      setIsSearching(false)
-      return
-    }
-    setIsSearching(true)
-    debounceRef.current = setTimeout(async () => {
+    if (!term) return
+    const timer = setTimeout(async () => {
       try {
         const rows = await getWords({ q: term })
         setLocalResults(rows ?? [])
@@ -88,18 +91,18 @@ export function QuickSearchFloat() {
       }
     }, SEARCH_DEBOUNCE)
 
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-    }
-  }, [query])
+    return () => clearTimeout(timer)
+  }, [query, t])
 
-  // Auto-pick a default target folder when AI result arrives
-  useEffect(() => {
-    if (!aiResult) return
-    if (folderList.length === 0) return
+  // Auto-pick a default target folder when an AI result arrives. Tracking the
+  // result we already picked for means a later folder refresh won't overwrite
+  // a folder the user chose by hand.
+  const [pickedFor, setPickedFor] = useState<AiFillWordResult | null>(null)
+  if (aiResult && folderList.length > 0 && pickedFor !== aiResult) {
+    setPickedFor(aiResult)
     const sameLang = folderList.find((f) => f.language === aiResult.language)
     setTargetFolderId(sameLang?.id ?? folderList[0].id)
-  }, [aiResult, folderList])
+  }
 
   const handleAiSearch = async () => {
     const term = query.trim()
