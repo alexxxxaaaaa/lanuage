@@ -8,7 +8,7 @@ import {
   updatePodcastLine,
 } from '../api/podcasts'
 import { getErrorMessage } from '../api/error'
-import { useTab } from '../components/TabContext'
+import { usePageActive, usePageTitle } from '../components/layout/pageContext'
 import { getStoredToken } from '../store/authStore'
 import { getTokenizer, renderFuriganaHtml } from '../utils/furigana'
 import type { Podcast } from '../types'
@@ -80,7 +80,9 @@ function formatTime(ms: number) {
 
 export function PodcastDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { setTitle, isActive } = useTab()
+  const isActive = usePageActive()
+  const [title, setTitle] = useState<string | null>(null)
+  usePageTitle(`/podcasts/${id}`, title)
   const [podcast, setPodcast] = useState<Podcast | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -128,13 +130,10 @@ export function PodcastDetailPage() {
       .then((p) => {
         setPodcast(p)
         linesRef.current = p.transcript.lines
-        if (p.title) setTitle(p.title)
+        setTitle(p.title ?? null)
       })
       .catch((err) => setError(getErrorMessage(err, '加载失败')))
       .finally(() => setIsLoading(false))
-    // setTitle is stable across renders (tabId-scoped); excluding it keeps the
-    // effect from re-running when the active tab changes (which would re-fetch).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   // Lazy-build per-line furigana for Japanese podcasts. ~12MB dict downloads

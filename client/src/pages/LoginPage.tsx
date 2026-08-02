@@ -1,14 +1,30 @@
+import {
+  Button,
+  Card,
+  FieldError,
+  Form,
+  InputGroup,
+  Label,
+  Spinner,
+  TextField,
+} from '@heroui/react'
+import { AlertCircle, Lock, User } from 'lucide-react'
 import { useState } from 'react'
-import { Button, Input } from '@heroui/react'
-import { Link, useNavigate, useSearchParams } from 'react-router'
+import { Navigate, useNavigate, useSearchParams } from 'react-router'
+
 import { login } from '../api/auth'
-import { useAuthStore } from '../store/authStore'
 import { getErrorMessage } from '../api/error'
+import { LocaleSwitcher } from '../components/layout/LocaleSwitcher'
+import { ThemeToggle } from '../components/layout/ThemeToggle'
+import { useI18n } from '../i18n'
+import { useAuthStore } from '../store/authStore'
 
 export function LoginPage() {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const setSession = useAuthStore((state) => state.setSession)
+  const token = useAuthStore((state) => state.token)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -24,44 +40,128 @@ export function LoginPage() {
       const redirect = params.get('redirect')
       navigate(redirect && redirect.startsWith('/') ? redirect : '/', { replace: true })
     } catch (err) {
-      setError(getErrorMessage(err, '登录失败'))
+      setError(getErrorMessage(err, t('auth.failed')))
     } finally {
       setIsSubmitting(false)
     }
   }
 
+  // Already signed in — /login has nothing to offer, send them onward.
+  if (token) {
+    const redirect = params.get('redirect')
+    return <Navigate to={redirect && redirect.startsWith('/') ? redirect : '/'} replace />
+  }
+
   return (
-    <section className="flex min-h-screen items-center justify-center bg-linear-135 from-slate-50 to-indigo-50 px-4 py-8">
-      <div className="w-full max-w-[380px] rounded-2xl bg-white px-7 py-8 shadow-[0_12px_32px_rgba(15,23,42,0.08)]">
-        <h1 className="mt-0 mb-1 text-2xl font-semibold text-slate-900">登录</h1>
-        <p className="mt-0 mb-6 text-sm text-slate-500">登录后访问你的词汇库</p>
-        <form className="flex flex-col gap-3.5" onSubmit={handleSubmit}>
-          <label className="flex flex-col gap-1.5 text-[13px] text-slate-700">
-            <span>用户名</span>
-            <Input
-              autoFocus
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              autoComplete="username"
-            />
-          </label>
-          <label className="flex flex-col gap-1.5 text-[13px] text-slate-700">
-            <span>密码</span>
-            <Input type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete="current-password"
-            />
-          </label>
-          {error ? <p className="m-0 text-[13px] text-red-600">{error}</p> : null}
-          <Button className="mt-2 w-full" type="submit" isDisabled={isSubmitting}>
-            {isSubmitting ? '登录中…' : '登录'}
-          </Button>
-        </form>
-        <p className="mx-0 mt-4.5 mb-0 text-center text-[13px] text-slate-500 [&_a]:text-indigo-500 [&_a]:no-underline">
-          没有账户？<Link to="/register">立即注册</Link>
+    <main className="relative flex h-full items-center justify-center overflow-hidden bg-linear-to-br from-background via-background to-surface-secondary px-4 py-12">
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-1">
+        <ThemeToggle />
+        <LocaleSwitcher />
+      </div>
+
+      {/* Decorative aurora orbs */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-32 -left-32 size-96 rounded-full bg-accent/30 blur-3xl"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -right-32 -bottom-32 size-[28rem] rounded-full bg-accent/15 blur-3xl"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute top-1/3 left-1/2 size-72 -translate-x-1/2 rounded-full bg-accent/10 blur-3xl"
+      />
+      {/* Subtle grid overlay */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.04] [background-image:linear-gradient(to_right,currentColor_1px,transparent_1px),linear-gradient(to_bottom,currentColor_1px,transparent_1px)] [background-size:40px_40px] dark:opacity-[0.06]"
+      />
+
+      <div className="relative z-10 flex w-full max-w-md flex-col items-center gap-8">
+        <Card className="w-full gap-6 border border-border bg-surface/80 p-6 shadow-2xl backdrop-blur-xl">
+          <Card.Header>
+            <Card.Title className="text-2xl font-semibold">Word Sprint</Card.Title>
+            <Card.Description>{t('auth.subtitle')}</Card.Description>
+          </Card.Header>
+          <Card.Content>
+            <Form onSubmit={handleSubmit} className="space-y-5" validationBehavior="aria">
+              <TextField
+                isRequired
+                autoFocus
+                value={username}
+                onChange={setUsername}
+                name="username"
+                className="w-full space-y-1.5"
+              >
+                <Label className="text-sm font-medium">{t('auth.username')}</Label>
+                <InputGroup fullWidth>
+                  <InputGroup.Prefix>
+                    <User className="size-4 text-muted" aria-hidden />
+                  </InputGroup.Prefix>
+                  <InputGroup.Input
+                    type="text"
+                    autoComplete="username"
+                    placeholder={t('auth.usernamePlaceholder')}
+                  />
+                </InputGroup>
+                <FieldError className="text-xs text-danger" />
+              </TextField>
+
+              <TextField
+                isRequired
+                value={password}
+                onChange={setPassword}
+                name="password"
+                className="w-full space-y-1.5"
+              >
+                <Label className="text-sm font-medium">{t('auth.password')}</Label>
+                <InputGroup fullWidth>
+                  <InputGroup.Prefix>
+                    <Lock className="size-4 text-muted" aria-hidden />
+                  </InputGroup.Prefix>
+                  <InputGroup.Input
+                    type="password"
+                    autoComplete="current-password"
+                    placeholder={t('auth.passwordPlaceholder')}
+                  />
+                </InputGroup>
+                <FieldError className="text-xs text-danger" />
+              </TextField>
+
+              {error && (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2.5 text-sm text-danger"
+                >
+                  <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                variant="primary"
+                fullWidth
+                isDisabled={isSubmitting}
+                className="mt-4 h-11 font-semibold transition-transform active:scale-[0.98]"
+              >
+                {isSubmitting ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Spinner /> {t('auth.submitting')}
+                  </span>
+                ) : (
+                  t('auth.submit')
+                )}
+              </Button>
+            </Form>
+          </Card.Content>
+        </Card>
+
+        <p className="text-center text-xs text-muted">
+          © {new Date().getFullYear()} Word Sprint
         </p>
       </div>
-    </section>
+    </main>
   )
 }

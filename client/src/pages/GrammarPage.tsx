@@ -9,6 +9,7 @@ import { getGrammarReviewCounts } from '../api/grammarReview'
 import { getErrorMessage } from '../api/error'
 import { useI18n } from '../i18n'
 import type { CreateGrammarPayload, Grammar } from '../types'
+import { scrollAppToTop } from '../lib/scroll'
 
 const EMPTY_FORM: CreateGrammarPayload = {
   pattern: '',
@@ -47,7 +48,7 @@ export function GrammarPage() {
     try {
       await updateGrammar(g.id, { isPinned: true })
       await load()
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      scrollAppToTop()
     } catch (err) {
       setError(getErrorMessage(err, '置顶失败'))
     }

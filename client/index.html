@@ -1,14 +1,22 @@
 <!doctype html>
-<html lang="en" class="light" data-theme="light">
+<!-- ThemeProvider stamps class/data-theme on <html> at module-evaluation time,
+     before React's first render. Starting neutral here avoids a light-mode
+     flash on a dark-mode reload. -->
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#2563eb" />
+    <!-- Unscoped tag is the one ThemeProvider rewrites; the media-scoped pair
+         below keeps the browser chrome correct before the bundle evaluates. -->
+    <meta name="theme-color" content="#f7f7f7" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f7f7f7" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0a0a0b" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Word Sprint" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Word Sprint</title>
   </head>
   <body>

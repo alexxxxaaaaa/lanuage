@@ -16,7 +16,7 @@ import {
 } from '../api/qbank'
 import { getErrorMessage } from '../api/error'
 import { QbankText } from '../components/QbankText'
-import { useTab } from '../components/TabContext'
+import { usePageActive, usePageTitle } from '../components/layout/pageContext'
 import { mondaiLabel, mondaiMeta, paperLabel } from './jlpt/constants'
 
 // 正文按需取：当前题往后预取这么多道，够连着做十几题不卡顿，
@@ -87,7 +87,7 @@ const LOADING = 'grid place-items-center py-12'
 
 export function JlptPracticePage() {
   const [params] = useSearchParams()
-  const { isActive, setTitle } = useTab()
+  const isActive = usePageActive()
 
   // 这个页面是 singleton tab：换一组题练习时，tab 路径变、组件不重建。
   // 但后台 tab 读到的 useSearchParams 是浏览器地址栏（别的 tab 的），
@@ -112,7 +112,7 @@ export function JlptPracticePage() {
   const [failed, setFailed] = useState<ReadonlySet<string>>(new Set())
 
   const title = setTitleOf(filter)
-  useEffect(() => setTitle(title), [title, setTitle])
+  usePageTitle('/jlpt/practice', title)
 
   // 换一组题：目录、正文缓存、进度全部重来。
   useEffect(() => {

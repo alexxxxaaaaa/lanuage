@@ -9,12 +9,10 @@ import {
   type GrammarQuestion,
 } from '../api/grammarQuestions'
 import { GrammarQuestionCard } from '../components/GrammarQuestionCard'
-import { useTab } from '../components/TabContext'
 import type { GrammarReviewItem, ReviewRating } from '../types'
 import { Button } from '@heroui/react'
 
 export function ReviewGrammarPage() {
-  const { setTitle } = useTab()
   const [queue, setQueue] = useState<GrammarReviewItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -28,11 +26,6 @@ export function ReviewGrammarPage() {
   const [questionsByGrammar, setQuestionsByGrammar] = useState<
     Record<string, GrammarQuestion[]>
   >({})
-
-  useEffect(() => {
-    setTitle('语法复习')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   useEffect(() => {
     const run = async () => {

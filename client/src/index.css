@@ -9,77 +9,51 @@
    pages expect. Shrinks toward zero as pages migrate. */
 @import './App.css' layer(components);
 
+/* ThemeProvider sets `class="dark"` on <html>; tell Tailwind v4 to treat it as
+   the dark variant so `dark:` utilities track the same signal HeroUI does. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ---------------------------------------------------------------------------
    Project theme.
 
-   The palette below is the one the app has always used (slate greys + blue-600
-   accent); it is now expressed through HeroUI's semantic variables so that both
-   HeroUI components and our own Tailwind utilities read from a single source.
-   HeroUI derives hover/soft/border variants from these via color-mix().
+   The palette comes straight from HeroUI v3's default theme, which ships both
+   a light and a dark set of the same semantic variables (--background,
+   --surface, --muted, --accent, --border, …). We deliberately do NOT override
+   them here: an unlayered `:root` block outranks every @layer, so the old
+   light-only overrides silently beat HeroUI's `.dark` block and made dark mode
+   impossible. Anything project-specific goes through @theme below instead.
 --------------------------------------------------------------------------- */
-:root,
-[data-theme='light'] {
-  color-scheme: light;
 
-  --radius: 0.75rem;
-
-  --background: #f8fafc;
-  --foreground: #0f172a;
-
-  --surface: #ffffff;
-  --surface-foreground: #0f172a;
-
-  --overlay: #ffffff;
-  --overlay-foreground: #0f172a;
-
-  --muted: #475569;
-
-  --accent: #2563eb;
-  --accent-foreground: #ffffff;
-
-  --border: #e2e8f0;
-  --separator: #e2e8f0;
-  --focus: #2563eb;
-  --link: #2563eb;
-
-  --field-background: #ffffff;
-  --field-border: #e2e8f0;
-  --field-placeholder: #94a3b8;
-
-  --surface-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
-}
-
-/* Tokens consumed by our own utilities (`shadow-card`, `text-heading`, …). */
+/* Tokens consumed by our own utilities (`shadow-card`, `text-heading`, …).
+   `--shadow-card` reads HeroUI's own surface shadow so it flattens out in dark
+   mode instead of stamping a light-mode drop shadow onto dark cards. */
 @theme inline {
   --font-sans: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
     sans-serif;
-  --shadow-card: 0 16px 40px rgba(15, 23, 42, 0.08);
+  --shadow-card: var(--surface-shadow);
   --color-heading: var(--foreground);
 }
 
 @layer base {
-  html {
-    overflow-x: clip;
-  }
-
+  html,
   body {
-    min-width: 320px;
-    min-height: 100vh;
-    overflow-x: hidden;
+    height: 100%;
+    /* The dashboard shell and the auth shell own their own scroll regions, so
+       the document itself must never scroll — otherwise a flex-child overflow
+       silently pushes body past 100vh and scrolls the sidebar out of view. */
+    overflow: hidden;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background:
-      radial-gradient(circle at top, rgba(37, 99, 235, 0.08), transparent 40%),
-      var(--background);
+  }
+
+  body {
+    min-width: 320px;
   }
 
   #root {
-    min-height: 100vh;
-    /* clip (not hidden) so any overflowing element gets cut without creating a
-       scroll container — keeps position:sticky on the tab strip working. */
-    overflow-x: clip;
+    height: 100%;
   }
 
   /* Lucide ships 24px icons; the old Ant icons were 1em and inherited color.

@@ -13,7 +13,7 @@ import {
   type QbankSetFilter,
 } from '../api/qbank'
 import { getErrorMessage } from '../api/error'
-import { useTab } from '../components/TabContext'
+import { usePageActive } from '../components/layout/pageContext'
 import {
   CATEGORIES,
   categoryLabel,
@@ -198,7 +198,7 @@ function MarkedPanel({ overview }: { overview: QbankOverview }) {
  * 每一级都能直接开练，題型级是「该題型全部年份连着做」。
  */
 export function JlptPage() {
-  const { isActive } = useTab()
+  const isActive = usePageActive()
   const [overview, setOverview] = useState<QbankOverview | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [tab, setTab] = useState<TabKey>('vocab')

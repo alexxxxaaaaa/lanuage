@@ -240,7 +240,7 @@ export function ExamTakePage() {
 
   return (
     <section className="page">
-      <header className="sticky top-0 z-10 mb-4 flex items-center justify-between gap-4 rounded-xl border border-foreground/6 bg-white/95 px-4 py-3 backdrop-blur-lg">
+      <header className="sticky top-0 z-10 mb-4 flex items-center justify-between gap-4 rounded-xl border border-foreground/6 bg-surface/95 px-4 py-3 backdrop-blur-lg">
         <div className="[&>h2]:my-1 [&>h2]:text-lg">
           <p className="eyebrow">
             <Link to={`/exams/${id}`}>← 返回详情</Link>
@@ -260,7 +260,7 @@ export function ExamTakePage() {
       </header>
 
       {exam.audioUrl ? (
-        <div className="sticky top-0 z-30 mb-2 bg-white pt-3 pb-2 shadow-[0_8px_12px_-8px_rgba(0,0,0,0.15)]">
+        <div className="sticky top-0 z-30 mb-2 bg-surface pt-3 pb-2 shadow-[0_8px_12px_-8px_rgba(0,0,0,0.15)]">
           <ExamAudioPlayer
             audioUrl={exam.audioUrl}
             subtitleUrl={subtitleUrl}
@@ -331,7 +331,7 @@ export function ExamTakePage() {
         })}
       </div>
 
-      <div className="sticky bottom-3 mt-8 flex items-center justify-between gap-4 rounded-xl border border-foreground/6 bg-white/95 px-4 py-3 shadow-[0_4px_20px_rgba(15,23,42,0.08)] backdrop-blur-lg">
+      <div className="sticky bottom-3 mt-8 flex items-center justify-between gap-4 rounded-xl border border-foreground/6 bg-surface/95 px-4 py-3 shadow-[0_4px_20px_rgba(15,23,42,0.08)] backdrop-blur-lg">
         <div className="muted">
           {isOvertime ? '已超时,请尽快交卷' : `${isInListeningPhase ? '聴解' : '読解+文字'} 剩余 ${formatCountdown(remaining)}`}
           {' · '}

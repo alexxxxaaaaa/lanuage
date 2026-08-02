@@ -10,13 +10,14 @@ import { isDuplicateWordError } from '../api/error'
 import { useI18n } from '../i18n'
 import { getNotes } from '../api/notes'
 import { SpeakButton } from '../components/SpeakButton'
-import { useTab } from '../components/TabContext'
+import { usePageTitle } from '../components/layout/pageContext'
 import { VoicePicker } from '../components/VoicePicker'
 import { getFolderById } from '../api/folders'
 import { updateWord as updateWordApi } from '../api/words'
 import { useAppStore } from '../store/useAppStore'
 import type { FolderDetail } from '../types'
 import type { Word } from '../types'
+import { scrollAppToTop } from '../lib/scroll'
 import {
   getMasteryColor,
   getMasteryLabel,
@@ -85,7 +86,6 @@ function hasLearnedProgress(word: Word) {
 
 export function FolderDetailPage() {
   const { t } = useI18n()
-  const { setTitle } = useTab()
   const PAGE_SIZE = 12
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
@@ -170,10 +170,7 @@ export function FolderDetailPage() {
 
   const folderList = Array.isArray(folders) ? folders : []
 
-  useEffect(() => {
-    if (folder?.name) setTitle(folder.name)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [folder?.name])
+  usePageTitle(`/folders/${id}`, folder?.name ?? null)
   const words = folder?.words ?? []
   // Count words added today (user-local midnight onwards).
   const todayNewCount = useMemo(() => {
@@ -748,7 +745,7 @@ export function FolderDetailPage() {
             total={filteredWords.length}
             onChange={(nextPage) => {
               setPage(nextPage)
-              window.scrollTo({ top: 0, behavior: 'smooth' })
+              scrollAppToTop()
             }}
             summary={t('folderDetail.paginationTotal', { total: filteredWords.length })}
           />

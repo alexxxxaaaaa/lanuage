@@ -393,7 +393,7 @@ export function HomePage() {
         <Link className="flex items-center gap-3 rounded-[14px] border border-border bg-surface px-4.5 py-4 text-foreground no-underline transition-[transform,box-shadow,border-color] duration-150 hover:-translate-y-px hover:border-accent hover:shadow-[0_6px_20px_rgba(37,99,235,0.1)]" to="/folders">
           <div className="inline-flex size-11 items-center justify-center rounded-[10px] bg-accent/8 text-[26px]">📚</div>
           <div className="flex flex-1 flex-col gap-0.5">
-            <strong className="text-[15px]">{t('nav.folders')}</strong>
+            <strong className="text-[15px]">{t('routes.folders')}</strong>
             <span className="muted text-xs leading-[1.4]">按语言/教材分类管理单词</span>
           </div>
           <span className="text-lg font-semibold text-accent">→</span>
@@ -401,7 +401,7 @@ export function HomePage() {
         <Link className="flex items-center gap-3 rounded-[14px] border border-border bg-surface px-4.5 py-4 text-foreground no-underline transition-[transform,box-shadow,border-color] duration-150 hover:-translate-y-px hover:border-accent hover:shadow-[0_6px_20px_rgba(37,99,235,0.1)]" to="/notes">
           <div className="inline-flex size-11 items-center justify-center rounded-[10px] bg-accent/8 text-[26px]">📝</div>
           <div className="flex flex-1 flex-col gap-0.5">
-            <strong className="text-[15px]">{t('nav.notes')}</strong>
+            <strong className="text-[15px]">{t('routes.notes')}</strong>
             <span className="muted text-xs leading-[1.4]">摘录文章 / 课文，挑词加入词库</span>
           </div>
           <span className="text-lg font-semibold text-accent">→</span>
@@ -409,7 +409,7 @@ export function HomePage() {
         <Link className="flex items-center gap-3 rounded-[14px] border border-border bg-surface px-4.5 py-4 text-foreground no-underline transition-[transform,box-shadow,border-color] duration-150 hover:-translate-y-px hover:border-accent hover:shadow-[0_6px_20px_rgba(37,99,235,0.1)]" to="/expressions">
           <div className="inline-flex size-11 items-center justify-center rounded-[10px] bg-accent/8 text-[26px]">💬</div>
           <div className="flex flex-1 flex-col gap-0.5">
-            <strong className="text-[15px]">{t('nav.expressions')}</strong>
+            <strong className="text-[15px]">{t('routes.expressions')}</strong>
             <span className="muted text-xs leading-[1.4]">收集口语化短句和场景表达</span>
           </div>
           <span className="text-lg font-semibold text-accent">→</span>

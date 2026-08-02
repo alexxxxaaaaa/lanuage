@@ -20,7 +20,15 @@ cp server/.env.example server/.env
 cd server && npx prisma migrate dev
 ```
 
-That's it — your local `server/prisma/dev.db` is fresh and empty. Visit the app, register a user via `/register`, and start adding words.
+That's it — your local `server/prisma/dev.db` is fresh and empty. The client is
+sign-in only (there is no registration screen), so create the first account
+against the API directly, then sign in at `/login`:
+
+```bash
+curl -X POST http://localhost:3000/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"me","password":"your-password"}'
+```
 
 ## Daily development
 

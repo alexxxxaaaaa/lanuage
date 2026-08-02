@@ -6,7 +6,6 @@ import {
   type GrammarQuestion,
 } from '../api/grammarQuestions'
 import { GrammarQuestionCard } from '../components/GrammarQuestionCard'
-import { useTab } from '../components/TabContext'
 import type { Grammar, ReviewRating } from '../types'
 import { Button } from '@heroui/react'
 
@@ -28,7 +27,6 @@ function chunkInto<T>(items: T[], size: number): T[][] {
 }
 
 export function LearnGrammarPage() {
-  const { setTitle } = useTab()
   const [searchParams] = useSearchParams()
   // ?count=N caps the session to first N unlearned grammars (sorted by
   // createdAt asc, matching what GrammarPage's count selector chose).
@@ -52,11 +50,6 @@ export function LearnGrammarPage() {
   const [questionsByGrammar, setQuestionsByGrammar] = useState<
     Record<string, GrammarQuestion[]>
   >({})
-
-  useEffect(() => {
-    setTitle('语法学习')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   useEffect(() => {
     const run = async () => {
