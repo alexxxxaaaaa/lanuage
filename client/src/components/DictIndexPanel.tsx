@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Spinner, Tabs } from '@heroui/react'
+import { ScrollShadow, Spinner, Tabs } from '@heroui/react'
 import { DictIndex, type DictDirection, type IndexRow } from '../lib/dictIndex'
 import { useI18n } from '../i18n'
 
@@ -116,16 +116,15 @@ export function DictIndexPanel({ query, onPick }: Props) {
 
   // 视口高度决定要渲染几行。用 ResizeObserver 而不是读一次 clientHeight：
   // 侧栏高度跟着窗口变，折叠浏览器窗口后区间要跟着重算。
-  const attachScroller = useCallback((node: HTMLDivElement | null) => {
-    scrollRef.current = node
+  // observe() 本身会立刻回调一次初始尺寸，所以不必在这里同步读一遍。
+  // 依赖 index：列表要等索引就绪才渲染，容器是跟着它挂载的。
+  useEffect(() => {
+    const node = scrollRef.current
     if (!node) return
-    setViewport(node.clientHeight)
-    const observer = new ResizeObserver(([entry]) => {
-      setViewport(entry.contentRect.height)
-    })
+    const observer = new ResizeObserver(([entry]) => setViewport(entry.contentRect.height))
     observer.observe(node)
     return () => observer.disconnect()
-  }, [])
+  }, [index])
 
   // 滚动事件按帧合并 —— 一次滚动能触发几十个 scroll 事件，
   // 每个都 setState 会把渲染次数放大到没有必要的程度。
@@ -192,15 +191,19 @@ export function DictIndexPanel({ query, onPick }: Props) {
             <span className="muted text-[13px]">{t('wordSearch.indexLoading')}</span>
           </div>
         ) : (
-          <div
-            ref={attachScroller}
+          // hideScrollBar 藏掉滚动条，上下边缘的渐隐代替它提示「还有内容」——
+          // 索引列表本来就靠输入定位，滚动条既指示不了位置也没人拖。
+          <ScrollShadow
+            ref={scrollRef}
             onScroll={handleScroll}
+            hideScrollBar
+            size={28}
             role="listbox"
             aria-label={t('wordSearch.indexTitle')}
             tabIndex={-1}
             className="h-full w-full overflow-y-auto"
           >
-            {/* 撑出全部词条的总高度，滚动条才代表整本词库而不是当前这一屏。 */}
+            {/* 撑出全部词条的总高度，滚动范围才是整本词库而不是当前这一屏。 */}
             <div className="relative" style={{ height: total * ROW_HEIGHT }}>
               {visible.map((row) => (
                 <button
@@ -225,7 +228,7 @@ export function DictIndexPanel({ query, onPick }: Props) {
                 </button>
               ))}
             </div>
-          </div>
+          </ScrollShadow>
         )}
       </div>
 
