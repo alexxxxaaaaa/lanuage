@@ -7,6 +7,10 @@
  *
  * JMdict 未采用：218,290 条词条里只有 293 条中文 gloss，不是原生日中词典。
  *
+ * 产物：
+ *   server/data/dict/<dir>.jsonl   完整词条，供 importDict.ts 灌进 D1
+ *   client/public/dict/<dir>.idx   仅词头/读音的索引，随前端发布给右侧索引栏用
+ *
  * 用法：
  *   npm run build:dict          # 缺源文件时自动下载到 .dictcache/
  *   npm run build:dict -- --force-download
@@ -18,10 +22,14 @@ import { pipeline } from 'node:stream/promises'
 import { Readable } from 'node:stream'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { pinyin } from 'pinyin-pro'
+import { sortKeyFor } from '../../shared/dictSort'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const REPO = join(ROOT, '..')
 const CACHE_DIR = join(ROOT, '.dictcache')
 const OUT_DIR = join(ROOT, 'data', 'dict')
+const INDEX_DIR = join(REPO, 'client', 'public', 'dict')
 
 const SOURCES = [
   { file: 'zh-extract.jsonl.gz', url: 'https://kaikki.org/dictionary/downloads/zh/zh-extract.jsonl.gz' },
@@ -43,12 +51,15 @@ type Entry = {
   senses: Sense[]
   direction: 'ja-zh' | 'zh-ja'
   source: 'zhwiktionary' | 'jawiktionary'
+  /** 五十音順 / 拼音序的排序键，客户端索引二分查找也用它。 */
+  sortKey: string
 }
 
 /** soft-redirect 是跳转壳，romanization 是罗马字异形词头，都不是真词条。 */
 const SKIP_POS = new Set(['soft-redirect', 'romanization'])
 
 const KANA_ONLY = /^[ぁ-ゟァ-ヿー々]+$/
+const HAS_HAN = /[㐀-鿿豈-﫿]/
 
 /**
  * 用 canonical form 的 ruby 重建正字法读音。
@@ -101,6 +112,21 @@ function mandarinPinyin(raw: any): string {
   const pron: string = hit?.zh_pron ?? ''
   // 中古音/上古音条目会把整段考据塞进 zh_pron，带换行和星号，直接丢弃。
   return pron.includes('\n') || pron.startsWith('*') ? '' : pron.trim()
+}
+
+/**
+ * 日语维基词典只给 33.9% 的中文词条标了读音，剩下三分之二没有 sounds 字段。
+ * 拼音序索引要是缺了这些词就废了，所以构建期用 pinyin-pro 补齐 ——
+ * 它按词组消歧多音字（「行」在「银行」读 háng、「行动」读 xíng），
+ * 比逐字查表准。只在构建期跑，拼音直接烤进数据，运行时没有这个依赖。
+ */
+function fillPinyin(word: string): string {
+  if (!HAS_HAN.test(word)) return ''
+  try {
+    return pinyin(word, { separator: '', nonZh: 'removed', toneType: 'symbol' })
+  } catch {
+    return ''
+  }
 }
 
 /**
@@ -178,33 +204,23 @@ async function download(url: string, dest: string) {
   await pipeline(Readable.fromWeb(res.body as any), createWriteStream(dest))
 }
 
-type ExtractOptions = {
+type Job = {
   srcFile: string
   /** 只保留这个语言的词条。 */
   langCode: 'ja' | 'zh'
   direction: Entry['direction']
   source: Entry['source']
-  outFile: string
 }
 
-async function extract(opts: ExtractOptions) {
-  const src = join(CACHE_DIR, opts.srcFile)
-  const out = join(OUT_DIR, opts.outFile)
-  const sink = createWriteStream(out)
-
+async function extract(job: Job): Promise<Entry[]> {
   const rl = createInterface({
-    input: createReadStream(src).pipe(createGunzip()),
+    input: createReadStream(join(CACHE_DIR, job.srcFile)).pipe(createGunzip()),
     crlfDelay: Infinity,
   })
 
-  let scanned = 0
-  let kept = 0
-  let withReading = 0
-  const posCount = new Map<string, number>()
-
+  const entries: Entry[] = []
   for await (const line of rl) {
     if (!line) continue
-    scanned++
 
     let raw: any
     try {
@@ -213,7 +229,7 @@ async function extract(opts: ExtractOptions) {
       continue
     }
 
-    if (raw.lang_code !== opts.langCode) continue
+    if (raw.lang_code !== job.langCode) continue
     const pos: string = raw.pos ?? 'unknown'
     if (SKIP_POS.has(pos)) continue
 
@@ -224,36 +240,78 @@ async function extract(opts: ExtractOptions) {
     if (senses.length === 0) continue
 
     const reading =
-      opts.langCode === 'ja'
+      job.langCode === 'ja'
         ? japaneseReading(raw) || recoveredReading || looseFallback
-        : mandarinPinyin(raw)
+        : mandarinPinyin(raw) || fillPinyin(word)
 
-    const entry: Entry = {
+    entries.push({
       word,
       reading,
-      romaji: opts.langCode === 'ja' ? japaneseRomaji(raw) : '',
+      romaji: job.langCode === 'ja' ? japaneseRomaji(raw) : '',
       pos,
       senses,
-      direction: opts.direction,
-      source: opts.source,
-    }
-    if (reading) withReading++
+      direction: job.direction,
+      source: job.source,
+      sortKey: sortKeyFor(job.direction, reading, word),
+    })
+  }
 
+  // 五十音順 / 拼音序。键相同时按词头兜底，保证顺序完全确定 ——
+  // 否则每次重建索引里同音词的位置都会漂移，客户端缓存跟着失效。
+  entries.sort(
+    (a, b) =>
+      (a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0) ||
+      (a.word < b.word ? -1 : a.word > b.word ? 1 : 0),
+  )
+  return entries
+}
+
+async function writeJsonl(entries: Entry[], file: string) {
+  const sink = createWriteStream(file)
+  for (const entry of entries) {
     if (!sink.write(JSON.stringify(entry) + '\n')) {
       await new Promise((resolve) => sink.once('drain', resolve))
     }
-    kept++
-    posCount.set(pos, (posCount.get(pos) ?? 0) + 1)
   }
-
   await new Promise((resolve) => sink.end(resolve))
-
-  return { scanned, kept, withReading, out, posCount }
 }
+
+/**
+ * 索引只带定位和显示所需的三列：sortKey \t 词头 \t 读音。
+ * 词条详情走 D1 按需取，不进这个文件。
+ *
+ * sortKey 显式写进文件而不是让客户端从读音重算 —— 客户端只需要归一化
+ * 用户输入，不必和构建期的规则逐字符对齐，两边实现漂移也只会让定位差
+ * 几行，不会把整个列表的顺序搞错。
+ */
+async function writeIndex(entries: Entry[], file: string) {
+  const sink = createWriteStream(file)
+  const seen = new Set<string>()
+  let rows = 0
+  for (const entry of entries) {
+    // 同表記異音語（行 = いく / ぎょう / こう）在辞书里本就是分立词条，
+    // 按 词头+排序键 去重，各自留在自己的读音位置上。
+    const key = `${entry.word} ${entry.sortKey}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    if (!sink.write(`${entry.sortKey}\t${entry.word}\t${entry.reading}\n`)) {
+      await new Promise((resolve) => sink.once('drain', resolve))
+    }
+    rows++
+  }
+  await new Promise((resolve) => sink.end(resolve))
+  return rows
+}
+
+const JOBS: Job[] = [
+  { srcFile: 'zh-extract.jsonl.gz', langCode: 'ja', direction: 'ja-zh', source: 'zhwiktionary' },
+  { srcFile: 'ja-extract.jsonl.gz', langCode: 'zh', direction: 'zh-ja', source: 'jawiktionary' },
+]
 
 async function main() {
   mkdirSync(CACHE_DIR, { recursive: true })
   mkdirSync(OUT_DIR, { recursive: true })
+  mkdirSync(INDEX_DIR, { recursive: true })
 
   const force = process.argv.includes('--force-download')
   for (const { file, url } of SOURCES) {
@@ -262,32 +320,22 @@ async function main() {
     else process.stdout.write(`✓ 已缓存 ${file} (${(statSync(dest).size / 1e6).toFixed(0)} MB)\n`)
   }
 
-  const jobs: ExtractOptions[] = [
-    {
-      srcFile: 'zh-extract.jsonl.gz',
-      langCode: 'ja',
-      direction: 'ja-zh',
-      source: 'zhwiktionary',
-      outFile: 'ja-zh.jsonl',
-    },
-    {
-      srcFile: 'ja-extract.jsonl.gz',
-      langCode: 'zh',
-      direction: 'zh-ja',
-      source: 'jawiktionary',
-      outFile: 'zh-ja.jsonl',
-    },
-  ]
+  const mb = (f: string) => `${(statSync(f).size / 1e6).toFixed(1)} MB`
 
-  for (const job of jobs) {
-    process.stdout.write(`\n— 抽取 ${job.direction} —\n`)
-    const r = await extract(job)
-    const top = [...r.posCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)
-    const pct = ((r.withReading / r.kept) * 100).toFixed(1)
-    process.stdout.write(`扫描 ${r.scanned.toLocaleString()} 行 → 保留 ${r.kept.toLocaleString()} 条\n`)
-    process.stdout.write(`读音/拼音覆盖: ${r.withReading.toLocaleString()} (${pct}%)\n`)
-    process.stdout.write(`词性分布: ${top.map(([p, n]) => `${p}=${n}`).join(' ')}\n`)
-    process.stdout.write(`输出 ${r.out} (${(statSync(r.out).size / 1e6).toFixed(1)} MB)\n`)
+  for (const job of JOBS) {
+    process.stdout.write(`\n— ${job.direction} —\n`)
+    const entries = await extract(job)
+
+    const jsonl = join(OUT_DIR, `${job.direction}.jsonl`)
+    const idx = join(INDEX_DIR, `${job.direction}.idx`)
+    await writeJsonl(entries, jsonl)
+    const rows = await writeIndex(entries, idx)
+
+    const withReading = entries.filter((e) => e.reading).length
+    const pct = ((withReading / entries.length) * 100).toFixed(1)
+    process.stdout.write(`词条 ${entries.length.toLocaleString()} 条，读音覆盖 ${pct}%\n`)
+    process.stdout.write(`  ${jsonl} (${mb(jsonl)})\n`)
+    process.stdout.write(`  ${idx} (${mb(idx)}, ${rows.toLocaleString()} 行)\n`)
   }
 }
 

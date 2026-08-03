@@ -55,6 +55,18 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         runtimeCaching: [
           {
+            // 词库索引：日中 5 MB / 中日 1 MB（gzip 后 1.1 / 0.3 MB）。
+            // 有意不进 precache —— 那会把首屏安装成本抬上去，而右侧索引栏
+            // 只有桌面端进查词页才用得到。改成用过一次就长期留着：
+            // 索引只在重新构建词库时才变，CacheFirst 命中率接近 100%。
+            urlPattern: /\/dict\/.*\.idx$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'dict-index-cache',
+              expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
+          {
             urlPattern: /^https:\/\/word-sprint-server\.zhuyandijp\.workers\.dev\/api\//,
             handler: 'NetworkFirst',
             options: {

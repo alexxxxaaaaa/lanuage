@@ -21,5 +21,7 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  // ../shared 放着索引排序键 —— 构建脚本（server/scripts/buildDict.ts）用它
+  // 给 .idx 文件定序，这里用同一份归一化用户输入，两边必须是同一套规则。
+  "include": ["src", "../shared"]
 }

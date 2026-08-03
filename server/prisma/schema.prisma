@@ -35,22 +35,22 @@ model Folder {
 }
 
 model Word {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   word         String
   reading      String
   meaning      String
   example      String
   note         String
-  partOfSpeech String   @default("")
+  partOfSpeech String    @default("")
   language     String
   folderId     String
   sourceNoteId String?
-  isPinned     Boolean  @default(false)
+  isPinned     Boolean   @default(false)
   pinnedAt     DateTime?
-  folder       Folder   @relation(fields: [folderId], references: [id])
-  sourceNote   Note?    @relation(fields: [sourceNoteId], references: [id])
+  folder       Folder    @relation(fields: [folderId], references: [id])
+  sourceNote   Note?     @relation(fields: [sourceNoteId], references: [id])
   review       Review?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
 
   @@unique([folderId, word])
   @@index([folderId, isPinned, pinnedAt])
@@ -145,23 +145,23 @@ model ExpressionFolder {
 }
 
 model Grammar {
-  id          String   @id @default(uuid())
-  pattern     String
-  connection  String   @default("")
-  meaning     String   @default("")
-  example     String   @default("")
-  exampleZh   String   @default("")
-  note        String   @default("")
-  level       String   @default("N1")
-  isPinned    Boolean  @default(false)
-  pinnedAt    DateTime?
-  isLearned   Boolean  @default(false)
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  review      GrammarReview?
-  questions   GrammarQuestion[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String            @id @default(uuid())
+  pattern    String
+  connection String            @default("")
+  meaning    String            @default("")
+  example    String            @default("")
+  exampleZh  String            @default("")
+  note       String            @default("")
+  level      String            @default("N1")
+  isPinned   Boolean           @default(false)
+  pinnedAt   DateTime?
+  isLearned  Boolean           @default(false)
+  userId     String
+  user       User              @relation(fields: [userId], references: [id])
+  review     GrammarReview?
+  questions  GrammarQuestion[]
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
 
   @@unique([userId, pattern])
   @@index([userId])
@@ -172,13 +172,13 @@ model Grammar {
 // N1-style four-choice questions attached to a Grammar row. Options are
 // stored as a JSON-encoded string array of length 4; answerIndex is 0..3.
 model GrammarQuestion {
-  id          String   @id @default(uuid())
+  id          String                   @id @default(uuid())
   grammarId   String
-  grammar     Grammar  @relation(fields: [grammarId], references: [id], onDelete: Cascade)
+  grammar     Grammar                  @relation(fields: [grammarId], references: [id], onDelete: Cascade)
   prompt      String
   options     String
   answerIndex Int
-  createdAt   DateTime @default(now())
+  createdAt   DateTime                 @default(now())
   attempts    GrammarQuestionAttempt[]
 
   @@index([grammarId])
@@ -187,14 +187,14 @@ model GrammarQuestion {
 // One row per (user, question) attempt. Upserted on re-answer so the
 // "wrong questions" view reflects the user's most recent attempt.
 model GrammarQuestionAttempt {
-  id            String   @id @default(uuid())
+  id            String          @id @default(uuid())
   userId        String
   questionId    String
   question      GrammarQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
   selectedIndex Int
   isCorrect     Boolean
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   @@unique([userId, questionId])
   @@index([userId, isCorrect])
@@ -241,29 +241,29 @@ model QbankPassage {
 }
 
 model QbankQuestion {
-  id        String        @id @default(uuid())
-  level     String        @default("N1")
-  year      Int
-  month     Int
-  category  String // vocab | grammar | reading | listening
-  mondaiNo  Int // 笔试 1–13；听力 1–5（category 内唯一）
-  seq       String // 卷内展示题号：Q1 / 聴解1-1
-  orderNo   Int // 卷内排序，听力从 1000 起，保证笔试在前
-  stemJp    String        @default("")
-  stemZh    String        @default("") // 笔试=中文翻译；听力=日文設問（源站如此）
-  options   String        @default("[]") // JSON 字符串数组
-  answer    Int // 1-based
+  id          String        @id @default(uuid())
+  level       String        @default("N1")
+  year        Int
+  month       Int
+  category    String // vocab | grammar | reading | listening
+  mondaiNo    Int // 笔试 1–13；听力 1–5（category 内唯一）
+  seq         String // 卷内展示题号：Q1 / 聴解1-1
+  orderNo     Int // 卷内排序，听力从 1000 起，保证笔试在前
+  stemJp      String        @default("")
+  stemZh      String        @default("") // 笔试=中文翻译；听力=日文設問（源站如此）
+  options     String        @default("[]") // JSON 字符串数组
+  answer      Int // 1-based
   // 两来源（纳豆 / mojidict）答案不一致时，另一来源的答案，1-based；0 = 无分歧。
   // 官方答案无从查证，所以两个都判对，见 qbankService.isAcceptedAnswer。
-  altAnswer Int           @default(0)
+  altAnswer   Int           @default(0)
   // 分歧的人工争点说明，可为空 —— 「纳豆=4 / mojidict=2」那种话术前端按
   // answer/altAnswer 现算，不入库，免得多一份要跟着改的副本。
-  disputeNote String      @default("")
-  explain   String        @default("") // 逐选项解析；听力是原文+译文
-  audioKey  String        @default("") // 相对媒体根，如 audio/2020.12/1-1.mp3
-  source    String        @default("nadou") // nadou | mojidict
-  passageId String?
-  passage   QbankPassage? @relation(fields: [passageId], references: [id], onDelete: SetNull)
+  disputeNote String        @default("")
+  explain     String        @default("") // 逐选项解析；听力是原文+译文
+  audioKey    String        @default("") // 相对媒体根，如 audio/2020.12/1-1.mp3
+  source      String        @default("nadou") // nadou | mojidict
+  passageId   String?
+  passage     QbankPassage? @relation(fields: [passageId], references: [id], onDelete: SetNull)
 
   attempts  QbankAttempt[]
   favorites QbankFavorite[]
@@ -317,17 +317,17 @@ model QbankFavorite {
 // 刻意不碰 QbankAttempt —— 考试成绩与平时的答题卡/错题本互不干扰，
 // 交卷后由用户主动「收错题」才写过去。
 model QbankExamAttempt {
-  id     String @id @default(uuid())
-  userId String
-  level  String @default("N1")
-  year   Int
-  month  Int
+  id                 String    @id @default(uuid())
+  userId             String
+  level              String    @default("N1")
+  year               Int
+  month              Int
   // strict | self。开考时定格，中途改设置不影响进行中的这场。
-  mode   String @default("strict")
+  mode               String    @default("strict")
   // JSON: { [questionId]: 1-based 选项 }
-  answers String @default("{}")
+  answers            String    @default("{}")
   // JSON: 交卷时定格的成绩（ExamScore），列表页直接读，不必重算整卷。
-  score   String @default("")
+  score              String    @default("")
   // 三个时刻决定阶段：finishedAt → 已完成，writtenSubmittedAt → 听力中，都空 → 笔试中。
   startedAt          DateTime  @default(now())
   writtenSubmittedAt DateTime?
@@ -337,20 +337,20 @@ model QbankExamAttempt {
 }
 
 model Podcast {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
   // For YouTube podcasts this is the real videoId. For mp3 podcasts it's a
   // synthetic id like "mp3-<uuid>" so the (userId, youtubeId) unique
   // constraint still holds.
-  youtubeId   String
+  youtubeId       String
   // Non-empty when this is a local/mp3-based podcast (served from the
   // frontend's public/ folder). Frontend switches player based on this.
-  mp3Url      String   @default("")
-  title       String
-  primaryLang String   @default("jp")
-  thumbnail   String   @default("")
-  durationSec Int      @default(0)
+  mp3Url          String   @default("")
+  title           String
+  primaryLang     String   @default("jp")
+  thumbnail       String   @default("")
+  durationSec     Int      @default(0)
   // JSON-serialized transcript:
   //   { lines: [{ start: ms, dur: ms, text: string, zh?: string }] }
   transcript      String
@@ -358,8 +358,8 @@ model Podcast {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  @@index([userId])
   @@unique([userId, youtubeId])
+  @@index([userId])
 }
 
 // Per-rating event log. Powers weekly-review analytics (how many words
@@ -379,4 +379,29 @@ model ReviewEvent {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+// 日中 / 中日词库 —— Wiktextract 抽取的公共参考数据，只读，不挂用户。
+// 由 server/scripts/buildDict.ts 生成 data/dict/*.jsonl，再用
+// scripts/importDict.ts 灌进来。右侧索引栏走随前端发布的静态 .idx 文件，
+// 不查这张表；这里只服务「点某个词 / 回车精确匹配」时的详情取用。
+model DictEntry {
+  id        Int    @id @default(autoincrement())
+  word      String
+  // 日中是假名读音，中日是官話拼音。
+  reading   String
+  // 仅日中有值。
+  romaji    String @default("")
+  pos       String
+  // Sense[] 的 JSON。SQLite/D1 没有原生 JSON 列，存字符串，读出来再 parse。
+  senses    String
+  // 'ja-zh' | 'zh-ja'
+  direction String
+  // 'zhwiktionary' | 'jawiktionary' —— 展示时按这个分块。
+  source    String
+  // 五十音順 / 拼音序的排序键，和 .idx 索引文件里的第一列同源。
+  sortKey   String
+
+  // 查词只有一种形态：给定方向 + 词头拿全部义项，所以这一条复合索引就够。
+  @@index([direction, word])
 }

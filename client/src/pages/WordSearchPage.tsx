@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, ProgressBar, Spinner } from '@heroui/react'
 import { SelectField } from '../components/ui/SelectField'
+import { SourceSection } from '../components/ui/SourceSection'
 import { alertDialog } from '../components/ui/dialog'
 import { Link, useSearchParams } from 'react-router'
 import { fillWordByAi } from '../api/ai'
 import { getErrorMessage, isDuplicateWordError } from '../api/error'
 import { createWord, getWords } from '../api/words'
+import { fetchDictEntries, type DictEntry } from '../api/dict'
+import { DictEntryResults } from '../components/DictEntryResults'
+import { DictIndexPanel } from '../components/DictIndexPanel'
 import { SearchSuggest, type SearchSuggestHandle } from '../components/SearchSuggest'
 import { SpeakButton } from '../components/SpeakButton'
 import { usePageActive } from '../components/layout/pageContext'
@@ -62,6 +66,7 @@ export function WordSearchPage() {
   const [error, setError] = useState<string | null>(null)
   const [wordResult, setWordResult] = useState<DictResult | null>(null)
   const [localMatches, setLocalMatches] = useState<Word[]>([])
+  const [dictEntries, setDictEntries] = useState<DictEntry[]>([])
   // A `?q=` already in the URL on mount means the effect below is about to run,
   // so start out in the searching state instead of flashing "no results".
   const [isSearchingLocal, setIsSearchingLocal] = useState(() => q.trim().length > 0)
@@ -165,6 +170,7 @@ export function WordSearchPage() {
     setKeyword(q)
     setWordResult(null)
     setLocalMatches([])
+    setDictEntries([])
     setIsSearchingLocal(q.trim().length > 0)
   }
 
@@ -174,21 +180,24 @@ export function WordSearchPage() {
     let cancelled = false
     void (async () => {
       try {
-        const results = await getWords({ q: trimmed })
+        // 本地词库精确匹配和「我的单词库」一起发，两个都是本地查询，
+        // 串行没有意义。任一失败都不该让另一边的结果消失。
+        const [dict, mine] = await Promise.all([
+          fetchDictEntries(trimmed).catch(() => [] as DictEntry[]),
+          getWords({ q: trimmed }).catch(() => [] as Word[]),
+        ])
         if (cancelled) return
-        const list = results ?? []
-        setLocalMatches(list)
-        // Fire AI auto-lookup only AFTER local search completes with zero
-        // hits — keeping the two as separate useEffects had a race where the
-        // AI fired before isSearchingLocal flipped to true on first render.
-        if (list.length === 0 && autoAiFiredFor !== trimmed) {
+        setDictEntries(dict)
+        setLocalMatches(mine ?? [])
+        // 词库和单词库都没收录才让 AI 出手 —— 这是「回车没匹配到就自动
+        // AI 查词」的落点。放在本地查询完成之后而不是并行的另一个
+        // useEffect 里：并行会在首帧竞态，明明有结果也照样烧一次 AI 调用。
+        if (dict.length === 0 && (mine?.length ?? 0) === 0 && autoAiFiredFor !== trimmed) {
           setAutoAiFiredFor(trimmed)
           // Pass `trimmed` (the URL q we just searched for) explicitly —
           // can't rely on the `keyword` state, see runAiLookup comment.
           void runAiLookup(trimmed)
         }
-      } catch {
-        if (!cancelled) setLocalMatches([])
       } finally {
         if (!cancelled) setIsSearchingLocal(false)
       }
@@ -256,22 +265,28 @@ export function WordSearchPage() {
     setError(null)
     setKeyword(text)
     if (text !== q) {
-      // URL change will pick up via the auto-fire useEffect below, which
-      // itself skips AI when the local library already has matches.
+      // URL change will pick up via the effect above, which fires AI only when
+      // neither the local dictionary nor the user's library has the word.
       setSearchParams({ q: text })
       return
     }
-    // Same query as the URL — URL won't re-trigger the auto-fire effect, so
-    // we handle the re-search manually here. Skip AI when the library
-    // already has the word; no point burning tokens on something we have.
-    if (localMatches.length > 0 || isSearchingLocal) return
+    // Same query as the URL — URL won't re-trigger that effect, so handle the
+    // re-search manually. Skip AI when we already have the word locally.
+    if (dictEntries.length > 0 || localMatches.length > 0 || isSearchingLocal) return
     void runAiLookup(text)
   }
 
-  // Auto-fire AI on q-change is folded into the local-search effect above (had
-  // to combine them — running as two parallel useEffects raced on the initial
-  // isSearchingLocal flip and burned AI calls even when the library had a
-  // match), which is why runAiLookup is declared before it.
+  /**
+   * 从右侧索引点词：回填输入框并按该方向取词条。
+   *
+   * 走 setSearchParams 和回车是同一条路，所以 URL 里始终留着当前查的词，
+   * 刷新和分享链接都还原得回来。索引里的词一定在词库里，不会触发 AI。
+   */
+  const handlePickFromIndex = (row: { word: string }) => {
+    setKeyword(row.word)
+    setError(null)
+    if (row.word !== q) setSearchParams({ q: row.word })
+  }
 
   const handleAddWord = async () => {
     if (!wordResult) return
@@ -317,203 +332,251 @@ export function WordSearchPage() {
         </div>
       </div>
 
-      <div className="card grid gap-2.5">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <SearchSuggest
-            ref={searchRef}
-            value={keyword}
-            onChange={setKeyword}
-            onSubmit={submitKeyword}
-            placeholder={t('wordSearch.placeholder')}
-            inputClassName="w-full rounded-xl border border-border bg-surface px-3.5 py-3 text-[15px] text-foreground focus:border-accent focus:ring-3 focus:ring-accent/15 focus:outline-none"
-            className="min-w-[200px] flex-[1_1_240px] max-[720px]:basis-full"
-          />
-          <label className="lang-picker" title="覆盖自动检测的输入语言">
-            <span className="muted">输入</span>
-            <SelectField
-              value={sourceOverride}
-              onChange={(v) => setSourceOverride(v)}
-              className="min-w-[140px]"
-              options={[
-                {
-                  value: 'auto',
-                  label: `自动 (${detectedSource === 'zh' ? '中文' : detectedSource === 'jp' ? '日语' : '英语'})`,
-                },
-                { value: 'zh', label: '中文' },
-                { value: 'jp', label: '日语' },
-                { value: 'en', label: '英语' },
-              ]}
-            />
-          </label>
-          {effectiveSource === 'zh' ? (
-            <label className="lang-picker" title="把这个中文词翻译成…">
-              <span className="muted">查</span>
-              <SelectField
-                value={chineseTarget}
-                onChange={(v) => setChineseTarget(v)}
-              className="min-w-[90px]"
-                options={[
-                  { value: 'jp', label: '日语' },
-                  { value: 'en', label: '英语' },
-                ]}
-              />
-            </label>
-          ) : null}
-          <Button type="button" onPress={() => submitKeyword()}>
-            {t('wordSearch.search')}
-          </Button>
-        </div>
-        {error ? <p className="error-text m-0">{error}</p> : null}
-      </div>
-
-      {hasQuery ? (
-        <article className="card">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h3 className="m-0 text-base">{t('wordSearch.myLibrary')}</h3>
-            <span className="muted">{t('wordSearch.matched', { count: localMatches.length })}</span>
-          </div>
-          {isSearchingLocal ? (
-            <div className="flex justify-center py-4">
-              <Spinner size="sm" />
-            </div>
-          ) : localMatches.length === 0 ? (
-            <p className="muted">{t('wordSearch.emptyLocal')}</p>
-          ) : (
-            <div className="grid gap-2">
-              {localMatches.map((match) => (
-                <Link
-                  key={match.id}
-                  className="no-underline"
-                  to={`/folders/${match.folderId}#word-${match.id}`}
-                >
-                  <div className="grid gap-1 rounded-[10px] border border-border bg-surface px-3 py-2.5 text-foreground transition-colors duration-150 hover:border-accent/30 hover:bg-accent/6">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <strong>{match.word}</strong>
-                      {match.reading ? (
-                        <span className="muted text-[13px]">{match.reading}</span>
-                      ) : null}
-                      <span className="folder-language">
-                        {match.folder?.name ?? match.language.toUpperCase()}
-                      </span>
-                    </div>
-                    {match.meaning ? (
-                      <p className="muted m-0 text-[13px]">{match.meaning}</p>
-                    ) : null}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </article>
-      ) : null}
-
-      <article className="card">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="m-0 text-base">{t('wordSearch.aiTitle')}</h3>
-          <Button variant="outline"
-            type="button"
-            onPress={() => void runAiLookup(activeTerm)}
-            isDisabled={isSearchingAi || !activeTerm}
-          >
-            {isSearchingAi
-              ? t('wordSearch.aiSearching')
-              : wordResult
-                ? t('wordSearch.aiReSearch')
-                : t('wordSearch.aiAsk')}
-          </Button>
-        </div>
-
-        {isSearchingAi || aiProgress > 0 ? (
-          <ProgressBar
-            aria-label={t('wordSearch.aiSearching')}
-            color={isSearchingAi ? 'accent' : 'success'}
-            size="sm"
-            value={aiProgress}
-          >
-            <ProgressBar.Track>
-              <ProgressBar.Fill />
-            </ProgressBar.Track>
-          </ProgressBar>
-        ) : null}
-
-        {isSearchingAi && !wordResult ? (
-          <div className="flex justify-center py-4">
-            <Spinner />
-          </div>
-        ) : null}
-
-        {wordResult ? (
-          <div className="grid gap-3">
+      <div className="flex items-start gap-5">
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
+          <div className="card grid gap-2.5">
             <div className="flex flex-wrap items-center gap-2.5">
-              <strong className="text-[22px] text-foreground">{wordResult.word}</strong>
-              <SpeakButton text={wordResult.word} reading={wordResult.reading} lang={wordResult.language} size="md" />
-              {wordResult.reading ? (
-                <span className="muted text-[13px]">{wordResult.reading}</span>
-              ) : null}
-              {wordResult.partOfSpeech ? (
-                <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-bold text-accent">{wordResult.partOfSpeech}</span>
-              ) : null}
-            </div>
-
-            {wordResult.meaning ? (
-              <p className="m-0 text-[15px]/[1.7] whitespace-pre-wrap text-foreground">{wordResult.meaning}</p>
-            ) : null}
-
-            {wordResult.example ? (
-              <div className="grid gap-1 rounded-xl border border-border bg-foreground/2 px-3.5 py-3">
-                <span className="text-xs font-bold tracking-[0.06em] text-muted uppercase">{t('wordSearch.example')}</span>
-                <p className="m-0 leading-[1.7] whitespace-pre-wrap text-foreground">{wordResult.example}</p>
-              </div>
-            ) : null}
-
-            {wordResult.note ? (
-              <div className="grid gap-1 rounded-xl border border-border bg-foreground/2 px-3.5 py-3">
-                <span className="text-xs font-bold tracking-[0.06em] text-muted uppercase">{t('wordSearch.note')}</span>
-                <p className="m-0 leading-[1.7] whitespace-pre-wrap text-foreground">{wordResult.note}</p>
-              </div>
-            ) : null}
-
-            <div className="flex flex-wrap items-center gap-3 border-t border-border pt-2">
-              <label className="session-inline min-w-[220px] flex-1">
-                <span className="muted">{t('wordSearch.saveTo')}</span>
+              <SearchSuggest
+                ref={searchRef}
+                value={keyword}
+                onChange={setKeyword}
+                onSubmit={submitKeyword}
+                placeholder={t('wordSearch.placeholder')}
+                inputClassName="w-full rounded-xl border border-border bg-surface px-3.5 py-3 text-[15px] text-foreground focus:border-accent focus:ring-3 focus:ring-accent/15 focus:outline-none"
+                className="min-w-[200px] flex-[1_1_240px] max-[720px]:basis-full"
+              />
+              <label className="lang-picker" title="覆盖自动检测的输入语言">
+                <span className="muted">输入</span>
                 <SelectField
-                  value={selectedWordFolderId || undefined}
-                  onChange={(v) => setSelectedWordFolderId(v ?? '')}
-                  isDisabled={wordFolders.length === 0}
-                  placeholder={
-                    wordFolders.length === 0
-                      ? t('wordSearch.noFolderOption')
-                      : undefined
-                  }
-              className="min-w-[180px]"
-                  options={wordFolders
-                    .filter((folder) => folder.language === effectiveLanguage)
-                    .map((folder) => ({
-                      value: folder.id,
-                      label: `${folder.name}(${folder.language.toUpperCase()})`,
-                    }))}
+                  value={sourceOverride}
+                  onChange={(v) => setSourceOverride(v)}
+                  className="min-w-[140px]"
+                  options={[
+                    {
+                      value: 'auto',
+                      label: `自动 (${detectedSource === 'zh' ? '中文' : detectedSource === 'jp' ? '日语' : '英语'})`,
+                    },
+                    { value: 'zh', label: '中文' },
+                    { value: 'jp', label: '日语' },
+                    { value: 'en', label: '英语' },
+                  ]}
                 />
               </label>
-              {wordFolders.length === 0 ? (
-                <Link className="button button--outline" to="/folders">
-                  {t('wordSearch.createFolder')}
-                </Link>
+              {effectiveSource === 'zh' ? (
+                <label className="lang-picker" title="把这个中文词翻译成…">
+                  <span className="muted">查</span>
+                  <SelectField
+                    value={chineseTarget}
+                    onChange={(v) => setChineseTarget(v)}
+                    className="min-w-[90px]"
+                    options={[
+                      { value: 'jp', label: '日语' },
+                      { value: 'en', label: '英语' },
+                    ]}
+                  />
+                </label>
               ) : null}
-              <Button
-                type="button"
-                onPress={() => void handleAddWord()}
-                isDisabled={isSavingWord || wordFolders.length === 0}
-              >
-                {isSavingWord ? t('wordSearch.addingWord') : t('wordSearch.addWord')}
+              <Button type="button" onPress={() => submitKeyword()}>
+                {t('wordSearch.search')}
               </Button>
             </div>
+            {error ? <p className="error-text m-0">{error}</p> : null}
           </div>
-        ) : !isSearchingAi ? (
-          <p className="muted">
-            {hasQuery ? t('wordSearch.aiHintWithQuery') : t('wordSearch.aiHintNoQuery')}
-          </p>
-        ) : null}
-      </article>
+
+          {hasQuery ? (
+            <SourceSection
+              title={t('wordSearch.dictTitle')}
+              aside={
+                <span className="muted">
+                  {t('wordSearch.matched', { count: dictEntries.length })}
+                </span>
+              }
+            >
+              {isSearchingLocal ? (
+                <div className="flex justify-center py-4">
+                  <Spinner size="sm" />
+                </div>
+              ) : dictEntries.length === 0 ? (
+                <p className="muted">{t('wordSearch.dictEmpty')}</p>
+              ) : (
+                <DictEntryResults entries={dictEntries} />
+              )}
+            </SourceSection>
+          ) : null}
+
+          {hasQuery ? (
+            <SourceSection
+              title={t('wordSearch.myLibrary')}
+              aside={
+                <span className="muted">
+                  {t('wordSearch.matched', { count: localMatches.length })}
+                </span>
+              }
+            >
+              {isSearchingLocal ? (
+                <div className="flex justify-center py-4">
+                  <Spinner size="sm" />
+                </div>
+              ) : localMatches.length === 0 ? (
+                <p className="muted">{t('wordSearch.emptyLocal')}</p>
+              ) : (
+                <div className="grid gap-2">
+                  {localMatches.map((match) => (
+                    <Link
+                      key={match.id}
+                      className="no-underline"
+                      to={`/folders/${match.folderId}#word-${match.id}`}
+                    >
+                      <div className="grid gap-1 rounded-[10px] border border-border bg-surface px-3 py-2.5 text-foreground transition-colors duration-150 hover:border-accent/30 hover:bg-accent/6">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <strong>{match.word}</strong>
+                          {match.reading ? (
+                            <span className="muted text-[13px]">{match.reading}</span>
+                          ) : null}
+                          <span className="folder-language">
+                            {match.folder?.name ?? match.language.toUpperCase()}
+                          </span>
+                        </div>
+                        {match.meaning ? (
+                          <p className="muted m-0 text-[13px]">{match.meaning}</p>
+                        ) : null}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </SourceSection>
+          ) : null}
+
+          <SourceSection
+            title={t('wordSearch.aiTitle')}
+            aside={
+              <Button
+                variant="outline"
+                type="button"
+                onPress={() => void runAiLookup(activeTerm)}
+                isDisabled={isSearchingAi || !activeTerm}
+              >
+                {isSearchingAi
+                  ? t('wordSearch.aiSearching')
+                  : wordResult
+                    ? t('wordSearch.aiReSearch')
+                    : t('wordSearch.aiAsk')}
+              </Button>
+            }
+          >
+            {isSearchingAi || aiProgress > 0 ? (
+              <ProgressBar
+                aria-label={t('wordSearch.aiSearching')}
+                color={isSearchingAi ? 'accent' : 'success'}
+                size="sm"
+                value={aiProgress}
+              >
+                <ProgressBar.Track>
+                  <ProgressBar.Fill />
+                </ProgressBar.Track>
+              </ProgressBar>
+            ) : null}
+
+            {isSearchingAi && !wordResult ? (
+              <div className="flex justify-center py-4">
+                <Spinner />
+              </div>
+            ) : null}
+
+            {wordResult ? (
+              <div className="grid gap-3">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <strong className="text-[22px] text-foreground">{wordResult.word}</strong>
+                  <SpeakButton
+                    text={wordResult.word}
+                    reading={wordResult.reading}
+                    lang={wordResult.language}
+                    size="md"
+                  />
+                  {wordResult.reading ? (
+                    <span className="muted text-[13px]">{wordResult.reading}</span>
+                  ) : null}
+                  {wordResult.partOfSpeech ? (
+                    <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-bold text-accent">
+                      {wordResult.partOfSpeech}
+                    </span>
+                  ) : null}
+                </div>
+
+                {wordResult.meaning ? (
+                  <p className="m-0 text-[15px]/[1.7] whitespace-pre-wrap text-foreground">
+                    {wordResult.meaning}
+                  </p>
+                ) : null}
+
+                {wordResult.example ? (
+                  <div className="grid gap-1 rounded-xl border border-border bg-foreground/2 px-3.5 py-3">
+                    <span className="text-xs font-bold tracking-[0.06em] text-muted uppercase">
+                      {t('wordSearch.example')}
+                    </span>
+                    <p className="m-0 leading-[1.7] whitespace-pre-wrap text-foreground">
+                      {wordResult.example}
+                    </p>
+                  </div>
+                ) : null}
+
+                {wordResult.note ? (
+                  <div className="grid gap-1 rounded-xl border border-border bg-foreground/2 px-3.5 py-3">
+                    <span className="text-xs font-bold tracking-[0.06em] text-muted uppercase">
+                      {t('wordSearch.note')}
+                    </span>
+                    <p className="m-0 leading-[1.7] whitespace-pre-wrap text-foreground">
+                      {wordResult.note}
+                    </p>
+                  </div>
+                ) : null}
+
+                <div className="flex flex-wrap items-center gap-3 border-t border-border pt-2">
+                  <label className="session-inline min-w-[220px] flex-1">
+                    <span className="muted">{t('wordSearch.saveTo')}</span>
+                    <SelectField
+                      value={selectedWordFolderId || undefined}
+                      onChange={(v) => setSelectedWordFolderId(v ?? '')}
+                      isDisabled={wordFolders.length === 0}
+                      placeholder={
+                        wordFolders.length === 0
+                          ? t('wordSearch.noFolderOption')
+                          : undefined
+                      }
+                      className="min-w-[180px]"
+                      options={wordFolders
+                        .filter((folder) => folder.language === effectiveLanguage)
+                        .map((folder) => ({
+                          value: folder.id,
+                          label: `${folder.name}(${folder.language.toUpperCase()})`,
+                        }))}
+                    />
+                  </label>
+                  {wordFolders.length === 0 ? (
+                    <Link className="button button--outline" to="/folders">
+                      {t('wordSearch.createFolder')}
+                    </Link>
+                  ) : null}
+                  <Button
+                    type="button"
+                    onPress={() => void handleAddWord()}
+                    isDisabled={isSavingWord || wordFolders.length === 0}
+                  >
+                    {isSavingWord ? t('wordSearch.addingWord') : t('wordSearch.addWord')}
+                  </Button>
+                </div>
+              </div>
+            ) : !isSearchingAi ? (
+              <p className="muted">
+                {hasQuery ? t('wordSearch.aiHintWithQuery') : t('wordSearch.aiHintNoQuery')}
+              </p>
+            ) : null}
+          </SourceSection>
+        </div>
+
+        <DictIndexPanel query={activeTerm} onPick={handlePickFromIndex} />
+      </div>
     </section>
   )
 }
