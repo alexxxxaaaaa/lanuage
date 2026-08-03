@@ -701,12 +701,17 @@ export function PodcastDetailPage() {
               className={`group relative flex items-start gap-3 rounded-[10px] py-2 pr-[38px] pl-2.5 transition-colors duration-150 ${
                 isEditing
                   ? 'cursor-default bg-accent-soft'
-                  : `cursor-pointer hover:bg-surface-secondary ${isActive ? 'bg-accent-soft' : ''}`
+                  : isPlaying
+                    ? `cursor-pointer hover:bg-surface-secondary ${isActive ? 'bg-accent-soft' : ''}`
+                    : `cursor-text ${isActive ? 'bg-accent-soft' : ''}`
               }`}
               onClick={() => {
                 // Don't seek while editing — the user is trying to interact
                 // with the form, not jump elsewhere.
                 if (isEditing) return
+                // Paused = the user is reading / selecting text to copy a word;
+                // a jump-to-seek would steal the click. Only seek while playing.
+                if (!isPlaying) return
                 seekToLine(idx)
               }}
               role="button"
