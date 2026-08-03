@@ -30,8 +30,10 @@ export async function createFolder(userId: string, name: string, language: strin
 export async function getFolders(userId: string) {
   const folders = await prisma.folder.findMany({
     where: { userId },
+    // Newest folder first — a just-created 词单 shows at the top of the list
+    // and of the "add to folder" picker (both read this same ordering).
     orderBy: {
-      name: 'asc',
+      createdAt: 'desc',
     },
     include: {
       _count: {
