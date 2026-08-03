@@ -4,6 +4,7 @@ import type { DictDirection } from '../lib/dictIndex'
 export type DictSense = {
   glosses: string[]
   examples?: { text: string; translation?: string }[]
+  pos?: string
 }
 
 /** 本地 Wiktextract 词库的一条义项。 */

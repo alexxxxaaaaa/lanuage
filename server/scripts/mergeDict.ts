@@ -13,10 +13,16 @@ import { fileURLToPath } from 'node:url'
 import { pinyin } from 'pinyin-pro'
 import { sortKeyFor } from '../../shared/dictSort'
 import { dictFileFor, openDictWriter, readDictLines, resolveDictFile } from './dictFile'
+import {
+  enrichZhWiktionarySenses,
+  getJapaneseTokenizer,
+  inferJapaneseReading,
+  type DictSense,
+} from './dictEnrichment'
 
 type Direction = 'ja-zh' | 'zh-ja'
 type Example = { text: string; translation?: string }
-type Sense = { glosses: string[]; examples?: Example[] }
+type Sense = DictSense
 type Entry = {
   word: string
   reading: string
@@ -87,13 +93,20 @@ function normalizeSenses(value: unknown): Sense[] {
         glosses.push(gloss)
       }
     }
-    if (glosses.length === 0) continue
-
-    const key = JSON.stringify(glosses)
+    const sensePos = cleanSingleLine((raw as { pos?: unknown }).pos)
     const examples = normalizeExamples((raw as { examples?: unknown }).examples)
+    // A source sense may legitimately consist of a POS header plus examples.
+    // Keeping it also makes an in-place enrichment pass idempotent.
+    if (glosses.length === 0 && examples.length === 0) continue
+    const key = JSON.stringify([sensePos, glosses])
     const existing = senses.get(key)
     if (!existing) {
-      senses.set(key, examples.length > 0 ? { glosses, examples } : { glosses })
+      senses.set(
+        key,
+        examples.length > 0
+          ? { glosses, examples, ...(sensePos ? { pos: sensePos } : {}) }
+          : { glosses, ...(sensePos ? { pos: sensePos } : {}) },
+      )
       continue
     }
 
@@ -103,7 +116,12 @@ function normalizeSenses(value: unknown): Sense[] {
   return [...senses.values()]
 }
 
-function normalizeEntry(raw: unknown, direction: Direction, file: string, lineNo: number): Entry | null {
+async function normalizeEntry(
+  raw: unknown,
+  direction: Direction,
+  file: string,
+  lineNo: number,
+): Promise<Entry | null> {
   if (!raw || typeof raw !== 'object') throw new Error(`${file}:${lineNo}: 不是 JSON 对象`)
   const value = raw as Record<string, unknown>
   if (value.direction !== direction) {
@@ -119,6 +137,9 @@ function normalizeEntry(raw: unknown, direction: Direction, file: string, lineNo
 
   let reading = cleanSingleLine(value.reading)
   if (!reading && direction === 'ja-zh' && KANA_HEADWORD.test(word)) reading = word
+  if (!reading && direction === 'ja-zh' && source === 'zhwiktionary') {
+    reading = inferJapaneseReading(await getJapaneseTokenizer(), word)
+  }
   if (!reading && direction === 'zh-ja' && HAS_HAN.test(word)) {
     try {
       reading = pinyin(word, { separator: '', nonZh: 'removed', toneType: 'symbol' })
@@ -127,8 +148,13 @@ function normalizeEntry(raw: unknown, direction: Direction, file: string, lineNo
     }
   }
   const romaji = cleanSingleLine(value.romaji)
-  const pos = cleanSingleLine(value.pos) || 'unknown'
-  const senses = normalizeSenses(value.senses)
+  let pos = cleanSingleLine(value.pos) || 'unknown'
+  let senses = normalizeSenses(value.senses)
+  if (direction === 'ja-zh' && source === 'zhwiktionary') {
+    const enriched = enrichZhWiktionarySenses(pos, senses, word)
+    pos = enriched.pos
+    senses = enriched.senses
+  }
   if (senses.length === 0) return null
 
   return {
@@ -172,7 +198,7 @@ async function readInto(
     } catch (error) {
       throw new Error(`${file}:${read}: JSON 解析失败`, { cause: error })
     }
-    const entry = normalizeEntry(raw, direction, file, read)
+    const entry = await normalizeEntry(raw, direction, file, read)
     if (!entry) {
       dropped++
       continue
@@ -241,15 +267,17 @@ async function writeOutputs(direction: Direction, entries: Entry[]): Promise<num
 
 async function main() {
   const inputDir = argValue('--input-dir')
-  if (!inputDir) throw new Error('缺少 --input-dir /path/to/output')
+  const inPlace = process.argv.includes('--in-place')
+  if (!inputDir && !inPlace) throw new Error('缺少 --input-dir /path/to/output（或使用 --in-place）')
 
   for (const direction of DIRECTIONS) {
     const entries = new Map<string, Entry>()
     // 输入两侧都用 resolveDictFile：本仓库的是 .jsonl.gz，外部转换出来的多半是明文 .jsonl。
     const current = resolveDictFile(OUT_DIR, direction)
-    const added = resolveDictFile(inputDir, direction)
     const currentStats = await readInto(current, direction, entries)
-    const addedStats = await readInto(added, direction, entries)
+    const addedStats = inputDir
+      ? await readInto(resolveDictFile(inputDir, direction), direction, entries)
+      : { read: 0, dropped: 0, merged: 0 }
     const sorted = [...entries.values()].sort(compareEntries)
     const indexRows = await writeOutputs(direction, sorted)
     // 读的可能是上一版，写完才是这次的结果，所以按写出的文件报体积。

@@ -2,8 +2,7 @@ import { SpeakButton } from './SpeakButton'
 import { useI18n } from '../i18n'
 import type { DictEntry } from '../api/dict'
 
-/** 释义行里形如「1.」「2.」的编号 —— 有编号的行才是义项，其余是词性标注或例句。 */
-const NUMBERED = /^\d+[.、]/
+const NUMBERED = /^(\d+)[.、．]\s*(.*)$/
 
 const SOURCE_LABEL: Record<string, string> = {
   zhwiktionary: 'wordSearch.sourceZhWiktionary',
@@ -12,6 +11,17 @@ const SOURCE_LABEL: Record<string, string> = {
   'shinseiki-jc': 'wordSearch.sourceShinseiki',
   moji: 'wordSearch.sourceMoji',
   'baishuishe-cj': 'wordSearch.sourceBaishuishe',
+}
+
+const SOURCE_LINK: Record<string, { href: string; title: string }> = {
+  zhwiktionary: {
+    href: 'https://zh.wiktionary.org/',
+    title: '中文维基词典 · CC BY-SA 4.0',
+  },
+  jawiktionary: {
+    href: 'https://ja.wiktionary.org/',
+    title: '日本語版ウィクショナリー · CC BY-SA 4.0',
+  },
 }
 
 type Props = {
@@ -40,9 +50,21 @@ export function DictEntryResults({ entries }: Props) {
       {[...groups].map(([source, items]) => (
         <section key={source} className="grid gap-2">
           <div className="flex items-center gap-2">
-            <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-bold text-accent">
-              {t(SOURCE_LABEL[source] ?? source)}
-            </span>
+            {SOURCE_LINK[source] ? (
+              <a
+                className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-bold text-accent hover:underline"
+                href={SOURCE_LINK[source].href}
+                target="_blank"
+                rel="noreferrer"
+                title={SOURCE_LINK[source].title}
+              >
+                {t(SOURCE_LABEL[source] ?? source)} ↗
+              </a>
+            ) : (
+              <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-bold text-accent">
+                {t(SOURCE_LABEL[source] ?? source)}
+              </span>
+            )}
             <span className="muted text-[12px]">
               {items[0].direction === 'ja-zh'
                 ? t('wordSearch.dirJaZh')
@@ -62,6 +84,8 @@ export function DictEntryResults({ entries }: Props) {
 function DictEntryCard({ entry }: { entry: DictEntry }) {
   // 词库里日中的读音是假名、中日是拼音；发音只对日语有意义。
   const isJapanese = entry.direction === 'ja-zh'
+  const sensePos = new Set(entry.senses.map((sense) => sense.pos).filter(Boolean))
+  const showSensePos = sensePos.size > 1
 
   return (
     <div className="grid gap-2 rounded-xl border border-border bg-foreground/2 px-3.5 py-3">
@@ -85,19 +109,27 @@ function DictEntryCard({ entry }: { entry: DictEntry }) {
 
       {entry.senses.map((sense, senseIndex) => (
         <div key={senseIndex} className="grid gap-1">
-          {sense.glosses.map((gloss, glossIndex) => (
-            <p
-              key={glossIndex}
-              className={
-                // 编号行左移一点做悬挂缩进，词性标注那类无编号行不缩进。
-                NUMBERED.test(gloss)
-                  ? 'm-0 pl-4 -indent-4 text-[14px]/[1.7] text-foreground'
-                  : 'm-0 text-[14px]/[1.7] text-foreground'
-              }
-            >
-              {gloss}
-            </p>
-          ))}
+          {showSensePos && sense.pos ? (
+            <span className="w-fit rounded-full bg-foreground/5 px-2 py-0.5 text-[11px] text-muted">
+              {sense.pos}
+            </span>
+          ) : null}
+
+          {sense.glosses.map((gloss, glossIndex) => {
+            const numbered = gloss.match(NUMBERED)
+            return numbered ? (
+              <div key={glossIndex} className="grid grid-cols-[1.5rem_1fr] gap-1 text-[14px]/[1.7] text-foreground">
+                <span className="pt-px text-right font-semibold tabular-nums text-accent">
+                  {numbered[1]}.
+                </span>
+                <p className="m-0 min-w-0">{numbered[2]}</p>
+              </div>
+            ) : (
+              <p key={glossIndex} className="m-0 text-[14px]/[1.7] text-foreground">
+                {gloss}
+              </p>
+            )
+          })}
 
           {sense.examples?.map((example, exampleIndex) => (
             <div

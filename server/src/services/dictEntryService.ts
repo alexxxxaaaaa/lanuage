@@ -14,6 +14,8 @@ import { AppError } from '../errors/AppError'
 export type DictSense = {
   glosses: string[]
   examples?: { text: string; translation?: string }[]
+  /** 中文维基的压缩段落可能在同一词条内切换词性。 */
+  pos?: string
 }
 
 export type DictEntryDto = {

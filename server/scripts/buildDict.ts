@@ -25,6 +25,12 @@ import { fileURLToPath } from 'node:url'
 import { pinyin } from 'pinyin-pro'
 import { sortKeyFor } from '../../shared/dictSort'
 import { dictFileFor, openDictWriter } from './dictFile'
+import {
+  enrichZhWiktionarySenses,
+  getJapaneseTokenizer,
+  inferJapaneseReading,
+  type DictSense,
+} from './dictEnrichment'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const REPO = join(ROOT, '..')
@@ -38,10 +44,7 @@ const SOURCES = [
 ]
 
 /** 词库条目 —— 与 Prisma 的 DictEntry 字段对齐。 */
-type Sense = {
-  glosses: string[]
-  examples?: { text: string; translation?: string }[]
-}
+type Sense = DictSense
 type Entry = {
   word: string
   /** 日中为假名读音，中日为官話拼音。 */
@@ -237,19 +240,26 @@ async function extract(job: Job): Promise<Entry[]> {
     const word: string = (raw.word ?? '').trim()
     if (!word) continue
 
-    const { senses, recoveredReading, looseFallback } = normalizeSenses(raw, word)
+    const { senses: normalizedSenses, recoveredReading, looseFallback } = normalizeSenses(raw, word)
+    const enriched = job.source === 'zhwiktionary'
+      ? enrichZhWiktionarySenses(pos, normalizedSenses, word)
+      : { pos, senses: normalizedSenses }
+    const senses = enriched.senses
     if (senses.length === 0) continue
 
-    const reading =
+    let reading =
       job.langCode === 'ja'
         ? japaneseReading(raw) || recoveredReading || looseFallback
         : mandarinPinyin(raw) || fillPinyin(word)
+    if (job.langCode === 'ja' && !reading) {
+      reading = inferJapaneseReading(await getJapaneseTokenizer(), word)
+    }
 
     entries.push({
       word,
       reading,
       romaji: job.langCode === 'ja' ? japaneseRomaji(raw) : '',
-      pos,
+      pos: enriched.pos,
       senses,
       direction: job.direction,
       source: job.source,

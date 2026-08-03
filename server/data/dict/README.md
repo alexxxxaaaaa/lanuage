@@ -7,6 +7,7 @@
 npm run build:dict          # 抽取 → 本目录 *.jsonl.gz + client/public/dict/*.idx
 npm run merge:dict -- --input-dir "/path/to/output" # 同源清洗合并 + 重建索引
                             # --input-dir 里的 .jsonl / .jsonl.gz 都能读
+npm run merge:dict -- --in-place # 原地重跑词性/例句/读音增强，不加入新来源
 npm run import:dict         # 灌本地 SQLite
 npm run import:dict -- --d1 # 生成 D1 分片 SQL → server/d1_dict/
 bash d1_dict/apply.sh       # 打到线上 D1
@@ -18,7 +19,7 @@ bash d1_dict/apply.sh       # 打到线上 D1
 
 | 文件 | 方向 | 词条数 | 原始 | gzip | 读音覆盖 |
 |---|---|---|---|---|---|
-| `ja-zh.jsonl.gz` | 日 → 中 | 462,366 | 164.8 MB | 34.5 MB | 95.4%（假名） |
+| `ja-zh.jsonl.gz` | 日 → 中 | 462,366 | 165.4 MB | 36.6 MB | 96.9%（假名） |
 | `zh-ja.jsonl.gz` | 中 → 日 | 109,753 | 39.0 MB | 8.4 MB | 99.9%（拼音） |
 
 **落盘是 gzip 的**，读写都走 [`scripts/dictFile.ts`](../../scripts/dictFile.ts)。
@@ -36,7 +37,7 @@ bash d1_dict/apply.sh       # 打到线上 D1
   "reading": "べんきょう",   // 日中为假名；中日为官話拼音
   "romaji": "benkyō",       // 仅日中
   "pos": "unknown",
-  "senses": [{ "glosses": ["学习。"], "examples": [{ "text": "…", "translation": "…" }] }],
+  "senses": [{ "pos": "名·他サ", "glosses": ["学习。"], "examples": [{ "text": "…", "translation": "…" }] }],
   "direction": "ja-zh",
   "source": "zhwiktionary",
   "sortKey": "へんきよう"    // 五十音順 / 拼音序，见下
@@ -50,7 +51,7 @@ bash d1_dict/apply.sh       # 打到线上 D1
 
 | 文件 | 行数 | 原始 | gzip |
 |---|---|---|---|
-| `ja-zh.idx` | 305,405 | 13.2 MB | — |
+| `ja-zh.idx` | 302,960 | 13.2 MB | — |
 | `zh-ja.idx` | 87,175 | 2.3 MB | — |
 
 排序键的算法在 [`shared/dictSort.ts`](../../../shared/dictSort.ts) —— 构建脚本用它定序，
@@ -79,16 +80,19 @@ bash d1_dict/apply.sh       # 打到线上 D1
 
 ## 已知限制
 
-- `pos` 有 73,973 条为 `unknown` —— 中文维基词典把整个词条段落压进单个 gloss 字段，
-  没有独立标注词性。词性信息通常在释义首行（如 `名·他サ`）。
+- 中文维基来源原有 73,964 条 `pos: unknown`。构建期会抽取释义段落里的词性标记
+  （包括 `名·他サ`、`名?他サ` 等源数据变体），目前能可靠恢复 5,528 条；其余多数是
+  没有任何词性标记的技术词，不能根据词尾臆测。一个词条内切换词性时同时写入
+  `senses[].pos`，条目级 `pos` 保存去重后的汇总。
 - 中日的拼音只有 33.9% 来自日语维基词典本身（源头 46,841 条里 30,166 条没有 sounds
   字段），其余在构建期用 `pinyin-pro` 补齐，按词组消歧多音字。它是 server 的
   devDependency，只在构建期跑，拼音直接烤进数据，运行时没有这个依赖。
 - 中日的 `sounds` 混有粤语/客家/闽南/中古音/上古音，脚本只取官話拼音。
-- 日中仍有 16% 无读音 —— 多是中文维基词典里标成日语但实为汉语词的条目
-  （符號、氦之类）。它们排在索引末尾，按词头仍能查到。
-- 释义按行拆分后未再区分「定义行」与「例句行」—— 强行切分会误伤，交由使用方按
-  `^\d+\.` 等模式自行判断。
+- 日中缺读音从 21,406 条降到 14,474 条（覆盖率 96.9%）。Kuromoji 只补中文维基来源，
+  且会拒绝未知汉字、姓名和单汉字 token；剩余条目宁可留空，避免给被误标成日语的
+  汉语词或多音词烤入错误读音。
+- 中文维基的压缩段落会按编号拆成义项；只有相邻且脚本特征明确的日文／中文行，或
+  含完整词头的全汉字日文行，才组成 `examples[]`。无法可靠判断的行继续保留在 gloss。
 
 ## 许可与署名
 

@@ -18,6 +18,7 @@
     "import:qbank": "node --import tsx scripts/importQbank.ts",
     "build:dict": "node --import tsx scripts/buildDict.ts",
     "merge:dict": "node --import tsx scripts/mergeDict.ts",
+    "test:dict": "node --import tsx --test scripts/dictEnrichment.test.ts",
     "import:dict": "node --import tsx scripts/importDict.ts",
     "export:qbank-d1-sql": "node --import tsx scripts/exportQbankD1Sql.ts",
     "upload:qbank-media": "bash scripts/uploadQbankMedia.sh",
@@ -40,6 +41,7 @@
     "openai": "^7.3.0"
   },
   "devDependencies": {
+    "@sglkc/kuromoji": "^1.1.0",
     "@cloudflare/workers-types": "^5.20260801.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^26.1.2",
