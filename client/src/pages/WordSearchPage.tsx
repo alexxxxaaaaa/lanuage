@@ -387,7 +387,11 @@ export function WordSearchPage() {
       <div className="section-header">
         <div>
           <h2>{t('wordSearch.title')}</h2>
-          <p className="muted">{t('wordSearch.subtitle')}</p>
+          <p className="muted">
+            {localDictEnabled
+              ? t('wordSearch.subtitle')
+              : t('wordSearch.subtitleAiOnly')}
+          </p>
         </div>
       </div>
 
@@ -444,7 +448,9 @@ export function WordSearchPage() {
 
           {hasQuery ? (
             <SourceSection
-              title={t('wordSearch.dictTitle')}
+              // 本地词库关闭（或查英语）时区块里只有 AI 内容，标题直接叫
+              // 「AI 释义」，不再出现「综合词库 / 本地」的概念。
+              title={showLocalBlock ? t('wordSearch.dictTitle') : t('wordSearch.sourceAi')}
               aside={
                 showLocalBlock ? (
                   <span className="muted">
@@ -476,12 +482,17 @@ export function WordSearchPage() {
                       : 'grid gap-3'
                   }
                 >
+                  {/* 标题栏：混排模式下用 Chip 标出 AI 小节；纯 AI 模式下区块
+                      标题已经是「AI 释义」，只剩右侧的操作按钮。 */}
+                  {showLocalBlock || aiView ? (
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Chip size="sm" variant="soft" color="accent">
-                      <Chip.Label>{t('wordSearch.sourceAi')}</Chip.Label>
-                    </Chip>
+                    {showLocalBlock ? (
+                      <Chip size="sm" variant="soft" color="accent">
+                        <Chip.Label>{t('wordSearch.sourceAi')}</Chip.Label>
+                      </Chip>
+                    ) : null}
                     {aiView ? (
-                      <div className="flex items-center gap-1.5">
+                      <div className="ml-auto flex items-center gap-1.5">
                         <Button
                           variant="secondary"
                           size="sm"
@@ -509,6 +520,7 @@ export function WordSearchPage() {
                       </div>
                     ) : null}
                   </div>
+                  ) : null}
 
                   {isSearchingAi || aiProgress > 0 ? (
                     <ProgressBar

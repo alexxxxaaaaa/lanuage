@@ -9,7 +9,7 @@
  *
  * 两边都收录的词只占一行，标成 both，展示时两个标签一起挂。
  */
-import { kanaSortKey, pinyinSortKey } from '../../../shared/dictSort'
+import { kanaSortKey, pinyinSortKey, sortKeyFor } from '../../../shared/dictSort'
 
 export type DictDirection = 'ja-zh' | 'zh-ja'
 
@@ -47,8 +47,9 @@ const HAS_LATIN = /[a-zA-Z]/
  * 英语没有本地词库可对齐，按小写词头排即可。
  */
 const SORT_KEY: Record<IndexKind, (word: UserWord) => string> = {
-  'ja-zh': (w) => kanaSortKey(w.reading || w.word),
-  'zh-ja': (w) => pinyinSortKey(w.reading),
+  // sortKeyFor 与构建脚本同源：无读音的词条沉底而不是浮在最前。
+  'ja-zh': (w) => sortKeyFor('ja-zh', w.reading || w.word, w.word),
+  'zh-ja': (w) => sortKeyFor('zh-ja', w.reading, w.word),
   en: (w) => w.word.toLowerCase(),
 }
 
@@ -186,15 +187,23 @@ export class DictIndex {
     const q = query.trim()
     if (!q || this.size === 0) return 0
 
+    // 词头完全一致优先 —— 点击索引行回填词头、或输入本身就是完整词头
+    // （如「食べる」）时，按读音解释混在词头里的假名会定位到别的行：
+    // kanaSortKey 丢掉汉字只剩「べる」，而该行的 sortKey 是「たべる」。
+    // 词条少时高亮会明显跳错行。
+    const order = this.ensureWordOrder()
+    const wordAt = lowerBound(this.size, q, (i) => this.rows[order[i]].word)
+    if (wordAt < this.size && this.rows[order[wordAt]].word === q) {
+      return order[wordAt]
+    }
+
     const key = this.readingKey(q)
     if (key) {
       const at = lowerBound(this.size, key, (i) => this.rows[i].sortKey)
       return Math.min(at, this.size - 1)
     }
 
-    const order = this.ensureWordOrder()
-    const at = lowerBound(this.size, q, (i) => this.rows[order[i]].word)
-    return order[Math.min(at, this.size - 1)]
+    return order[Math.min(wordAt, this.size - 1)]
   }
 
   /**

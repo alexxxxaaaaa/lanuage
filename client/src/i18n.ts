@@ -336,6 +336,7 @@ export const messages: Record<UiLanguage, DictNode> = {
     wordSearch: {
       title: '词典搜索',
       subtitle: '词典与 AI 释义整合在一起：查本地词库和单词库，需要时一键生成 AI 释义。',
+      subtitleAiOnly: '查我的单词库，需要时一键生成 AI 释义。',
       placeholder: '输入中文 / 英语 / 日语，例如：礼貌地拒绝',
       search: '搜索',
       enterKeyword: '请输入要搜索的词',
@@ -868,6 +869,7 @@ export const messages: Record<UiLanguage, DictNode> = {
     wordSearch: {
       title: 'Dictionary',
       subtitle: 'Dictionaries and AI definitions in one place: search first, generate on demand.',
+      subtitleAiOnly: 'Search your library and generate AI definitions on demand.',
       placeholder: 'Type Chinese / English / Japanese, e.g. politely decline',
       search: 'Search',
       enterKeyword: 'Please enter a search term',
@@ -1401,6 +1403,7 @@ export const messages: Record<UiLanguage, DictNode> = {
     wordSearch: {
       title: '辞書検索',
       subtitle: '辞書と AI 釈義を一体化：まず辞書と単語帳を検索し、必要なら AI 釈義を生成します。',
+      subtitleAiOnly: 'マイ単語を検索し、必要なら AI 釈義を生成します。',
       placeholder: '中国語/英語/日本語を入力（例：丁寧に断る）',
       search: '検索',
       enterKeyword: '検索語を入力してください',
