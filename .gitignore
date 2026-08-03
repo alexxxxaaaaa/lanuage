@@ -50,6 +50,8 @@ N1/**/*.pdf
 N1/**/*.png
 N1/**/.DS_Store
 
-# n1-qbank 全部入 git，包括听力音频（约 1.6 GB / 931 个 mp3）。
-# 有意为之：题库要自包含，不依赖 R2 等外部存储的可用性。
-# 注意最大单文件 2025.12/full.mp3 约 64 MB，超过 GitHub 50 MB 的警告线（未超 100 MB 硬限制）。
+# 听力音频（1073 个 mp3 / 1.8 GB）曾经入 git，后来把仓库撑到 1.2 GB，
+# 已用 git filter-repo 从全部历史里剔除。现在只走 R2 分发（uploadQbankMedia.sh），
+# 生产数据是 D1 的 QbankQuestion.audio + R2 对象，md 里的 `- audio:` 路径照旧。
+# 本地要重新抓可以跑 server/scripts/nadou/fetch_audio.py，抓下来别再提交。
+n1-qbank/audio/

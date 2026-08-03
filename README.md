@@ -123,6 +123,7 @@ npm run export:qbank-d1-sql      # 生成 d1_qbank/*.sql（31 片，gitignored�
 bash d1_qbank/apply.sh           # 逐片打到线上 D1
 
 # 3. 媒体：听力 mp3 + 情報検索图片 → R2 公共桶 jlpt 的 qbank/ 前缀
+#    mp3 不入 git（R2 是唯一线上副本），本地得先跑 n1-qbank 的抓取脚本才有
 npm run upload:qbank-media       # 1102 个文件 / 约 1.6 GB，可断点续传
 ```
 

@@ -26,17 +26,21 @@ n1-qbank/
 ├── markdown/                题库 md，每年月一个文件（入 git）
 │   └── <YYYY>年<MM>月_N1_题库.md
 ├── images/                  情報検索等图片型材料（入 git，58 张）
-├── audio/                   听力音频，每题一段（入 git，约 1.9 GB）
+├── audio/                   听力音频，**不入 git**（见下），本地跑脚本才有
 │   ├── <年月>/聴解N-M.mp3    题库引用的就是这些，1041 个
 │   ├── <年月>/材料N.mp3      纳豆按材料另存的一份，没有题引用（见下）
 │   └── 2025.*/full.mp3      整卷录音（含指示语与作答间隔），也没有题引用
 └── index.json               筛选索引，仅元数据不含正文（入 git，940 KB）
 ```
 
-音频入 git 是有意为之（见 `.gitignore` 里的说明）：题库要自包含，不依赖外部存储的可用性。
-网站那一侧另外把它们同步到 R2 做分发，见 `server/scripts/uploadQbankMedia.sh`；
-**传哪些以 `index.json` 为准**（被题目引用的 1041 个），`材料N.mp3`、`full.mp3`
-这类没人引用的不传。
+音频原本全量入 git（1073 个 mp3 / 1.8 GB），把仓库撑到 1.2 GB，已用 `git filter-repo`
+从全部历史里剔除，`.gitignore` 现在忽略 `n1-qbank/audio/`。**唯一的线上副本是 R2**，
+上传脚本见 `server/scripts/uploadQbankMedia.sh`，**传哪些以 `index.json` 为准**
+（被题目引用的 1041 个），`材料N.mp3`、`full.mp3` 这类没人引用的不传。
+md 里的 `- audio:` 路径没变，`importQbank.ts` 的解析契约也没变。
+
+本地要重新拿到音频，跑一遍下面「从零重跑」里的 `fetch_audio.py` /
+`fetch_moji_segments.py` / `fetch_moji_audio_patch.py` 三步；抓下来别再提交。
 
 ## 听力音频是怎么补齐的
 
@@ -59,7 +63,7 @@ n1-qbank/
 
 > 纳豆其实还按材料另存过一份 `材料N.mp3`，内容与那段大体相同，但各年份长短不一
 > （比 mojidict 的分段 -49s ~ +26s 不等），且从来没被 md 引用过。统一走 mojidict 是为了
-> 来源单一、时长稳定；这些文件留在 repo 里当原始素材，不上传。
+> 来源单一、时长稳定；这些文件既不入 git 也不上传 R2，只在本地重跑脚本时会落盘。
 
 ## markdown 格式
 
