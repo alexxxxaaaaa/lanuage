@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Button, Card, Chip, Spinner, toast } from '@heroui/react'
+import { Button, EmptyState, Table, Tooltip, toast } from '@heroui/react'
+import { RotateCcw } from 'lucide-react'
 import { Link, useNavigate } from 'react-router'
 
 import {
@@ -14,7 +15,13 @@ import { confirm } from '../../components/ui/dialog'
 import { useOnPageReactivated } from '../../components/layout/pageContext'
 import { useExamSettings } from '../../store/examSettings'
 import { examModeLabel, paperLabel } from './constants'
-import { ROW, ROW_LABEL, ROW_LINK, ROW_MAIN, ROW_TITLE } from './styles'
+import {
+  ACTION_LINK,
+  CELL_ACTIONS,
+  CELL_MAIN,
+  CELL_SUB,
+  TABLE_DENSE,
+} from './styles'
 
 /**
  * 模拟考试的卷子列表：历年历次各一行，开考 / 继续 / 看成绩 / 重置。
@@ -23,8 +30,8 @@ import { ROW, ROW_LABEL, ROW_LINK, ROW_MAIN, ROW_TITLE } from './styles'
  */
 
 const PHASE_TEXT: Record<ExamPhase, string> = {
-  written: '笔试进行中',
-  listening: '听力进行中',
+  written: '笔试中',
+  listening: '听力中',
   done: '已完成',
 }
 
@@ -87,14 +94,6 @@ export function ExamPaperList() {
     }
   }
 
-  if (!papers) {
-    return (
-      <div className="grid place-items-center py-12">
-        <Spinner />
-      </div>
-    )
-  }
-
   return (
     <div className="grid gap-3">
       <p className="muted m-0 text-[13px]">
@@ -106,67 +105,100 @@ export function ExamPaperList() {
         。
       </p>
 
-      <ul className="m-0 grid list-none gap-2 p-0">
-        {papers.map((paper) => {
-          const key = `${paper.year}-${paper.month}`
-          const attempt = paper.attempt
-          const isBusy = busy === key
-          return (
-            <Card<'li'>
-              className="gap-0 overflow-hidden p-0"
-              key={key}
-              render={(props) => <li {...props} />}
+      <Table>
+        <Table.ScrollContainer>
+          <Table.Content aria-label="模拟考试卷次" className={TABLE_DENSE}>
+            <Table.Header>
+              <Table.Column isRowHeader>卷次</Table.Column>
+              <Table.Column>进度</Table.Column>
+              <Table.Column className="text-end">操作</Table.Column>
+            </Table.Header>
+            <Table.Body
+              renderEmptyState={() => (
+                <EmptyState className="py-10 text-center text-sm text-muted">
+                  {papers ? '题库还没导入。' : '加载中…'}
+                </EmptyState>
+              )}
             >
-              <div className={ROW}>
-                <span className={ROW_LABEL}>{paperLabel(paper.year, paper.month)}</span>
-                <div className={ROW_MAIN}>
-                  <p className={ROW_TITLE}>新日本語能力試験 N1</p>
-                  <p className="muted mt-0.5 mb-0 text-xs tabular-nums">
-                    共 {paper.writtenTotal + paper.listeningTotal} 题 · 笔试 {paper.writtenTotal} ·
-                    听力 {paper.listeningTotal}
-                    {attempt ? ` · ${PHASE_TEXT[attempt.phase]}` : ''}
-                    {attempt && attempt.phase !== 'done' ? ` · 已答 ${attempt.answered}` : ''}
-                  </p>
-                </div>
+              {(papers ?? []).map((paper) => {
+                const key = `${paper.year}-${paper.month}`
+                const attempt = paper.attempt
+                const isBusy = busy === key
+                return (
+                  <Table.Row id={key} key={key} textValue={paperLabel(paper.year, paper.month)}>
+                    <Table.Cell>
+                      <div className={CELL_MAIN}>{paperLabel(paper.year, paper.month)}</div>
+                      <div className={CELL_SUB}>
+                        {paper.writtenTotal + paper.listeningTotal} 题
+                      </div>
+                    </Table.Cell>
 
-                {attempt?.score ? (
-                  <Chip color={attempt.score.passed ? 'success' : 'danger'} variant="soft">
-                    估算 {attempt.score.points} / 180
-                  </Chip>
-                ) : attempt ? (
-                  <Chip color="warning" variant="soft">
-                    {examModeLabel(attempt.mode)}模式
-                  </Chip>
-                ) : null}
+                    {/* 状态和它的那个数字叠成两行：进行中看已答多少，考完看估算分。 */}
+                    <Table.Cell>
+                      {attempt ? (
+                        <>
+                          <div className={CELL_MAIN}>{PHASE_TEXT[attempt.phase]}</div>
+                          {attempt.score ? (
+                            // 着色只落在得分那个数上：满分是常量，染了也没多告诉一句。
+                            <div className={CELL_SUB}>
+                              <span
+                                className={
+                                  attempt.score.passed ? 'text-success' : 'text-danger'
+                                }
+                              >
+                                {attempt.score.points}
+                              </span>{' '}
+                              / 180
+                            </div>
+                          ) : (
+                            <div className={CELL_SUB}>已答 {attempt.answered}</div>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-muted">未开始</span>
+                      )}
+                    </Table.Cell>
 
-                {attempt ? (
-                  <Link className={ROW_LINK} to={examHref(paper)}>
-                    {attempt.phase === 'done' ? '查看成绩' : '继续考试'}
-                  </Link>
-                ) : (
-                  <Button
-                    className="shrink-0"
-                    isPending={isBusy}
-                    size="sm"
-                    onPress={() => void start(paper)}
-                  >
-                    开始考试
-                  </Button>
-                )}
-                <Button
-                  className="shrink-0"
-                  isDisabled={!attempt || isBusy}
-                  size="sm"
-                  variant="ghost"
-                  onPress={() => void reset(paper)}
-                >
-                  重置
-                </Button>
-              </div>
-            </Card>
-          )
-        })}
-      </ul>
+                    <Table.Cell>
+                      <div className={CELL_ACTIONS}>
+                        {attempt ? (
+                          <Link className={ACTION_LINK} to={examHref(paper)}>
+                            {attempt.phase === 'done' ? '看成绩' : '继续'}
+                          </Link>
+                        ) : (
+                          <Button
+                            isPending={isBusy}
+                            size="sm"
+                            onPress={() => void start(paper)}
+                          >
+                            开始考试
+                          </Button>
+                        )}
+                        {/* 没考过就没得重置 —— 与其摆一个永远灰着的按钮，不如不占这一格。 */}
+                        {attempt ? (
+                          <Tooltip delay={300}>
+                            <Button
+                              isIconOnly
+                              aria-label="重置这套卷"
+                              isDisabled={isBusy}
+                              size="sm"
+                              variant="ghost"
+                              onPress={() => void reset(paper)}
+                            >
+                              <RotateCcw className="size-4" aria-hidden />
+                            </Button>
+                            <Tooltip.Content>重置这套卷</Tooltip.Content>
+                          </Tooltip>
+                        ) : null}
+                      </div>
+                    </Table.Cell>
+                  </Table.Row>
+                )
+              })}
+            </Table.Body>
+          </Table.Content>
+        </Table.ScrollContainer>
+      </Table>
     </div>
   )
 }

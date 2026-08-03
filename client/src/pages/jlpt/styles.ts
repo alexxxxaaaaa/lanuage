@@ -3,16 +3,41 @@
  * 目录、精练、模拟考试渲染的是同一批题，版式也该是同一套。
  */
 
-// ===== 目录/列表行 =====
-// 每一行都是同一个骨架：左边标签、中间说明、右边状态 + 入口。
-// ≤900px 时说明文字换到第三行独占一行，标签和状态并排。
-export const ROW =
-  'flex items-center gap-3.5 px-4 py-3 max-[900px]:flex-wrap max-[900px]:gap-x-3 max-[900px]:gap-y-2'
-export const ROW_LABEL = 'min-w-[76px] shrink-0 text-[13px] font-semibold text-accent'
-export const ROW_MAIN = 'min-w-0 flex-1 max-[900px]:order-3 max-[900px]:basis-full'
-export const ROW_TITLE = 'm-0 text-sm font-semibold text-foreground'
+// ===== 目录表格 =====
+/*
+ * 三张目录表（模拟考试 / 精练 / 收藏错题）是同一套排版：一列主体（两行文字）、
+ * 一列数字、一列操作按钮。三列都按内容取宽，加起来约 340px —— 这是照着 375px
+ * 屏留给正文的 343px 定的，为的是手机上一屏看全、不用横滑。
+ */
+
+/**
+ * 窄屏把单元格内边距收一档（16→12px）。省下的 24px 正是三列表格能不能塞进
+ * 手机屏的那一档。写成挂在 <Table.Content> 上的批量选择器，比给十几个
+ * <Table.Cell> 各贴一次 className 干净。
+ *
+ * 树形表第一列的起始边要放过：HeroUI 拿 `padding-inline-start` 画层级缩进
+ * （`.table__cell[data-tree-column]`，1rem × 层级），一个同特异性的 `px-*`
+ * 会连它一起冲掉，卷次行就缩不进去了。所以起始边只收非树列。
+ */
+export const TABLE_DENSE = [
+  '**:data-[slot=table-column]:px-3 md:**:data-[slot=table-column]:px-4',
+  '**:data-[slot=table-cell]:pe-3 md:**:data-[slot=table-cell]:pe-4',
+  '**:data-[slot=table-cell]:not-data-tree-column:ps-3',
+  'md:**:data-[slot=table-cell]:not-data-tree-column:ps-4',
+].join(' ')
+
+/** 主体列的两行：上行是标题，下行是那点说明。都不换行，列宽才不会忽宽忽窄。 */
+export const CELL_MAIN = 'whitespace-nowrap font-medium text-foreground'
+export const CELL_SUB = 'whitespace-nowrap text-xs tabular-nums text-muted'
+
+/** 「已答 / 总数」这类数字列。 */
+export const CELL_NUM = 'whitespace-nowrap tabular-nums text-muted'
+
+/** 操作列靠右贴边，和表头的 text-end 对齐。 */
+export const CELL_ACTIONS = 'flex items-center justify-end gap-1.5'
+
 /** 跳转型入口是 <Link> 套 HeroUI 的按钮类，样式和别处的按钮一致。 */
-export const ROW_LINK = 'button button--outline button--sm shrink-0 text-accent'
+export const ACTION_LINK = 'button button--outline button--sm shrink-0 text-accent'
 
 /**
  * 选项按钮。

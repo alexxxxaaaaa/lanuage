@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Card, Chip, Disclosure, ProgressCircle, Spinner, toast } from '@heroui/react'
+import { Button, Chip, EmptyState, Spinner, Table, toast, type Selection } from '@heroui/react'
+import { ChevronRight } from 'lucide-react'
 import { Link } from 'react-router'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { TabsView } from '../components/ui/TabsView'
@@ -15,7 +16,14 @@ import { getErrorMessage } from '../api/error'
 import { usePageActive } from '../components/layout/pageContext'
 import { CATEGORIES, categoryLabel, mondaiLabel, mondaiMeta, paperLabel } from './jlpt/constants'
 import { ExamPaperList } from './jlpt/ExamPaperList'
-import { ROW, ROW_LABEL, ROW_LINK as PRACTICE_LINK, ROW_MAIN, ROW_TITLE } from './jlpt/styles'
+import {
+  ACTION_LINK,
+  CELL_ACTIONS,
+  CELL_MAIN,
+  CELL_NUM,
+  CELL_SUB,
+  TABLE_DENSE,
+} from './jlpt/styles'
 
 function practiceHref(filter: QbankSetFilter): string {
   const params = new URLSearchParams()
@@ -29,85 +37,134 @@ function practiceHref(filter: QbankSetFilter): string {
   return `/jlpt/practice?${params.toString()}`
 }
 
-/** 一行进度：小圆环是已答 / 总数，做对多少写在旁边的数字里。 */
-function Progress({ total, answered, correct }: { total: number; answered: number; correct: number }) {
-  return (
-    <div className="flex w-[160px] shrink-0 items-center justify-end gap-2 max-[900px]:w-auto max-[900px]:flex-1">
-      <ProgressCircle aria-label="作答进度" maxValue={Math.max(total, 1)} size="sm" value={answered}>
-        <ProgressCircle.Track>
-          <ProgressCircle.TrackCircle />
-          <ProgressCircle.FillCircle />
-        </ProgressCircle.Track>
-      </ProgressCircle>
-      <span className="text-xs tabular-nums text-muted">
-        {answered}/{total}
-        {answered > 0 ? ` · 正确 ${correct}` : ''}
-      </span>
-    </div>
-  )
+/** 精练目录的一行。題型行带 children（历年卷次），卷次行的 children 是空的。 */
+type PracticeNode = {
+  id: string
+  label: string
+  /** 題型名。卷次行没有第二行。 */
+  sub?: string
+  answered: number
+  total: number
+  href: string
+  children: PracticeNode[]
 }
 
-function GroupRow({ group }: { group: QbankOverviewGroup }) {
-  const meta = mondaiMeta(group.category, group.mondaiNo)
+function toNodes(groups: QbankOverviewGroup[]): PracticeNode[] {
+  return groups.map((g) => ({
+    id: `${g.category}-${g.mondaiNo}`,
+    // tab 上已经写着是哪个大类，行里只留「問題N」——
+    // mondaiLabel 给听力加的「聴解」前缀在这儿是重复的。
+    label: `問題${g.mondaiNo}`,
+    sub: mondaiMeta(g.category, g.mondaiNo).type,
+    answered: g.answered,
+    total: g.total,
+    href: practiceHref({ category: g.category, mondaiNo: g.mondaiNo }),
+    children: g.papers.map((p) => ({
+      id: `${g.category}-${g.mondaiNo}-${p.year}-${p.month}`,
+      label: paperLabel(p.year, p.month),
+      answered: p.answered,
+      total: p.total,
+      href: practiceHref({
+        category: g.category,
+        mondaiNo: g.mondaiNo,
+        year: p.year,
+        month: p.month,
+      }),
+      children: [],
+    })),
+  }))
+}
 
-  return (
-    <Card<'li'> className="gap-0 overflow-hidden p-0" render={(props) => <li {...props} />}>
-      <Disclosure>
-        {/* 只有題型标签那一块是折叠触发器：练习入口和进度得留在按钮外面才点得到。 */}
-        <div className={`${ROW} bg-accent/5`}>
-          <Button
-            className={`${ROW_LABEL} justify-start gap-1.5 px-2`}
-            size="sm"
-            slot="trigger"
-            variant="ghost"
-          >
-            {mondaiLabel(group.category, group.mondaiNo)}
-            <Disclosure.Indicator />
-          </Button>
-          <div className={ROW_MAIN}>
-            <p className={ROW_TITLE}>{meta.type}</p>
-            <p className="mt-0.5 mb-0 line-clamp-2 text-xs/[1.5] text-muted max-[900px]:line-clamp-3">
-              {meta.instruction}
-            </p>
+/**
+ * 一个大类（词汇 / 语法 / 阅读 / 听力）的精练目录。
+ *
+ * 題型和它下面的历年卷次是同一种行，只是层级不同 —— 所以两级共用一个
+ * `renderRow`，靠 <Table.Collection> 递归下去，展开态由表格自己管。
+ */
+function PracticeTable({ groups }: { groups: QbankOverviewGroup[] }) {
+  const [expandedKeys, setExpandedKeys] = useState<Selection>(() => new Set())
+  const items = useMemo(() => toNodes(groups), [groups])
+
+  const renderRow = (node: PracticeNode) => (
+    <Table.Row id={node.id} key={node.id} textValue={node.label}>
+      <Table.Cell textValue={node.label}>
+        {({ hasChildItems, isExpanded, isTreeColumn }) => (
+          <div className="flex items-center gap-1.5">
+            {isTreeColumn ? (
+              hasChildItems ? (
+                <Button
+                  isIconOnly
+                  aria-label="展开卷次"
+                  size="sm"
+                  slot="chevron"
+                  variant="ghost"
+                >
+                  <ChevronRight
+                    aria-hidden
+                    className={`size-4 text-muted transition-transform ${
+                      isExpanded ? 'rotate-90' : ''
+                    }`}
+                  />
+                </Button>
+              ) : (
+                /* 补一格展开钮的位置：树自带的缩进只有 16px，不补的话卷次行的
+                   文字反而比題型行还靠左，层级就看反了。 */
+                <span aria-hidden className="w-9 shrink-0 md:w-8" />
+              )
+            ) : null}
+            <div>
+              <div className={CELL_MAIN}>{node.label}</div>
+              {node.sub ? <div className={CELL_SUB}>{node.sub}</div> : null}
+            </div>
           </div>
-          <Progress total={group.total} answered={group.answered} correct={group.correct} />
-          <Link
-            className={PRACTICE_LINK}
-            to={practiceHref({ category: group.category, mondaiNo: group.mondaiNo })}
-          >
+        )}
+      </Table.Cell>
+      <Table.Cell className={CELL_NUM}>
+        {node.answered} / {node.total}
+      </Table.Cell>
+      <Table.Cell>
+        <div className={CELL_ACTIONS}>
+          <Link className={ACTION_LINK} to={node.href}>
             练习
           </Link>
         </div>
+      </Table.Cell>
+      <Table.Collection items={node.children}>{renderRow}</Table.Collection>
+    </Table.Row>
+  )
 
-        <Disclosure.Content>
-          <ul className="m-0 list-none border-t border-border p-0">
-            {group.papers.map((p) => (
-              <li
-                className={`${ROW} [&:not(:first-child)]:border-t [&:not(:first-child)]:border-separator`}
-                key={`${p.year}-${p.month}`}
-              >
-                <span className={`${ROW_LABEL} pl-5`}>{paperLabel(p.year, p.month)}</span>
-                <div className={ROW_MAIN}>
-                  <p className={ROW_TITLE}>新日本語能力試験</p>
-                </div>
-                <Progress total={p.total} answered={p.answered} correct={p.correct} />
-                <Link
-                  className={PRACTICE_LINK}
-                  to={practiceHref({
-                    category: group.category,
-                    mondaiNo: group.mondaiNo,
-                    year: p.year,
-                    month: p.month,
-                  })}
-                >
-                  练习
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </Disclosure.Content>
-      </Disclosure>
-    </Card>
+  return (
+    <Table>
+      <Table.ScrollContainer>
+        <Table.Content
+          aria-label="精练目录"
+          className={TABLE_DENSE}
+          expandedKeys={expandedKeys}
+          treeColumn="mondai"
+          onExpandedChange={setExpandedKeys}
+        >
+          <Table.Header>
+            <Table.Column id="mondai" isRowHeader>
+              題型
+            </Table.Column>
+            <Table.Column id="progress">已答</Table.Column>
+            <Table.Column className="text-end" id="actions">
+              操作
+            </Table.Column>
+          </Table.Header>
+          <Table.Body
+            items={items}
+            renderEmptyState={() => (
+              <EmptyState className="px-4 py-10 text-center text-sm text-muted">
+                这个大类还没导入题目。
+              </EmptyState>
+            )}
+          >
+            {renderRow}
+          </Table.Body>
+        </Table.Content>
+      </Table.ScrollContainer>
+    </Table>
   )
 }
 
@@ -166,42 +223,53 @@ function MarkedPanel({ overview }: { overview: QbankOverview }) {
         ) : null}
       </div>
 
-      {isLoading ? (
-        <div className="grid place-items-center py-12">
-          <Spinner />
-        </div>
-      ) : total === 0 ? (
-        <div className="card state-card">
-          <p className="muted">
-            {scope === 'favorite'
-              ? '还没有收藏的题。做题时点题目下面的星标就能收进来。'
-              : '还没有错题——答错的题会自动进这里，答对后自动移出。'}
-          </p>
-        </div>
-      ) : (
-        <ul className="m-0 grid list-none gap-2 p-0">
-          {groups!.map((g) => (
-            <li
-              className={`${ROW} rounded-[14px] border border-border bg-accent/5`}
-              key={`${g.category}-${g.mondaiNo}`}
+      <Table>
+        <Table.ScrollContainer>
+          <Table.Content aria-label={scope === 'favorite' ? '收藏的题' : '错题'} className={TABLE_DENSE}>
+            <Table.Header>
+              <Table.Column isRowHeader>題型</Table.Column>
+              <Table.Column>题数</Table.Column>
+              <Table.Column className="text-end">操作</Table.Column>
+            </Table.Header>
+            <Table.Body
+              renderEmptyState={() => (
+                <EmptyState className="px-4 py-10 text-center text-sm text-muted">
+                  {isLoading
+                    ? '加载中…'
+                    : scope === 'favorite'
+                      ? '还没有收藏的题。做题时点题目下面的星标就能收进来。'
+                      : '还没有错题——答错的题会自动进这里，答对后自动移出。'}
+                </EmptyState>
+              )}
             >
-              <span className={ROW_LABEL}>{categoryLabel(g.category)}</span>
-              <div className={ROW_MAIN}>
-                <p className={ROW_TITLE}>
-                  {mondaiLabel(g.category, g.mondaiNo)} {mondaiMeta(g.category, g.mondaiNo).type}
-                </p>
-              </div>
-              <Chip>{g.count} 题</Chip>
-              <Link
-                className={PRACTICE_LINK}
-                to={practiceHref({ category: g.category, mondaiNo: g.mondaiNo, scope })}
-              >
-                练习
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+              {(isLoading ? [] : (groups ?? [])).map((g) => {
+                const key = `${g.category}-${g.mondaiNo}`
+                return (
+                  <Table.Row id={key} key={key} textValue={mondaiLabel(g.category, g.mondaiNo)}>
+                    <Table.Cell>
+                      <div className={CELL_MAIN}>{mondaiLabel(g.category, g.mondaiNo)}</div>
+                      <div className={CELL_SUB}>
+                        {categoryLabel(g.category)} · {mondaiMeta(g.category, g.mondaiNo).type}
+                      </div>
+                    </Table.Cell>
+                    <Table.Cell className={CELL_NUM}>{g.count}</Table.Cell>
+                    <Table.Cell>
+                      <div className={CELL_ACTIONS}>
+                        <Link
+                          className={ACTION_LINK}
+                          to={practiceHref({ category: g.category, mondaiNo: g.mondaiNo, scope })}
+                        >
+                          练习
+                        </Link>
+                      </div>
+                    </Table.Cell>
+                  </Table.Row>
+                )
+              })}
+            </Table.Body>
+          </Table.Content>
+        </Table.ScrollContainer>
+      </Table>
     </div>
   )
 }
@@ -286,13 +354,7 @@ export function JlptPage() {
               ...CATEGORIES.map((c) => ({
                 key: c.key,
                 label: `${c.label} ${c.section}`,
-                children: (
-                  <ul className="m-0 grid list-none gap-2 p-0">
-                    {(byCategory.get(c.key) ?? []).map((g) => (
-                      <GroupRow group={g} key={`${g.category}-${g.mondaiNo}`} />
-                    ))}
-                  </ul>
-                ),
+                children: <PracticeTable groups={byCategory.get(c.key) ?? []} />,
               })),
               {
                 key: 'marked',
