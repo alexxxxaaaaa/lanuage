@@ -1,7 +1,11 @@
 import { Hono } from 'hono'
 import { lookupDictionary } from '../services/dictionaryService'
-import { clearAiDictEntry, lookupLocalDict } from '../services/dictEntryService'
-import type { AppEnv } from '../middleware/requireAuth'
+import {
+  backfillAiDictFromWords,
+  clearAiDictEntry,
+  lookupLocalDict,
+} from '../services/dictEntryService'
+import { getUserId, type AppEnv } from '../middleware/requireAuth'
 
 export const dictionaryRouter = new Hono<AppEnv>()
 
@@ -27,4 +31,10 @@ dictionaryRouter.delete('/ai-entry', async (c) => {
   const direction = c.req.query('direction')
   const deleted = await clearAiDictEntry(word, direction)
   return c.json({ deleted })
+})
+
+/** 一次性回填：把我的单词库里已有内容的词补进 AI 词典缓存（老数据迁移用，幂等）。 */
+dictionaryRouter.post('/ai-backfill', async (c) => {
+  const result = await backfillAiDictFromWords(getUserId(c))
+  return c.json(result)
 })
