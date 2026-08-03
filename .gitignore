@@ -24,7 +24,7 @@ server/prisma/schema.mysql.prisma.backup
 server/tsconfig.tsbuildinfo
 
 # Wiktextract 原始 dump（共约 273 MB）——可由 npm run build:dict 重新下载。
-# 抽取产物 server/data/dict/*.jsonl 是入 git 的。
+# 抽取产物 server/data/dict/*.jsonl.gz 是入 git 的（gzip 后 42.9 MB，不走 LFS）。
 server/.dictcache/
 
 # Large media files — hosted via R2 / static server rather than shipped in git.
@@ -41,8 +41,8 @@ server/data/grammarQuestions/_generated_insert.sql
 server/d1_qbank/
 server/.qbank-upload.log
 
-# 词库 → D1 的分片 SQL（91 片 / 42 MB），由 npm run import:dict -- --d1
-# 从 server/data/dict/*.jsonl 重新生成，源数据已入 git，不必再存一份。
+# 词库 → D1 的分片 SQL（406 片 / 222 MB），由 npm run import:dict -- --d1
+# 从 server/data/dict/*.jsonl.gz 重新生成，源数据已入 git，不必再存一份。
 server/d1_dict/
 
 # N1 真题源文件（PDF/图片体积过大，不入库；仅提交 N1/整理/ 下的题库 md）

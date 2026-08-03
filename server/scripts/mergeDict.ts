@@ -7,18 +7,12 @@
  * 用法：
  *   npm run merge:dict -- --input-dir "/path/to/output"
  */
-import {
-  createReadStream,
-  createWriteStream,
-  mkdirSync,
-  renameSync,
-  statSync,
-} from 'node:fs'
-import { createInterface } from 'node:readline'
+import { createWriteStream, mkdirSync, renameSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { pinyin } from 'pinyin-pro'
 import { sortKeyFor } from '../../shared/dictSort'
+import { dictFileFor, openDictWriter, readDictLines, resolveDictFile } from './dictFile'
 
 type Direction = 'ja-zh' | 'zh-ja'
 type Example = { text: string; translation?: string }
@@ -165,7 +159,7 @@ async function readInto(
   direction: Direction,
   entries: Map<string, Entry>,
 ): Promise<{ read: number; dropped: number; merged: number }> {
-  const rl = createInterface({ input: createReadStream(file), crlfDelay: Infinity })
+  const rl = readDictLines(file)
   let read = 0
   let dropped = 0
   let merged = 0
@@ -221,17 +215,16 @@ async function closeStream(stream: ReturnType<typeof createWriteStream>): Promis
 async function writeOutputs(direction: Direction, entries: Entry[]): Promise<number> {
   mkdirSync(OUT_DIR, { recursive: true })
   mkdirSync(INDEX_DIR, { recursive: true })
-  const jsonl = join(OUT_DIR, `${direction}.jsonl`)
+  // 词库 gzip 落盘（见 dictFile.ts）；索引随前端发布，静态服务器自己会压，保持明文。
+  const jsonlWriter = openDictWriter(dictFileFor(OUT_DIR, direction))
   const index = join(INDEX_DIR, `${direction}.idx`)
-  const jsonlTmp = `${jsonl}.tmp`
   const indexTmp = `${index}.tmp`
-  const jsonlStream = createWriteStream(jsonlTmp)
   const indexStream = createWriteStream(indexTmp)
   const seenIndex = new Set<string>()
   let indexRows = 0
 
   for (const entry of entries) {
-    await writeLine(jsonlStream, `${JSON.stringify(entry)}\n`)
+    await jsonlWriter.write(`${JSON.stringify(entry)}\n`)
     // 索引只是导航：同表记同读音只出现一次，详情查询仍返回所有 source。
     const indexKey = JSON.stringify([entry.word, entry.sortKey])
     if (!seenIndex.has(indexKey)) {
@@ -241,8 +234,7 @@ async function writeOutputs(direction: Direction, entries: Entry[]): Promise<num
     }
   }
 
-  await Promise.all([closeStream(jsonlStream), closeStream(indexStream)])
-  renameSync(jsonlTmp, jsonl)
+  await Promise.all([jsonlWriter.close(), closeStream(indexStream)])
   renameSync(indexTmp, index)
   return indexRows
 }
@@ -253,13 +245,15 @@ async function main() {
 
   for (const direction of DIRECTIONS) {
     const entries = new Map<string, Entry>()
-    const current = join(OUT_DIR, `${direction}.jsonl`)
-    const added = join(inputDir, `${direction}.jsonl`)
+    // 输入两侧都用 resolveDictFile：本仓库的是 .jsonl.gz，外部转换出来的多半是明文 .jsonl。
+    const current = resolveDictFile(OUT_DIR, direction)
+    const added = resolveDictFile(inputDir, direction)
     const currentStats = await readInto(current, direction, entries)
     const addedStats = await readInto(added, direction, entries)
     const sorted = [...entries.values()].sort(compareEntries)
     const indexRows = await writeOutputs(direction, sorted)
-    const sizeMb = (statSync(current).size / 1_000_000).toFixed(1)
+    // 读的可能是上一版，写完才是这次的结果，所以按写出的文件报体积。
+    const sizeMb = (statSync(dictFileFor(OUT_DIR, direction)).size / 1_000_000).toFixed(1)
 
     process.stdout.write(
       [

@@ -8,8 +8,8 @@
  * JMdict 未采用：218,290 条词条里只有 293 条中文 gloss，不是原生日中词典。
  *
  * 产物：
- *   server/data/dict/<dir>.jsonl   完整词条，供 importDict.ts 灌进 D1
- *   client/public/dict/<dir>.idx   仅词头/读音的索引，随前端发布给右侧索引栏用
+ *   server/data/dict/<dir>.jsonl.gz  完整词条（gzip，见 dictFile.ts），供 importDict.ts 灌进 D1
+ *   client/public/dict/<dir>.idx     仅词头/读音的索引，随前端发布给右侧索引栏用
  *
  * 用法：
  *   npm run build:dict          # 缺源文件时自动下载到 .dictcache/
@@ -24,6 +24,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { pinyin } from 'pinyin-pro'
 import { sortKeyFor } from '../../shared/dictSort'
+import { dictFileFor, openDictWriter } from './dictFile'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const REPO = join(ROOT, '..')
@@ -267,13 +268,11 @@ async function extract(job: Job): Promise<Entry[]> {
 }
 
 async function writeJsonl(entries: Entry[], file: string) {
-  const sink = createWriteStream(file)
+  const sink = openDictWriter(file)
   for (const entry of entries) {
-    if (!sink.write(JSON.stringify(entry) + '\n')) {
-      await new Promise((resolve) => sink.once('drain', resolve))
-    }
+    await sink.write(JSON.stringify(entry) + '\n')
   }
-  await new Promise((resolve) => sink.end(resolve))
+  await sink.close()
 }
 
 /**
@@ -326,7 +325,7 @@ async function main() {
     process.stdout.write(`\n— ${job.direction} —\n`)
     const entries = await extract(job)
 
-    const jsonl = join(OUT_DIR, `${job.direction}.jsonl`)
+    const jsonl = dictFileFor(OUT_DIR, job.direction)
     const idx = join(INDEX_DIR, `${job.direction}.idx`)
     await writeJsonl(entries, jsonl)
     const rows = await writeIndex(entries, idx)

@@ -1,5 +1,5 @@
 /**
- * 把 data/dict/*.jsonl 灌进词库表。
+ * 把 data/dict/*.jsonl.gz 灌进词库表。
  *
  *   npm run import:dict          # → 本地 SQLite（dev.db）
  *   npm run import:dict -- --d1  # → 生成分片 SQL 到 server/d1_dict/
@@ -11,11 +11,11 @@
  * DictEntry 不参与任何外键，也不挂用户，清空不会波及用户数据。
  */
 import 'dotenv/config'
-import { createReadStream, mkdirSync, writeFileSync } from 'node:fs'
-import { createInterface } from 'node:readline'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNodePrismaClient } from '../src/lib/prisma'
+import { readDictLines, resolveDictFile } from './dictFile'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const DICT_DIR = join(ROOT, 'data', 'dict')
@@ -42,10 +42,7 @@ type Row = {
 
 async function* readRows(): AsyncGenerator<Row> {
   for (const direction of DIRECTIONS) {
-    const rl = createInterface({
-      input: createReadStream(join(DICT_DIR, `${direction}.jsonl`)),
-      crlfDelay: Infinity,
-    })
+    const rl = readDictLines(resolveDictFile(DICT_DIR, direction))
     for await (const line of rl) {
       if (!line) continue
       const e = JSON.parse(line)

@@ -4,8 +4,9 @@
 并可用 [`server/scripts/mergeDict.ts`](../../scripts/mergeDict.ts) 合并其他词典来源。
 
 ```bash
-npm run build:dict          # 抽取 → 本目录 *.jsonl + client/public/dict/*.idx
+npm run build:dict          # 抽取 → 本目录 *.jsonl.gz + client/public/dict/*.idx
 npm run merge:dict -- --input-dir "/path/to/output" # 同源清洗合并 + 重建索引
+                            # --input-dir 里的 .jsonl / .jsonl.gz 都能读
 npm run import:dict         # 灌本地 SQLite
 npm run import:dict -- --d1 # 生成 D1 分片 SQL → server/d1_dict/
 bash d1_dict/apply.sh       # 打到线上 D1
@@ -15,10 +16,17 @@ bash d1_dict/apply.sh       # 打到线上 D1
 
 ## 文件
 
-| 文件 | 方向 | 词条数 | 大小 | 读音覆盖 |
-|---|---|---|---|---|
-| `ja-zh.jsonl` | 日 → 中 | 462,366 | 164.8 MB | 95.4%（假名） |
-| `zh-ja.jsonl` | 中 → 日 | 109,753 | 39.0 MB | 99.9%（拼音） |
+| 文件 | 方向 | 词条数 | 原始 | gzip | 读音覆盖 |
+|---|---|---|---|---|---|
+| `ja-zh.jsonl.gz` | 日 → 中 | 462,366 | 164.8 MB | 34.5 MB | 95.4%（假名） |
+| `zh-ja.jsonl.gz` | 中 → 日 | 109,753 | 39.0 MB | 8.4 MB | 99.9%（拼音） |
+
+**落盘是 gzip 的**，读写都走 [`scripts/dictFile.ts`](../../scripts/dictFile.ts)。
+原因是 Git LFS：未压缩的两个文件合计 204 MB，GitHub 免费 LFS 只有 1 GB 存储 +
+1 GB 月带宽、且按账号跨所有仓库共享，很快就撞配额。压完 42.9 MB，当普通 git blob
+提交即可，离 GitHub 50 MB 的单文件警告线还有一半余量，也不必分片。
+
+命令行直接看内容：`gzip -dc ja-zh.jsonl.gz | head`。
 
 每行一个 JSON 对象：
 
