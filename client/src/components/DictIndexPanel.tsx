@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { ListBox, ListLayout, Spinner, Tabs, Virtualizer } from '@heroui/react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Spinner, Tabs } from '@heroui/react'
 import { DictIndex, type DictDirection, type IndexRow } from '../lib/dictIndex'
 import { useI18n } from '../i18n'
 
-/** 和 ListLayout 的 rowHeight 保持一致 —— 定位靠 line * ROW_HEIGHT 直接算滚动位置。 */
+/** 行高固定 —— 定位和可见区间都靠它直接算，不用测量任何 DOM。 */
 const ROW_HEIGHT = 52
+
+/** 可见区间上下各多渲染几行，快速滚动时不会露出空白。 */
+const OVERSCAN = 6
 
 /**
  * 索引解析一次要几十毫秒，切 Tab 来回跳不该重复付这个成本，
@@ -23,6 +26,9 @@ function getIndex(direction: DictDirection): Promise<DictIndex> {
   const task = DictIndex.load(direction)
     .then((index) => {
       loaded.set(direction, index)
+      // 按词头排序留到空闲时段做，别让它砸在用户敲第一个汉字的那一帧上。
+      const idle = window.requestIdleCallback ?? ((fn: () => void) => setTimeout(fn, 200))
+      idle(() => index.warmUp())
       return index
     })
     .finally(() => loading.delete(direction))
@@ -60,13 +66,20 @@ type Props = {
  * 数据来自随前端发布的静态 .idx 文件，定位、滚动全在本地完成，敲一个字就
  * 跳一次也不产生任何请求。窄屏直接不渲染：它是桌面端的翻阅辅助，
  * 手机上挤不下也没意义。
+ *
+ * 列表是自己按 scrollTop 算可见区间做的虚拟化，没有用 HeroUI 的 Virtualizer。
+ * 后者只虚拟化 DOM：React Aria 在渲染前要先给 items 里每一条建一个 collection
+ * node，11 万条全部建完才轮到虚拟化挑那十几行渲染，开列表时会卡死几秒。
+ * 这里从头到尾只碰可见的那十几行，滚动条仍然覆盖全部词条。
  */
 export function DictIndexPanel({ query, onPick }: Props) {
   const { t } = useI18n()
   const [direction, setDirection] = useState<DictDirection>('ja-zh')
   const [index, setIndex] = useState<DictIndex | null>(null)
   const [failed, setFailed] = useState(false)
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const [scrollTop, setScrollTop] = useState(0)
+  const [viewport, setViewport] = useState(0)
 
   // 输入语种明确时跟着切方向；含糊（纯汉字）时保持用户当前的选择。
   // 在渲染期同步而不是放进 effect：effect 里改 state 会多跑一帧，
@@ -101,14 +114,43 @@ export function DictIndexPanel({ query, onPick }: Props) {
     }
   }, [direction])
 
+  // 视口高度决定要渲染几行。用 ResizeObserver 而不是读一次 clientHeight：
+  // 侧栏高度跟着窗口变，折叠浏览器窗口后区间要跟着重算。
+  const attachScroller = useCallback((node: HTMLDivElement | null) => {
+    scrollRef.current = node
+    if (!node) return
+    setViewport(node.clientHeight)
+    const observer = new ResizeObserver(([entry]) => {
+      setViewport(entry.contentRect.height)
+    })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
+  // 滚动事件按帧合并 —— 一次滚动能触发几十个 scroll 事件，
+  // 每个都 setState 会把渲染次数放大到没有必要的程度。
+  const rafRef = useRef(0)
+  const handleScroll = useCallback(() => {
+    if (rafRef.current) return
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = 0
+      setScrollTop(scrollRef.current?.scrollTop ?? 0)
+    })
+  }, [])
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), [])
+
   // 定位是纯计算，直接从 index + query 派生。二分查找十几次比较，
   // 但按词头查那条路首次会排一次序，所以仍然 memo 住。
   const activeLine = useMemo(() => (index ? index.locate(query) : 0), [index, query])
 
-  // 行高固定，滚动位置直接算得出来，不用问虚拟列表要。
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: activeLine * ROW_HEIGHT })
   }, [activeLine])
+
+  const total = index?.size ?? 0
+  const first = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN)
+  const last = Math.min(total, Math.ceil((scrollTop + viewport) / ROW_HEIGHT) + OVERSCAN)
+  const visible = index ? index.rows.slice(first, last) : []
 
   const tabs: { id: DictDirection; label: string }[] = [
     { id: 'ja-zh', label: t('wordSearch.indexJaZh') },
@@ -150,35 +192,40 @@ export function DictIndexPanel({ query, onPick }: Props) {
             <span className="muted text-[13px]">{t('wordSearch.indexLoading')}</span>
           </div>
         ) : (
-          <Virtualizer layout={ListLayout} layoutOptions={{ rowHeight: ROW_HEIGHT }}>
-            <ListBox
-              aria-label={t('wordSearch.indexTitle')}
-              className="h-full w-full overflow-y-auto"
-              items={index.rows}
-              selectionMode="none"
-              onAction={(key) => onPick(index.rows[Number(key)])}
-              render={(props) => <div {...props} ref={scrollRef} />}
-            >
-              {(row: IndexRow) => (
-                <ListBox.Item
-                  id={row.line}
-                  textValue={row.word}
-                  className={
+          <div
+            ref={attachScroller}
+            onScroll={handleScroll}
+            role="listbox"
+            aria-label={t('wordSearch.indexTitle')}
+            tabIndex={-1}
+            className="h-full w-full overflow-y-auto"
+          >
+            {/* 撑出全部词条的总高度，滚动条才代表整本词库而不是当前这一屏。 */}
+            <div className="relative" style={{ height: total * ROW_HEIGHT }}>
+              {visible.map((row) => (
+                <button
+                  key={row.line}
+                  type="button"
+                  role="option"
+                  aria-selected={row.line === activeLine}
+                  aria-setsize={total}
+                  aria-posinset={row.line + 1}
+                  onClick={() => onPick(row)}
+                  style={{ top: row.line * ROW_HEIGHT, height: ROW_HEIGHT }}
+                  className={`absolute inset-x-0 flex flex-col justify-center gap-0.5 px-3 text-left transition-colors duration-100 ${
                     row.line === activeLine
-                      ? 'rounded-lg bg-accent/10 data-[hovered=true]:bg-accent/15'
-                      : 'rounded-lg data-[hovered=true]:bg-accent/6'
-                  }
+                      ? 'bg-accent/10 hover:bg-accent/15'
+                      : 'hover:bg-accent/6'
+                  }`}
                 >
-                  <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className="truncate text-[15px] text-foreground">{row.word}</span>
-                    {row.reading ? (
-                      <span className="muted truncate text-[12px]">{row.reading}</span>
-                    ) : null}
-                  </div>
-                </ListBox.Item>
-              )}
-            </ListBox>
-          </Virtualizer>
+                  <span className="truncate text-[15px] text-foreground">{row.word}</span>
+                  {row.reading ? (
+                    <span className="muted truncate text-[12px]">{row.reading}</span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 

@@ -119,6 +119,16 @@ export class DictIndex {
     return order[Math.min(at, this.size - 1)]
   }
 
+  /**
+   * 预热按词头排序的那份顺序。
+   *
+   * 11 万条排一次约几百毫秒。等用户敲下第一个汉字再排，这几百毫秒正好砸在
+   * 输入响应上；索引加载完先在空闲时段排掉，用的时候就是现成的。
+   */
+  warmUp() {
+    this.ensureWordOrder()
+  }
+
   /** 词头精确命中就返回该行 —— 回车时用它判断本地词库有没有收录。 */
   findExact(word: string): IndexRow | null {
     if (this.size === 0) return null
