@@ -310,7 +310,12 @@ export default function UserDetailPage() {
                       width: 160,
                       render: (v: string) => (v ? <Tag>{v}</Tag> : '-'),
                     },
-                    { title: '课节', dataIndex: 'lesson', width: 120 },
+                    {
+                      title: '课程时间',
+                      dataIndex: 'lessonAt',
+                      width: 120,
+                      render: (v: string) => dayjs(v).format('YYYY-MM-DD'),
+                    },
                     { title: '关联单词', dataIndex: 'wordCount', width: 100 },
                     {
                       title: '创建时间',
@@ -398,7 +403,7 @@ export default function UserDetailPage() {
           <>
             <Space style={{ marginBottom: 12 }}>
               {viewNote.course && <Tag>课程：{viewNote.course}</Tag>}
-              {viewNote.lesson && <Tag>课节：{viewNote.lesson}</Tag>}
+              <Tag>课程时间：{dayjs(viewNote.lessonAt).format('YYYY-MM-DD')}</Tag>
               <Tag>{dayjs(viewNote.createdAt).format('YYYY-MM-DD HH:mm')}</Tag>
             </Space>
             <div
@@ -407,9 +412,11 @@ export default function UserDetailPage() {
                 borderRadius: 6,
                 padding: 16,
                 background: '#fafafa',
+                whiteSpace: 'pre-wrap',
               }}
-              dangerouslySetInnerHTML={{ __html: viewNote.content }}
-            />
+            >
+              {viewNote.contentText}
+            </div>
           </>
         )}
       </Drawer>

@@ -85,7 +85,6 @@ adminRouter.get('/notes', async (c) => {
   return c.json(
     await listNotes({
       userId: c.req.query('userId') ?? undefined,
-      course: c.req.query('course') ?? undefined,
       keyword: c.req.query('keyword') ?? undefined,
       page,
       pageSize,

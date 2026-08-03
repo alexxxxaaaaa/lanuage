@@ -763,7 +763,10 @@ export function FolderDetailPage() {
               {word.sourceNote ? (
                 <p className="muted">
                   {t('folderDetail.sourceNote')}
-                  <Link to={`/notes/${word.sourceNote.id}`}> {word.sourceNote.title}</Link>
+                  <Link to={`/notes/${word.sourceNote.id}`}>
+                    {' '}
+                    {word.sourceNote.title.trim() || t('notes.untitled')}
+                  </Link>
                 </p>
               ) : null}
               {word.example ? (
@@ -867,7 +870,7 @@ export function FolderDetailPage() {
                   placeholder={t('folderDetail.formNoSource')}
                   options={noteOptions.map((item) => ({
                     value: item.id,
-                    label: item.title,
+                    label: item.title.trim() || t('notes.untitled'),
                   }))}
                 />
               </label>

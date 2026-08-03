@@ -9,6 +9,11 @@
    pages expect. Shrinks toward zero as pages migrate. */
 @import './App.css' layer(components);
 
+/* BlockNote 的样式表。同样要进 layer(components)：它是无层级的普通 CSS，直接
+   引进来会压过所有 Tailwind 工具类；放进这一层之后，它照样赢得过 preflight 的
+   重置（base 层），但我们写在 JSX 上的工具类还能改得动它。 */
+@import '@blocknote/ariakit/style.css' layer(components);
+
 /* ---------------------------------------------------------------------------
    Project theme.
 
@@ -110,6 +115,23 @@
     @apply bg-surface shadow-card;
   }
 
+  /* HeroUI 表格在本项目配色下的两处修正。
+     `.table-root--primary` 的设计是：容器和表头一个色调，里面的表体是一张更亮的
+     卡片。上游的 `--surface-secondary` 是不透明灰，这个结构成立；而本项目把它定
+     成了半透明水洗色（见 theme.css 里为什么），于是：
+
+     1. 表头会把同一层水洗色再刷一遍（`.table__header` 的基础规则），叠出比容器
+        深一档的色块，看着像凭空多了个背景框 —— 让它透出容器底色即可。
+     2. 4.5% 的水洗几乎等于页面底色，表体卡片就浮不起来；深色模式下容器算下来
+        约 0.19、卡片 0.216，基本糊成一片。容器换成重一档的 tertiary。 */
+  .table-root--primary {
+    @apply bg-surface-tertiary;
+
+    & .table__header {
+      @apply bg-transparent;
+    }
+  }
+
   .muted {
     @apply text-muted;
   }
@@ -199,94 +221,105 @@
     @apply mt-0 mb-4 text-[13px] text-muted;
   }
 
-  /* Rich text editor. The chrome could be inlined, but the bulk of these rules
-     target ProseMirror's generated DOM, which carries no classNames of ours —
-     keeping the editor's styling in one place beats splitting it in half. */
-  .rte-shell {
-    @apply grid gap-0 overflow-hidden rounded-xl border border-border bg-surface;
+  /* --- 笔记 -----------------------------------------------------------------
+     BlockNote 的样式表在文件顶部按 layer(components) 引进来了，它自己那套
+     `.bn-*` DOM 上没有我们的类名，所以只能从外面套：这里做的是把它的 CSS 变量
+     接到项目的语义色上，再给编辑器外围的标题、属性行、列表行定型。 */
 
-    &.is-readonly {
-      @apply rounded-none border-0 bg-transparent;
-    }
-    &.is-readonly .rte-content-wrap {
-      @apply p-0;
+  .note-doc {
+    /* 正文卡片的左右内边距，同时也是标题、属性行、页脚的缩进量 —— 用同一个值
+       整篇才对得齐。BlockNote 的拖拽手柄也停在这条槽里，所以它不能太窄。 */
+    --note-gutter: 1.5rem;
+
+    @apply mx-auto flex w-full max-w-[820px] flex-col gap-6;
+
+    @media (width >= 48rem) {
+      --note-gutter: 72px;
     }
   }
 
-  .rte-toolbar {
-    @apply flex flex-wrap gap-1 border-b border-border bg-foreground/3 px-2.5 py-2;
+  /* 标题、属性区、正文三段之间要拉开：标题是 32px 的大字，紧贴着下面的字段
+     会显得挤。`.note-doc` 自带 24px 的 gap，这里是在它之上再加。 */
+  .note-props + .note-editor {
+    @apply mt-6;
   }
 
-  .rte-tool {
-    @apply inline-flex min-h-8 min-w-9 cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent px-2 text-[13px] font-semibold text-foreground;
+  .note-doc > :not(.note-editor) {
+    padding-inline: var(--note-gutter);
+  }
 
-    &:hover {
-      @apply bg-foreground/5;
-    }
-    &.is-active {
-      @apply border-accent/25 bg-accent/12 text-accent;
+  .note-title {
+    @apply mt-2 w-full resize-none overflow-hidden border-0 bg-transparent p-0 text-[28px]/[1.3] font-bold text-foreground outline-none md:text-[32px];
+
+    &::placeholder {
+      @apply text-foreground/25;
     }
   }
 
-  .rte-divider {
-    @apply mx-1 my-1 w-px bg-border;
+  /* 标题下面那排属性，对着 Notion 的页面属性。课程和时间是笔记本身的字段，不
+     塞进正文 —— 塞进去就没法按它们筛选和排序了。 */
+  .note-props {
+    /* mt 要写在这条里：下面那条 `m-0` 会把单独声明的上边距冲掉。 */
+    @apply mx-0 mt-3 mb-0 grid gap-4;
   }
 
-  .rte-content-wrap {
-    @apply bg-surface px-4 py-3.5;
+  .note-prop {
+    @apply grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-3;
+
+    & > dt {
+      @apply flex items-center gap-1.5 text-[13px] text-muted;
+    }
+    & > dd {
+      @apply m-0 min-w-0;
+    }
   }
 
-  .rte-content .ProseMirror {
-    @apply min-h-[inherit] text-[15px]/[1.75] text-foreground outline-none;
+  /* 正文卡片。挂在我们自己的外层 div 上 —— BlockNoteView 的 className 会被同时
+     贴到编辑器根节点和一个嵌套的空 portal 节点上，卡片样式挂那儿会画两遍。 */
+  .note-editor {
+    @apply rounded-2xl bg-surface shadow-card;
 
-    & p {
-      @apply mb-[0.5em] last:mb-0;
-    }
-    & h1,
-    & h2,
-    & h3 {
-      @apply mt-[1.2em] mb-[0.5em] leading-[1.3] text-foreground;
-    }
-    & h1 {
-      @apply text-[22px];
-    }
-    & h2 {
-      @apply text-lg;
-    }
-    & h3 {
-      @apply text-base;
-    }
-    & ul,
-    & ol {
-      @apply mb-[0.5em] pl-[22px];
-    }
-    & li > p {
-      @apply m-0;
-    }
-    & blockquote {
-      @apply my-[0.5em] rounded-r-lg border-l-[3px] border-accent bg-accent/6 px-3.5 py-1.5 text-foreground;
-    }
-    & code {
-      @apply rounded-md bg-foreground/6 px-1.5 py-0.5 font-mono text-[13px];
-    }
-    & pre {
-      @apply my-[0.5em] overflow-auto rounded-[10px] bg-slate-900/85 px-3.5 py-3 font-mono text-[13px]/[1.55] text-slate-200;
-    }
-    & pre code {
-      @apply rounded-none bg-transparent p-0 text-inherit;
-    }
-    & hr {
-      @apply my-[1em] border-0 border-t border-border;
-    }
-    & a {
-      @apply text-accent underline;
-    }
-    /* TipTap's placeholder extension renders the text via a data attribute. */
-    & p.is-editor-empty:first-child::before {
-      content: attr(data-placeholder);
-      @apply pointer-events-none float-left h-0 text-muted;
+    /* 左右内边距交给里面的 .bn-editor（用同一个 --note-gutter），正文才和标题、
+       属性行对齐；卡片比正文多出的那一圈就是这段 gutter。 */
+    @apply py-7;
+
+    min-height: 260px;
+  }
+
+  /* BlockNote 的配色接到项目的语义色上。这一层贴在 BlockNoteView 上，被复制到
+     嵌套的 portal 节点也无所谓 —— 它们本来就该拿到同一套变量。 */
+  .note-editor-view {
+    @apply bg-transparent;
+
+    --bn-colors-editor-text: var(--foreground);
+    --bn-colors-editor-background: transparent;
+    --bn-colors-menu-text: var(--foreground);
+    --bn-colors-menu-background: var(--overlay);
+    --bn-colors-tooltip-text: var(--foreground);
+    --bn-colors-tooltip-background: var(--overlay);
+    --bn-colors-hovered-text: var(--foreground);
+    --bn-colors-hovered-background: var(--surface-secondary);
+    --bn-colors-selected-text: var(--accent-foreground);
+    --bn-colors-selected-background: var(--accent);
+    --bn-colors-disabled-text: var(--muted);
+    --bn-colors-disabled-background: var(--surface-secondary);
+    --bn-colors-border: var(--border);
+    --bn-colors-side-menu: var(--muted);
+    --bn-colors-shadow: var(--border);
+    --bn-font-family: inherit;
+    --bn-border-radius: var(--radius);
+
+    /* 变量覆盖在深色下会被 BlockNote 自己的 `[data-color-scheme=dark]` 抢回去，
+       正文区就画成它的 #1f1f1f，和卡片的 --surface 差一截。直接写死透明，让卡片
+       的底色透上来，整块才是一个颜色。 */
+    & .bn-editor {
+      @apply bg-transparent;
+
+      padding-inline: var(--note-gutter);
     }
   }
+
+  /* --- 笔记列表 ------------------------------------------------------------- */
 
   /* Podcast seek bar. A native range input keeps its thumb and track in vendor
      pseudo-elements, which no utility class can reach — so this one stays a

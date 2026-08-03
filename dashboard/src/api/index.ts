@@ -61,7 +61,7 @@ export const adminApi = {
   deleteWord: (id: string) =>
     http.delete<{ ok: boolean }>(`/api/admin/words/${id}`).then((r) => r.data),
 
-  listNotes: (params: PagingParams & { userId?: string; course?: string } = {}) =>
+  listNotes: (params: PagingParams & { userId?: string } = {}) =>
     http
       .get<Paged<AdminNoteRow>>('/api/admin/notes', { params })
       .then((r) => r.data),

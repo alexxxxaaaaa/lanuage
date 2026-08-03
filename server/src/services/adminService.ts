@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../errors/AppError'
+import { noteContentToText } from '../lib/noteContent'
 
 const MIN_PASSWORD_LENGTH = 6
 
@@ -289,24 +290,28 @@ export async function deleteWord(id: string) {
 
 export async function listNotes(params: {
   userId?: string
-  course?: string
   keyword?: string
   page: number
   pageSize: number
 }) {
-  const { userId, course, keyword, page, pageSize } = params
+  const { userId, keyword, page, pageSize } = params
   const where: any = {}
   if (userId) where.userId = userId
-  if (course) where.course = course
   if (keyword) {
-    where.OR = [{ title: { contains: keyword } }, { lesson: { contains: keyword } }]
+    // 正文在库里是 JSON / HTML，LIKE 会顺带命中标签名和键名。后台只是粗查，
+    // 认了；用户端的搜索在 noteService 里过了纯文本，那边是准的。
+    where.OR = [
+      { title: { contains: keyword } },
+      { course: { contains: keyword } },
+      { content: { contains: keyword } },
+    ]
   }
 
   const [total, rows] = await Promise.all([
     prisma.note.count({ where }),
     prisma.note.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ lessonAt: 'desc' }, { createdAt: 'desc' }],
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
@@ -324,7 +329,7 @@ export async function listNotes(params: {
       id: n.id,
       title: n.title,
       course: n.course,
-      lesson: n.lesson,
+      lessonAt: n.lessonAt ?? n.createdAt,
       createdAt: n.createdAt,
       userId: n.userId,
       username: n.user.username,
@@ -339,14 +344,20 @@ export async function getNoteDetail(id: string) {
     include: { user: { select: { username: true } } },
   })
   if (!note) throw new AppError('笔记不存在', 404)
-  return note
+  // 后台只读，给纯文本就够了：原始的 BlockNote JSON 后台渲染不了，运下去纯属
+  // 浪费；顺手也免了把用户写的富文本原样塞进后台 DOM。
+  const { content, ...rest } = note
+  return {
+    ...rest,
+    lessonAt: note.lessonAt ?? note.createdAt,
+    contentText: noteContentToText(content),
+  }
 }
 
 export async function deleteNote(id: string) {
-  await prisma.$transaction(async (tx) => {
-    await tx.word.updateMany({ where: { sourceNoteId: id }, data: { sourceNoteId: null } })
-    await tx.note.delete({ where: { id } })
-  })
+  // 同 noteService.deleteNote：解绑单词由外键的 ON DELETE SET NULL 完成，
+  // 不需要额外的 UPDATE，也不需要（在 D1 上根本不生效的）事务。
+  await prisma.note.delete({ where: { id } })
   return { ok: true }
 }
 

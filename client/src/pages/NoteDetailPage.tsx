@@ -1,71 +1,200 @@
-import { useEffect, useState } from 'react'
-import { Button, Input } from '@heroui/react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Button } from '@heroui/react'
+import { CalendarDays, Check, CircleAlert, Loader2, Plus, Tag, Trash2 } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router'
-import { getNoteById, type NoteDetail, updateNote } from '../api/notes'
-import { RichTextEditor } from '../components/RichTextEditor'
+
+import {
+  deleteNote,
+  getCourses,
+  getNoteById,
+  updateNote,
+  type NoteDetail,
+  type NotePatch,
+} from '../api/notes'
+import { getErrorMessage } from '../api/error'
+import { CourseField } from '../components/notes/CourseField'
+import { NoteDateField } from '../components/notes/NoteDateField'
+import { NoteEditor, type NoteEditorHandle } from '../components/notes/NoteEditor'
+import { confirm } from '../components/ui/dialog'
+import {
+  usePageActive,
+  usePageTitle,
+  useOnPageReactivated,
+} from '../components/layout/pageContext'
+import { useAutoSave, type SaveStatus } from '../hooks/useAutoSave'
+import { useNotesRevision } from '../store/useNotesRevision'
+import { useI18n } from '../i18n'
+
+function SaveIndicator({ status, onRetry }: { status: SaveStatus; onRetry: () => void }) {
+  const { t } = useI18n()
+
+  if (status === 'error') {
+    return (
+      <Button className="text-danger" size="sm" variant="ghost" onPress={onRetry}>
+        <CircleAlert className="size-3.5" aria-hidden />
+        {t('notes.saveFailed')}
+      </Button>
+    )
+  }
+
+  const label: Record<Exclude<SaveStatus, 'error'>, string> = {
+    idle: '',
+    pending: t('notes.unsaved'),
+    saving: t('notes.saving'),
+    saved: t('notes.saved'),
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[13px] text-muted">
+      {status === 'saving' ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}
+      {status === 'saved' ? <Check className="size-3.5" aria-hidden /> : null}
+      {label[status]}
+    </span>
+  )
+}
 
 export function NoteDetailPage() {
-  const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const { t } = useI18n()
+  const isPageActive = usePageActive()
+
   const [note, setNote] = useState<NoteDetail | null>(null)
+  const [courses, setCourses] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [reloadToken, setReloadToken] = useState(0)
-  const [form, setForm] = useState({
-    title: '',
-    course: '',
-    lesson: '',
-    content: '',
-  })
+
+  // 三个属性字段本地先改，落库交给自动保存；正文由编辑器自己拿着，页面只在它
+  // 报变化时收一份字符串去存。
+  const [title, setTitle] = useState('')
+  const [course, setCourse] = useState('')
+  const [lessonAt, setLessonAt] = useState('')
+
+  const titleRef = useRef<HTMLTextAreaElement>(null)
+  const editorRef = useRef<NoteEditorHandle>(null)
+
+  const bumpNotesRevision = useNotesRevision((state) => state.bump)
+
+  const { status, queue, flush, isDirty } = useAutoSave<NotePatch>(
+    useCallback(
+      async (patch) => {
+        if (!id) return
+        await updateNote(id, patch)
+        // 落地之后再通知列表页，它才不会读到改之前的那一版。
+        bumpNotesRevision()
+      },
+      [id, bumpNotesRevision],
+    ),
+  )
+
+  /** 课程、日期这种一次点定的字段不必等防抖。 */
+  const commit = useCallback(
+    (patch: NotePatch) => {
+      queue(patch)
+      void flush()
+    },
+    [queue, flush],
+  )
 
   useEffect(() => {
     if (!id) return
     let ignore = false
-    async function loadNote(noteId: string) {
+
+    async function load(noteId: string) {
       setIsLoading(true)
       setError(null)
       try {
-        const data = await getNoteById(noteId)
+        const [data, courseOptions] = await Promise.all([getNoteById(noteId), getCourses()])
         if (ignore) return
         setNote(data)
-        setForm({
-          title: data.title,
-          course: data.course,
-          lesson: data.lesson,
-          content: data.content ?? '',
-        })
-      } catch {
-        if (!ignore) setError('加载笔记失败')
+        setTitle(data.title)
+        setCourse(data.course)
+        setLessonAt(data.lessonAt)
+        setCourses(courseOptions.map((option) => option.course))
+      } catch (loadError) {
+        if (!ignore) setError(getErrorMessage(loadError, t('notes.loadError')))
       } finally {
         if (!ignore) setIsLoading(false)
       }
     }
-    void loadNote(id)
+
+    void load(id)
     return () => {
       ignore = true
     }
-  }, [id, reloadToken])
+    // t 只用在报错文案上，不值得为它重新拉一次笔记。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
 
-  const handleUpdate = async (event: React.FormEvent) => {
-    event.preventDefault()
+  // 从「新增单词」回来时关联单词会变。只换 note，可编辑的三个字段保持本地值 ——
+  // 离开页面时已经 flush 过，服务端拿到的就是它们。
+  useOnPageReactivated(() => {
     if (!id) return
-    const plain = form.content.replace(/<[^>]+>/g, '').trim()
-    if (!plain) {
-      setError('笔记内容不能为空')
-      return
+    void getNoteById(id).then(setNote).catch(() => undefined)
+    void getCourses()
+      .then((options) => setCourses(options.map((option) => option.course)))
+      .catch(() => undefined)
+  })
+
+  // 页面退到后台就把待发的改动送出去。keep-alive 下组件不卸载，所以这一步比
+  // 卸载兜底更常触发。
+  useEffect(() => {
+    if (!isPageActive) void flush()
+  }, [isPageActive, flush])
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') void flush()
     }
-    setIsSubmitting(true)
-    setError(null)
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (isDirty()) event.preventDefault()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      window.removeEventListener('beforeunload', onBeforeUnload)
+    }
+  }, [flush, isDirty])
+
+  // Cmd/Ctrl+S 立刻存一次。自动保存已经兜住了，但手会自己按。
+  useEffect(() => {
+    if (!isPageActive) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 's' || !(event.metaKey || event.ctrlKey)) return
+      event.preventDefault()
+      void flush()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isPageActive, flush])
+
+  // 标题是会换行的 textarea，高度跟着内容走。
+  useEffect(() => {
+    const element = titleRef.current
+    if (!element) return
+    element.style.height = 'auto'
+    element.style.height = `${element.scrollHeight}px`
+  }, [title])
+
+  const displayTitle = title.trim() || t('notes.untitled')
+  usePageTitle(`/notes/${id ?? ''}`, note ? displayTitle : null)
+
+  const handleDelete = async () => {
+    if (!id) return
+    const ok = await confirm({
+      title: t('notes.deleteConfirmTitle'),
+      content: t('notes.deleteConfirmBody', { title: displayTitle }),
+      okText: t('notes.delete'),
+      status: 'danger',
+    })
+    if (!ok) return
     try {
-      await updateNote(id, form)
-      setIsEditing(false)
-      setReloadToken((token) => token + 1)
-    } catch {
-      setError('更新笔记失败')
-    } finally {
-      setIsSubmitting(false)
+      await deleteNote(id)
+      bumpNotesRevision()
+      navigate('/notes', { replace: true })
+    } catch (deleteError) {
+      setError(getErrorMessage(deleteError, t('notes.deleteError')))
     }
   }
 
@@ -73,123 +202,118 @@ export function NoteDetailPage() {
 
   return (
     <section className="page">
-      <div className="section-header">
-        <div>
-          <h2>{note?.title ?? '笔记详情'}</h2>
-          <p className="muted">
-            {note?.course || '未分类课程'} · {note?.lesson || '未分课次'}
-          </p>
-        </div>
-        {note ? (
-          <div className="compact-actions">
-            {isEditing ? (
-              <Button variant="outline"
-                type="button"
-                onPress={() => {
-                  setIsEditing(false)
-                  setForm({
-                    title: note.title,
-                    course: note.course,
-                    lesson: note.lesson,
-                    content: note.content ?? '',
-                  })
-                }}
-              >
-                取消编辑
-              </Button>
-            ) : (
-              <Button type="button" onPress={() => setIsEditing(true)}>
-                编辑笔记
-              </Button>
-            )}
-          </div>
-        ) : null}
-      </div>
-
-      {isLoading ? <div className="card">加载中...</div> : null}
+      {isLoading ? <div className="card">{t('notes.loading')}</div> : null}
       {error ? <p className="error-text">{error}</p> : null}
 
       {note ? (
-        <>
-          {isEditing ? (
-            <form className="card word-form" onSubmit={(event) => void handleUpdate(event)}>
-              <label>
-                标题
-                <Input
-                  value={form.title}
-                  onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-                />
-              </label>
-              <label>
-                课程
-                <Input
-                  value={form.course}
-                  onChange={(event) => setForm((prev) => ({ ...prev, course: event.target.value }))}
-                />
-              </label>
-              <label>
-                课次
-                <Input
-                  value={form.lesson}
-                  onChange={(event) => setForm((prev) => ({ ...prev, lesson: event.target.value }))}
-                  placeholder="例如：L23"
-                />
-              </label>
-              <label>
-                内容
-                <RichTextEditor
-                  value={form.content}
-                  onChange={(html) => setForm((prev) => ({ ...prev, content: html }))}
-                  placeholder="开始记录笔记..."
-                  minHeight={260}
-                />
-              </label>
-              <div className="form-actions">
-                <Button type="submit" isDisabled={isSubmitting}>
-                  {isSubmitting ? '保存中...' : '保存修改'}
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <article className="card">
-              <RichTextEditor value={note.content} readOnly minHeight={120} />
-            </article>
-          )}
-
-          <div className="section-header">
-            <h3>关联单词</h3>
-            <Button
-              type="button"
-              onPress={() => navigate(`/words/new?noteId=${note.id}`)}
-            >
-              从此笔记添加单词
-            </Button>
+        <div className="note-doc">
+          <div className="flex items-center justify-between gap-3">
+            <SaveIndicator status={status} onRetry={() => void flush()} />
+            <div className="flex items-center gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                onPress={() => navigate(`/words/new?noteId=${note.id}`)}
+              >
+                <Plus className="size-4" aria-hidden />
+                {t('notes.addWord')}
+              </Button>
+              <Button size="sm" variant="ghost" onPress={() => void handleDelete()}>
+                <Trash2 className="size-4" aria-hidden />
+                {t('notes.delete')}
+              </Button>
+            </div>
           </div>
 
-          {note.words.length === 0 ? (
-            <div className="card empty-state">
-              <p>当前笔记还没有关联单词。</p>
+          <textarea
+            className="note-title"
+            ref={titleRef}
+            rows={1}
+            value={title}
+            placeholder={t('notes.untitled')}
+            onChange={(event) => {
+              setTitle(event.target.value)
+              queue({ title: event.target.value })
+            }}
+            onKeyDown={(event) => {
+              // 标题不收换行，回车一律当「写完了，去正文」—— 跟 Notion 一致。
+              if (event.key !== 'Enter') return
+              event.preventDefault()
+              editorRef.current?.focusStart()
+            }}
+          />
+
+          <dl className="note-props">
+            <div className="note-prop">
+              <dt>
+                <Tag className="size-4" aria-hidden />
+                {t('notes.course')}
+              </dt>
+              <dd>
+                <CourseField
+                  value={course}
+                  options={courses}
+                  onChange={(next) => {
+                    setCourse(next)
+                    commit({ course: next })
+                  }}
+                />
+              </dd>
             </div>
-          ) : (
-            <div className="word-list">
-              {note.words.map((word) => (
-                <article key={word.id} className="card word-card">
-                  <div className="word-card-title">
-                    <strong className="word-title">{word.word}</strong>
-                    <span className="muted word-reading">{word.reading}</span>
-                  </div>
-                  {word.meaning ? <p className="word-meaning">{word.meaning}</p> : null}
-                  <Link
-                    className="button button--outline"
-                    to={`/folders/${word.folderId}#word-${word.id}`}
-                  >
-                    查看 / 编辑
-                  </Link>
-                </article>
-              ))}
+            <div className="note-prop">
+              <dt>
+                <CalendarDays className="size-4" aria-hidden />
+                {t('notes.lessonAt')}
+              </dt>
+              <dd>
+                <NoteDateField
+                  value={lessonAt}
+                  onChange={(iso) => {
+                    setLessonAt(iso)
+                    commit({ lessonAt: iso })
+                  }}
+                />
+              </dd>
             </div>
-          )}
-        </>
+          </dl>
+
+          <NoteEditor
+            ref={editorRef}
+            initialContent={note.content}
+            onChange={(content) => queue({ content })}
+          />
+
+          <div className="mt-2 flex flex-col gap-3 border-t border-separator pt-5">
+            <h3 className="m-0 text-base">
+              {t('notes.linkedWords', { count: note.words.length })}
+            </h3>
+            {note.words.length === 0 ? (
+              <p className="muted m-0 text-sm">{t('notes.noLinkedWords')}</p>
+            ) : (
+              <ul className="m-0 grid list-none gap-2 p-0 sm:grid-cols-2">
+                {note.words.map((word) => (
+                  <li key={word.id}>
+                    <Link
+                      className="flex flex-col gap-0.5 rounded-xl bg-surface-secondary px-3.5 py-2.5 no-underline hover:bg-surface-tertiary"
+                      to={`/folders/${word.folderId}#word-${word.id}`}
+                    >
+                      <span className="flex items-baseline gap-2">
+                        <b className="text-foreground">{word.word}</b>
+                        <span className="text-[13px] text-muted">{word.reading}</span>
+                        <span className="ml-auto shrink-0 text-xs text-muted">
+                          {word.folder.name}
+                        </span>
+                      </span>
+                      {word.meaning ? (
+                        <span className="truncate text-[13px] text-muted">{word.meaning}</span>
+                      ) : null}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       ) : null}
     </section>
   )

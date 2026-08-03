@@ -12,7 +12,8 @@ import { TabsView } from '../components/ui/TabsView'
 import { alertDialog } from '../components/ui/dialog'
 import { getTodayLearnedStats, markWordMastered } from '../api/review'
 import { getTodayNewWords } from '../api/words'
-import { useI18n, type UiLanguage } from '../i18n'
+import { DATE_LOCALES } from '../lib/datetime'
+import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
 import { sessionPath } from '../store/useActiveSessions'
 import { useAuthStore } from '../store/authStore'
@@ -20,13 +21,6 @@ import type { Word } from '../types'
 
 /** `null` is "no cap" — the learn session then covers every new word. */
 const LEARN_LIMITS: readonly (number | null)[] = [5, 10, 15, 20, 30, 50, 100, null]
-
-/** UI language → the BCP 47 tag `toLocaleDateString` wants for the header date. */
-const DATE_LOCALES: Record<UiLanguage, string> = {
-  zh: 'zh-CN',
-  en: 'en-US',
-  jp: 'ja-JP',
-}
 
 /** The shape both preview lists boil down to — a due item or a new word. */
 type PreviewWord = {

@@ -10,16 +10,27 @@ export type Folder = {
   }
 }
 
-export type Note = {
+/**
+ * 笔记列表行。不带正文 —— 服务端只下发一行摘要，正文进详情页才拉。
+ */
+export type NoteListItem = {
+  id: string
+  /** 可能是空串，展示时兜底成「无标题」。 */
+  title: string
+  /** 课程标签，空串 = 未归类。 */
+  course: string
+  /** 课程时间。用户没填时等于创建时间；列表按它倒序。 */
+  lessonAt: string
+  createdAt: string
+  updatedAt: string
+  preview: string
+  wordCount: number
+}
+
+/** 单词挂着的来源笔记，只需要认得出是哪一篇。 */
+export type NoteRef = {
   id: string
   title: string
-  content: string
-  course: string
-  lesson: string
-  createdAt: string
-  _count?: {
-    words: number
-  }
 }
 
 export type Expression = {
@@ -102,7 +113,7 @@ export type Word = {
   pinnedAt?: string | null
   createdAt?: string
   folder?: Folder
-  sourceNote?: Note | null
+  sourceNote?: NoteRef | null
   review?: Review | null
 }
 

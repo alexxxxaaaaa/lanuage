@@ -2,7 +2,7 @@
 
 A vocabulary learning app with spaced repetition, AI-assisted word entries, expression drills, and rich-text course notes.
 
-- **client**: React 19 + Vite + Ant Design + Tiptap + Zustand
+- **client**: React 19 + Vite + HeroUI + Tailwind + BlockNote + Zustand
 - **server**: Hono + Prisma + SQLite (local) / Cloudflare D1 (prod) + OpenAI
 - Monorepo via npm workspaces
 
@@ -168,3 +168,35 @@ npx wrangler d1 execute word-sprint-db --remote \
 考试记录与精练的答题卡/错题本互不干扰；成绩页的「加入错题本」才会把错题
 写进 `QbankAttempt`。考试模式（严格 / 自我评估）存在浏览器本地，开考那一刻
 定格到 attempt 上，中途改设置不影响进行中的考试。
+
+## 课程笔记上线（BlockNote）
+
+笔记从 Tiptap + HTML 换成了 [BlockNote](https://www.blocknotejs.org/)，编辑器存的是
+`Block[]` 的 JSON。同时「课次」（自由文本）换成了「课程时间」（日期），课程本身
+仍然是笔记上的一个字符串标签，不建表。
+
+```bash
+cd server
+# 本地：跟平时一样
+npx prisma migrate dev
+
+# 线上 D1：这条迁移是一次性的，打第二遍会报 duplicate column
+npx wrangler d1 execute word-sprint-db --remote \
+  --file=./prisma/migrations/20260803000000_note_lesson_at/migration.sql
+```
+
+迁移会把老的课次文本并进标题（`原标题 · L23`，标题为空就直接拿它当标题），
+再把课程时间和更新时间回填成创建时间，最后删掉 `lesson` 列。全是
+`ALTER TABLE` / `UPDATE`，没有建表搬数据，`Word.sourceNoteId` 那条外键不受影响。
+
+**正文格式是懒迁移的**。库里现在三种格式并存：BlockNote JSON（新）、Tiptap 的
+HTML（老）、更早的 Slate JSON。打开一篇老笔记时，前端在
+`client/src/components/notes/noteContent.ts` 里认出格式并转成 block 灌进编辑器，
+等用户真的动了笔才按新格式写回去——只看不改的笔记会一直保持老格式，这是有意的，
+不需要停机批量转换（HTML → block 要浏览器 DOM，服务端跑不了）。凡是服务端要
+「读文字」的地方（列表摘要、搜索、后台查看）都走
+`server/src/lib/noteContent.ts` 的纯文本视图，三种格式通吃。
+
+搜索是两段式的：先用 SQL 的 `LIKE` 粗筛（正文在库里是 JSON/HTML，会顺带命中
+标签名和 JSON 键），再在服务端按纯文本复筛掉假阳性，所以搜 `strong` 不会把所有
+带加粗的笔记翻出来。

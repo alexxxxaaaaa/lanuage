@@ -79,7 +79,8 @@ export interface AdminNoteRow {
   id: string
   title: string
   course: string
-  lesson: string
+  /** 课程时间。用户没填时等于创建时间。 */
+  lessonAt: string
   createdAt: string
   userId: string
   username: string
@@ -87,7 +88,8 @@ export interface AdminNoteRow {
 }
 
 export interface AdminNoteDetail extends AdminNoteRow {
-  content: string
+  /** 服务端抽好的纯文本。正文本身是 BlockNote 的 JSON，后台渲染不了也不需要。 */
+  contentText: string
   user: { username: string }
 }
 

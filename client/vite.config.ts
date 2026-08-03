@@ -49,6 +49,10 @@ export default defineConfig({
       workbox: {
         navigateFallback: '/index.html',
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        // 整个应用还是一个 chunk，主 bundle 已经越过 workbox 默认的 2 MiB 上限，
+        // 超限的文件会被**静默跳过**预缓存 —— 那样 PWA 离线就只剩个空壳。抬到
+        // 3 MiB 先保证行为正确；真正的解法是按路由做代码分割，那是另一件事。
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/word-sprint-server\.zhuyandijp\.workers\.dev\/api\//,

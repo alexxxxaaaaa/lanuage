@@ -1,29 +1,134 @@
 import { prisma } from '../lib/prisma'
 import { AppError } from '../errors/AppError'
+import { noteContentToPreview, noteContentToText } from '../lib/noteContent'
 
-type CreateNoteInput = {
-  title: string
-  content: string
+/** 列表摘要的长度。够铺满一行，又不至于让列表接口把整篇正文运下去。 */
+const PREVIEW_LENGTH = 180
+
+/** 正文体积上限，纯粹是防滥用；一篇正常笔记离这个数远得很。 */
+const MAX_CONTENT_BYTES = 1024 * 1024
+
+const MAX_TITLE_LENGTH = 200
+const MAX_COURSE_LENGTH = 60
+
+type NoteWriteInput = {
+  title?: string
+  content?: string
   course?: string
-  lesson?: string
+  lessonAt?: string | null
 }
-
-type UpdateNoteInput = Partial<CreateNoteInput>
 
 function normalizeText(input?: string) {
   return (input ?? '').trim()
 }
 
-export async function getNotes(userId: string) {
-  return prisma.note.findMany({
-    where: { userId },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      _count: {
-        select: { words: true },
-      },
+function parseLessonAt(input: string | null | undefined): Date | undefined {
+  if (input === undefined || input === null || input === '') return undefined
+  const date = new Date(input)
+  if (Number.isNaN(date.getTime())) {
+    throw new AppError('lessonAt is not a valid date', 400)
+  }
+  return date
+}
+
+function assertWithin(value: string, max: number, field: string) {
+  if (value.length > max) {
+    throw new AppError(`${field} is too long`, 400)
+  }
+}
+
+function normalizeContent(input: string | undefined) {
+  const content = input ?? ''
+  if (content.length > MAX_CONTENT_BYTES) {
+    throw new AppError('content is too large', 413)
+  }
+  return content
+}
+
+/** 列表行。刻意不带正文 —— 客户端只需要摘要。 */
+export type NoteListItem = {
+  id: string
+  title: string
+  course: string
+  lessonAt: Date
+  createdAt: Date
+  updatedAt: Date
+  preview: string
+  wordCount: number
+}
+
+export async function getNotes(
+  userId: string,
+  filters: { course?: string; q?: string } = {},
+): Promise<NoteListItem[]> {
+  const course = normalizeText(filters.course)
+  const q = normalizeText(filters.q)
+
+  const rows = await prisma.note.findMany({
+    where: {
+      userId,
+      ...(course ? { course } : {}),
+      // 正文在库里是 JSON / HTML，LIKE 只能当粗筛：先把明显不含关键词的行挡在
+      // D1 那边，再在下面用纯文本视图剔掉命中标签名、JSON 键这类的假阳性。
+      ...(q
+        ? {
+            OR: [
+              { title: { contains: q } },
+              { course: { contains: q } },
+              { content: { contains: q } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: [{ lessonAt: 'desc' }, { createdAt: 'desc' }],
+    select: {
+      id: true,
+      title: true,
+      course: true,
+      content: true,
+      lessonAt: true,
+      createdAt: true,
+      updatedAt: true,
+      _count: { select: { words: true } },
     },
   })
+
+  const needle = q.toLowerCase()
+
+  return rows
+    .filter((row) => {
+      if (!needle) return true
+      const haystack = `${row.title}\n${row.course}\n${noteContentToText(row.content)}`
+      return haystack.toLowerCase().includes(needle)
+    })
+    .map((row) => ({
+      id: row.id,
+      title: row.title,
+      course: row.course,
+      // 这两列对老行才可能是 NULL，迁移已回填，这里只是兜底。
+      lessonAt: row.lessonAt ?? row.createdAt,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt ?? row.createdAt,
+      preview: noteContentToPreview(row.content, PREVIEW_LENGTH),
+      wordCount: row._count.words,
+    }))
+}
+
+/** 课程标签选项，按用得多的排前面。新建笔记时的下拉就吃这个。 */
+export async function getCourses(userId: string) {
+  const rows = await prisma.note.findMany({
+    where: { userId, course: { not: '' } },
+    select: { course: true },
+  })
+
+  const counts = new Map<string, number>()
+  for (const row of rows) {
+    counts.set(row.course, (counts.get(row.course) ?? 0) + 1)
+  }
+
+  return Array.from(counts, ([course, count]) => ({ course, count })).sort(
+    (a, b) => b.count - a.count || a.course.localeCompare(b.course),
+  )
 }
 
 export async function getNoteById(userId: string, id: string) {
@@ -36,9 +141,13 @@ export async function getNoteById(userId: string, id: string) {
     where: { id: normalizedId, userId },
     include: {
       words: {
-        include: {
-          folder: true,
-          review: true,
+        select: {
+          id: true,
+          word: true,
+          reading: true,
+          meaning: true,
+          folderId: true,
+          folder: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: 'desc' },
       },
@@ -49,38 +158,32 @@ export async function getNoteById(userId: string, id: string) {
     throw new AppError('note not found', 404)
   }
 
-  return note
+  return { ...note, lessonAt: note.lessonAt ?? note.createdAt }
 }
 
-export async function createNote(userId: string, input: CreateNoteInput) {
+/**
+ * 建一条笔记。标题和正文都允许为空 —— 前端「新建」是先落一条空笔记再跳进
+ * 编辑页，往下全靠自动保存打补丁，这跟 Notion 的行为一致。
+ */
+export async function createNote(userId: string, input: NoteWriteInput) {
   const title = normalizeText(input.title)
-  const content = normalizeText(input.content)
   const course = normalizeText(input.course)
-  const lesson = normalizeText(input.lesson)
-
-  if (!title) {
-    throw new AppError('title is required', 400)
-  }
-  if (!content) {
-    throw new AppError('content is required', 400)
-  }
+  assertWithin(title, MAX_TITLE_LENGTH, 'title')
+  assertWithin(course, MAX_COURSE_LENGTH, 'course')
 
   return prisma.note.create({
     data: {
       title,
-      content,
+      content: normalizeContent(input.content),
       course,
-      lesson,
+      // 选填，不给就是此刻 —— 也就是「默认为创建时间」。
+      lessonAt: parseLessonAt(input.lessonAt) ?? new Date(),
       userId,
     },
   })
 }
 
-export async function updateNote(
-  userId: string,
-  id: string,
-  input: UpdateNoteInput,
-) {
+export async function updateNote(userId: string, id: string, input: NoteWriteInput) {
   const normalizedId = normalizeText(id)
   if (!normalizedId) {
     throw new AppError('note id is required', 400)
@@ -88,6 +191,7 @@ export async function updateNote(
 
   const existing = await prisma.note.findFirst({
     where: { id: normalizedId, userId },
+    select: { id: true, createdAt: true },
   })
   if (!existing) {
     throw new AppError('note not found', 404)
@@ -97,32 +201,50 @@ export async function updateNote(
     title?: string
     content?: string
     course?: string
-    lesson?: string
+    lessonAt?: Date
   } = {}
 
   if (input.title !== undefined) {
-    const title = normalizeText(input.title)
-    if (!title) throw new AppError('title cannot be empty', 400)
-    data.title = title
+    data.title = normalizeText(input.title)
+    assertWithin(data.title, MAX_TITLE_LENGTH, 'title')
   }
   if (input.content !== undefined) {
-    const content = normalizeText(input.content)
-    if (!content) throw new AppError('content cannot be empty', 400)
-    data.content = content
+    data.content = normalizeContent(input.content)
   }
   if (input.course !== undefined) {
     data.course = normalizeText(input.course)
+    assertWithin(data.course, MAX_COURSE_LENGTH, 'course')
   }
-  if (input.lesson !== undefined) {
-    data.lesson = normalizeText(input.lesson)
+  if (input.lessonAt !== undefined) {
+    // 清空课程时间就退回创建时间 —— 这一列业务上不留空，排序全靠它。
+    data.lessonAt = parseLessonAt(input.lessonAt) ?? existing.createdAt
   }
 
   if (Object.keys(data).length === 0) {
-    return existing
+    return getNoteById(userId, normalizedId)
   }
 
-  return prisma.note.update({
-    where: { id: normalizedId },
-    data,
+  await prisma.note.update({ where: { id: normalizedId }, data })
+  return getNoteById(userId, normalizedId)
+}
+
+export async function deleteNote(userId: string, id: string) {
+  const normalizedId = normalizeText(id)
+  const existing = await prisma.note.findFirst({
+    where: { id: normalizedId, userId },
+    select: { id: true },
   })
+  if (!existing) {
+    throw new AppError('note not found', 404)
+  }
+
+  // 从笔记里加过的单词不跟着删，只是断开来源 —— 这一步是 Word.sourceNoteId 上
+  // 那条外键的 ON DELETE SET NULL 干的，不用自己再补一条 UPDATE。
+  //
+  // 也别把两条语句包进 $transaction：Prisma 的 D1 适配器把事务静默降级成逐条
+  // 执行（commit/rollback 都是空实现），包了并不保证原子性。反过来 D1 每条语句
+  // 本身跑在隐式事务里，所以「一条 DELETE 让外键收尾」才是这里真正原子的写法。
+  await prisma.note.delete({ where: { id: normalizedId } })
+
+  return { ok: true }
 }

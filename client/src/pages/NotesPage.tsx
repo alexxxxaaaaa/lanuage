@@ -1,172 +1,277 @@
-import { useEffect, useMemo, useState } from 'react'
-import { SelectField } from '../components/ui/SelectField'
-import { Button, Input } from '@heroui/react'
-import { Link } from 'react-router'
-import { createNote, getNotes } from '../api/notes'
-import { RichTextEditor } from '../components/RichTextEditor'
-import type { Note } from '../types'
+import { useEffect, useState } from 'react'
+import {
+  Button,
+  Chip,
+  EmptyState,
+  SearchField,
+  Table,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
+} from '@heroui/react'
+import { FileText, Plus, Trash2 } from 'lucide-react'
+import { useNavigate } from 'react-router'
+
+import {
+  createNote,
+  deleteNote,
+  getCourses,
+  getNotes,
+  type CourseOption,
+} from '../api/notes'
+import { getErrorMessage } from '../api/error'
+import { confirm } from '../components/ui/dialog'
+import { useOnPageReactivated } from '../components/layout/pageContext'
+import { formatListDate } from '../lib/datetime'
+import { useNotesRevision } from '../store/useNotesRevision'
+import { useI18n } from '../i18n'
+import type { NoteListItem } from '../types'
+
+/** 搜索是打到服务端的（正文只有那边有），所以别每敲一个字就发一次。 */
+const SEARCH_DEBOUNCE_MS = 250
+
+// 课程名是用户自己敲的字符串，直接当 key 会跟「全部」撞名。加个前缀隔开。
+const ALL_COURSES_KEY = 'all'
+const COURSE_KEY_PREFIX = 'course:'
 
 export function NotesPage() {
-  const [notes, setNotes] = useState<Note[]>([])
+  const navigate = useNavigate()
+  const { t, language } = useI18n()
+
+  const [notes, setNotes] = useState<NoteListItem[]>([])
+  const [courses, setCourses] = useState<CourseOption[]>([])
+  const [course, setCourse] = useState('')
+  const [query, setQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
-  const [courseFilter, setCourseFilter] = useState<string>('')
-  const [reloadToken, setReloadToken] = useState(0)
-  const [form, setForm] = useState({
-    title: '',
-    content: '',
-    course: '新概念英语',
-    lesson: '',
-  })
+  const [error, setError] = useState<string | null>(null)
 
-  const courseOptions = useMemo(() => {
-    const set = new Set<string>()
-    for (const note of notes) {
-      const c = (note.course ?? '').trim()
-      if (c) set.add(c)
-    }
-    return Array.from(set).sort()
-  }, [notes])
+  // 刷新信号是全局的：详情页保存成功后也会 bump，所以「改完立刻返回列表」不会
+  // 因为保存请求还没落地就读到旧数据。
+  const revision = useNotesRevision((state) => state.revision)
+  const reload = useNotesRevision((state) => state.bump)
 
-  const filteredNotes = useMemo(() => {
-    if (!courseFilter) return notes
-    return notes.filter((note) => (note.course ?? '').trim() === courseFilter)
-  }, [notes, courseFilter])
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query.trim()), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [query])
 
   useEffect(() => {
     let ignore = false
-    async function loadNotes() {
+    async function load() {
       setIsLoading(true)
       setError(null)
       try {
-        const rows = await getNotes()
-        if (!ignore) setNotes(Array.isArray(rows) ? rows : [])
-      } catch {
-        if (!ignore) setError('加载笔记失败')
+        const rows = await getNotes({ course, q: debouncedQuery })
+        if (!ignore) setNotes(rows)
+      } catch (loadError) {
+        if (!ignore) setError(getErrorMessage(loadError, t('notes.loadError')))
       } finally {
         if (!ignore) setIsLoading(false)
       }
     }
-    void loadNotes()
+    void load()
     return () => {
       ignore = true
     }
-  }, [reloadToken])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [course, debouncedQuery, revision])
 
-  const handleCreate = async (event: React.FormEvent) => {
-    event.preventDefault()
-    const plain = form.content.replace(/<[^>]+>/g, '').trim()
-    if (!plain) {
-      setError('笔记内容不能为空')
-      return
+  // 课程选项跟着笔记走，但不受当前筛选影响 —— 否则选中一个课程之后其它选项
+  // 就消失了，没法切换。
+  useEffect(() => {
+    let ignore = false
+    void getCourses()
+      .then((options) => {
+        if (!ignore) setCourses(options)
+      })
+      .catch(() => undefined)
+    return () => {
+      ignore = true
     }
-    setIsSubmitting(true)
+  }, [revision])
+
+  // 从详情页回来时标题、课程、时间都可能变过。
+  useOnPageReactivated(reload)
+
+  const handleCreate = async () => {
+    setIsCreating(true)
     setError(null)
     try {
-      await createNote(form)
-      setForm((prev) => ({ ...prev, title: '', content: '', lesson: '' }))
-      setIsCreating(false)
-      setReloadToken((token) => token + 1)
-    } catch {
-      setError('创建笔记失败')
+      // 先落一条空笔记再跳进去，之后全靠自动保存打补丁。当前筛的课程顺手带上。
+      const created = await createNote(course ? { course } : {})
+      navigate(`/notes/${created.id}`)
+    } catch (createError) {
+      setError(getErrorMessage(createError, t('notes.createError')))
     } finally {
-      setIsSubmitting(false)
+      setIsCreating(false)
     }
   }
+
+  const handleDelete = async (note: NoteListItem) => {
+    const ok = await confirm({
+      title: t('notes.deleteConfirmTitle'),
+      content: t('notes.deleteConfirmBody', {
+        title: note.title.trim() || t('notes.untitled'),
+      }),
+      okText: t('notes.delete'),
+      status: 'danger',
+    })
+    if (!ok) return
+    try {
+      await deleteNote(note.id)
+      setNotes((rows) => rows.filter((row) => row.id !== note.id))
+      reload()
+    } catch (deleteError) {
+      setError(getErrorMessage(deleteError, t('notes.deleteError')))
+    }
+  }
+
+  const isFiltered = course !== '' || debouncedQuery !== ''
 
   return (
     <section className="page">
       <div className="section-header">
         <div>
-          <h2>课程笔记</h2>
+          <h2>{t('routes.notes')}</h2>
+          <p className="muted">{t('notes.subtitle')}</p>
         </div>
-        <div className="compact-actions">
-          <Button
-            type="button"
-            onPress={() => {
-              setIsCreating((prev) => !prev)
-              setForm({ title: '', content: '', course: '新概念英语', lesson: '' })
+        <Button isDisabled={isCreating} onPress={() => void handleCreate()}>
+          <Plus className="size-4" aria-hidden />
+          {t('notes.create')}
+        </Button>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <SearchField
+          aria-label={t('notes.searchPlaceholder')}
+          className="max-w-96"
+          value={query}
+          onChange={setQuery}
+        >
+          <SearchField.Group>
+            <SearchField.SearchIcon />
+            <SearchField.Input placeholder={t('notes.searchPlaceholder')} />
+            <SearchField.ClearButton />
+          </SearchField.Group>
+        </SearchField>
+
+        {courses.length > 0 ? (
+          <ToggleButtonGroup
+            isDetached
+            aria-label={t('notes.course')}
+            className="flex-wrap"
+            disallowEmptySelection
+            selectedKeys={[course ? `${COURSE_KEY_PREFIX}${course}` : ALL_COURSES_KEY]}
+            selectionMode="single"
+            size="sm"
+            onSelectionChange={(keys) => {
+              const [key] = [...keys]
+              const next = typeof key === 'string' ? key : ALL_COURSES_KEY
+              setCourse(next.startsWith(COURSE_KEY_PREFIX) ? next.slice(COURSE_KEY_PREFIX.length) : '')
             }}
           >
-            {isCreating ? '收起添加' : '添加笔记'}
-          </Button>
-        </div>
+            <ToggleButton id={ALL_COURSES_KEY}>{t('notes.allCourses')}</ToggleButton>
+            {courses.map((option) => (
+              <ToggleButton id={`${COURSE_KEY_PREFIX}${option.course}`} key={option.course}>
+                {option.course}
+                <span className="text-muted">{option.count}</span>
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+        ) : null}
       </div>
 
-      {isCreating ? (
-        <form className="card word-form" onSubmit={(event) => void handleCreate(event)}>
-          <label>
-            标题
-            <Input
-              value={form.title}
-              onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-            />
-          </label>
-          <label>
-            课程
-            <Input
-              value={form.course}
-              onChange={(event) => setForm((prev) => ({ ...prev, course: event.target.value }))}
-            />
-          </label>
-          <label>
-            课次
-            <Input
-              value={form.lesson}
-              onChange={(event) => setForm((prev) => ({ ...prev, lesson: event.target.value }))}
-              placeholder="例如：L23"
-            />
-          </label>
-          <label>
-            内容
-            <RichTextEditor
-              value={form.content}
-              onChange={(html) => setForm((prev) => ({ ...prev, content: html }))}
-              placeholder="开始记录笔记..."
-              minHeight={220}
-            />
-          </label>
-          <div className="form-actions">
-            <Button type="submit" isDisabled={isSubmitting}>
-              {isSubmitting ? '保存中...' : '保存笔记'}
-            </Button>
-          </div>
-        </form>
-      ) : null}
-
-      {courseOptions.length > 0 ? (
-        <div className="card expression-filter-row expression-filter-row-single">
-          <SelectField
-            value={courseFilter || undefined}
-            onChange={(v) => setCourseFilter(v ?? '')}
-            placeholder="全部课程"
-              className="min-w-[180px]"
-            options={courseOptions.map((course) => ({
-              value: course,
-              label: course,
-            }))}
-          />
-        </div>
-      ) : null}
-
-      {isLoading ? <div className="card">加载中...</div> : null}
       {error ? <p className="error-text">{error}</p> : null}
-      <div className="folder-grid">
-        {filteredNotes.map((note) => (
-          <article key={note.id} className="card folder-card">
-            <Link className="folder-card-link" to={`/notes/${note.id}`}>
-              <div className="folder-top">
-                <strong>{note.title}</strong>
-                <span className="folder-language">{note.lesson || '未分课次'}</span>
-              </div>
-              <p className="muted">{note.course || '未分类课程'}</p>
-              <p className="muted">关联单词：{note._count?.words ?? 0}</p>
-            </Link>
-          </article>
-        ))}
-      </div>
+
+      <Table>
+        <Table.ScrollContainer>
+          {/* 固定布局：默认的 auto 布局会按内容重新分配，下面声明的列宽等于白写。 */}
+          <Table.Content
+            aria-label={t('routes.notes')}
+            className="min-w-[760px] [table-layout:fixed]"
+          >
+            <Table.Header>
+              {/* 两个文本列给百分比宽度，否则自动布局会按内容分配，摘要被挤成一小条。 */}
+              <Table.Column isRowHeader width="24%">
+                {t('notes.columnTitle')}
+              </Table.Column>
+              <Table.Column width="46%">{t('notes.columnPreview')}</Table.Column>
+              <Table.Column width={140}>{t('notes.course')}</Table.Column>
+              <Table.Column width={80}>{t('notes.columnWords')}</Table.Column>
+              <Table.Column width={120}>{t('notes.lessonAt')}</Table.Column>
+              {/* 操作列，表头留空是这类列的通行做法。 */}
+              <Table.Column width={64}>{''}</Table.Column>
+            </Table.Header>
+            <Table.Body
+              renderEmptyState={() => (
+                <EmptyState className="flex flex-col items-center gap-3 py-12 text-center">
+                  <FileText className="size-8 text-muted" aria-hidden />
+                  <span className="text-sm text-muted">
+                    {isLoading
+                      ? t('notes.loading')
+                      : isFiltered
+                        ? t('notes.emptyFiltered')
+                        : t('notes.empty')}
+                  </span>
+                  {isLoading || isFiltered ? null : (
+                    <Button size="sm" variant="ghost" onPress={() => void handleCreate()}>
+                      {t('notes.create')}
+                    </Button>
+                  )}
+                </EmptyState>
+              )}
+            >
+              {notes.map((note) => (
+                // 整行是个链接（react-aria 的 href），点击、Cmd+点击新开标签都照常，
+                // 不用再拿伪元素盖一层。客户端路由由 AriaRouterProvider 接上。
+                <Table.Row className="group" href={`/notes/${note.id}`} key={note.id}>
+                  {/* 每格一行文本，行高和内边距全交给 HeroUI —— 之前把标题和摘要
+                      叠在同一格里，行被撑高、上下留白就没了。 */}
+                  <Table.Cell className="truncate font-medium text-foreground">
+                    {note.title.trim() || t('notes.untitled')}
+                  </Table.Cell>
+                  <Table.Cell className="truncate text-muted">
+                    {note.preview || '—'}
+                  </Table.Cell>
+                  <Table.Cell>
+                    {note.course ? (
+                      <Chip className="max-w-full" color="accent" size="sm" variant="soft">
+                        <Chip.Label className="truncate">{note.course}</Chip.Label>
+                      </Chip>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </Table.Cell>
+                  <Table.Cell className="tabular-nums text-muted">
+                    {note.wordCount > 0 ? note.wordCount : '—'}
+                  </Table.Cell>
+                  <Table.Cell className="tabular-nums text-muted">
+                    {formatListDate(note.lessonAt, language)}
+                  </Table.Cell>
+                  <Table.Cell>
+                    <Tooltip delay={300}>
+                      <Button
+                        isIconOnly
+                        aria-label={t('notes.delete')}
+                        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-md:opacity-100"
+                        size="sm"
+                        variant="ghost"
+                        onPress={() => void handleDelete(note)}
+                      >
+                        <Trash2 className="size-4" aria-hidden />
+                      </Button>
+                      <Tooltip.Content>{t('notes.delete')}</Tooltip.Content>
+                    </Tooltip>
+                  </Table.Cell>
+                </Table.Row>
+              ))}
+            </Table.Body>
+          </Table.Content>
+        </Table.ScrollContainer>
+      </Table>
+
     </section>
   )
 }

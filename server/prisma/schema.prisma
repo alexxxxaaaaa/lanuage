@@ -57,17 +57,29 @@ model Word {
 }
 
 model Note {
-  id        String   @id @default(uuid())
-  title     String
-  content   String
-  course    String   @default("")
-  lesson    String   @default("")
-  createdAt DateTime @default(now())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  words     Word[]
+  id      String @id @default(uuid())
+  /// 可以为空 —— 列表里显示成「无标题」，和 Notion 一样。
+  title   String
+  /// BlockNote 文档（`Block[]` 的 JSON）。老行可能还是 HTML 或更早的 Slate
+  /// JSON，读的时候按格式分流，用户第一次编辑时才改写成 JSON，见
+  /// `client/src/components/notes/noteContent.ts`。
+  content String
+  /// 课程标签。空串 = 未归类，不建单独的表，因为一条笔记只挂一个课程。
+  course  String @default("")
 
-  @@index([userId])
+  /// 课程时间。选填，创建时默认落成当下，所以业务上恒非空 —— 之所以在库里
+  /// 是可空列，只是因为 SQLite 的 ALTER TABLE 加不了非常量默认值的 NOT NULL
+  /// 列，迁移时只能先加可空列再回填。排序一律走这一列。
+  lessonAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+  words  Word[]
+
+  @@index([userId, lessonAt])
+  @@index([userId, course])
 }
 
 model Review {

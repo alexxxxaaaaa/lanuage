@@ -282,9 +282,31 @@ export function AddWordPage() {
               </ProgressBar>
             ) : null}
           </label>
-          {selectedFolder ? (
-            <p className="muted">{t('addWord.matchedFolder', { name: selectedFolder.name })}</p>
-          ) : null}
+          <label>
+            {t('addWord.folder')}
+            <SelectField
+              value={form.folderId || undefined}
+              onChange={(v) =>
+                setForm((current) => ({ ...current, folderId: v ?? '' }))
+              }
+              placeholder={t('addWord.pickFolder')}
+              isDisabled={folderList.length === 0}
+              options={folderList.map((folder) => ({
+                value: folder.id,
+                textValue: folder.name,
+                label: (
+                  <span className="flex min-w-0 items-baseline gap-2">
+                    <span className="truncate">{folder.name}</span>
+                    <span className="shrink-0 text-xs text-muted">
+                      {folder.language === 'jp'
+                        ? t('expression.japanese')
+                        : t('expression.english')}
+                    </span>
+                  </span>
+                ),
+              }))}
+            />
+          </label>
           <label>
             {t('addWord.sourceNote')} <span className="optional-mark">{t('addWord.optional')}</span>
             <SelectField
@@ -295,7 +317,7 @@ export function AddWordPage() {
               placeholder={t('addWord.noSourceNote')}
               options={noteOptions.map((note) => ({
                 value: note.id,
-                label: note.title,
+                label: note.title.trim() || t('notes.untitled'),
               }))}
             />
           </label>
