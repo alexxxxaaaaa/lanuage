@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Chip, ProgressBar, Skeleton, Tooltip } from '@heroui/react'
+import { Button, Chip, ProgressBar, Skeleton, Tooltip, toast } from '@heroui/react'
 import { RotateCcw, Sparkles, Trash2 } from 'lucide-react'
 import { SelectField } from '../components/ui/SelectField'
 import { SourceSection } from '../components/ui/SourceSection'
@@ -342,15 +342,30 @@ export function WordSearchPage() {
         }
       : null)
 
+  // 所选词单的查重：词头+语言完全一致才算同一个词（服务端唯一键同口径）。
+  // localMatches 来自「我的单词库」的同一次查询，不用多发请求；AI 归一化词形
+  // 和输入不一致的漏网场景仍由服务端 409 兜底。
+  const existingWord = addSeed
+    ? (localMatches.find(
+        (match) =>
+          match.word === addSeed.word && match.language === addSeed.language,
+      ) ?? null)
+    : null
+  const alreadyInFolder = Boolean(
+    existingWord &&
+      selectedWordFolderId &&
+      existingWord.folderIds.includes(selectedWordFolderId),
+  )
+
   const handleAddWord = async () => {
-    if (!addSeed) return
+    if (!addSeed || alreadyInFolder) return
     if (!selectedWordFolderId) {
       void alertDialog.warning({ title: t('wordSearch.pickFolder') })
       return
     }
     setIsSavingWord(true)
     try {
-      await createWord({
+      const saved = await createWord({
         folderIds: [selectedWordFolderId],
         language: addSeed.language,
         word: addSeed.word,
@@ -360,9 +375,11 @@ export function WordSearchPage() {
         example: addSeed.example,
         note: addSeed.note,
       })
+      // 就地同步：按钮翻成「已添加」，「我的单词库」区块也立刻带上这条。
+      setLocalMatches((prev) => [saved, ...prev.filter((m) => m.id !== saved.id)])
       // 右侧索引里也要出现这个词（这里没走 useAppStore.createWord）。
       useWordIndex.getState().refresh()
-      void alertDialog.success({ title: t('wordSearch.addedSuccess') })
+      toast.success(t('wordSearch.addedSuccess'))
     } catch (saveError) {
       if (isDuplicateWordError(saveError)) {
         void alertDialog.warning({ title: t('wordSearch.duplicate') })
@@ -628,12 +645,23 @@ export function WordSearchPage() {
                         {t('wordSearch.createFolder')}
                       </Link>
                     ) : null}
+                    {alreadyInFolder ? (
+                      <span className="muted text-[13px]">
+                        {t('wordSearch.alreadyInFolderHint')}
+                      </span>
+                    ) : null}
                     <Button
                       type="button"
                       onPress={() => void handleAddWord()}
-                      isDisabled={isSavingWord || wordFolders.length === 0}
+                      isDisabled={
+                        alreadyInFolder || isSavingWord || wordFolders.length === 0
+                      }
                     >
-                      {isSavingWord ? t('wordSearch.addingWord') : t('wordSearch.addWord')}
+                      {alreadyInFolder
+                        ? t('wordSearch.alreadyAdded')
+                        : isSavingWord
+                          ? t('wordSearch.addingWord')
+                          : t('wordSearch.addWord')}
                     </Button>
                   </div>
                 ) : null}

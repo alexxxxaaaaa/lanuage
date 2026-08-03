@@ -760,6 +760,14 @@ export function FolderDetailPage() {
                   </div>
                 </div>
                 <div className="folder-card-actions">
+                  {/* 跳查词页看这个词的完整词典结果（本地来源 + AI 释义）。 */}
+                  <Link
+                    className="button button--outline button--sm"
+                    to={`/words/search?q=${encodeURIComponent(word.word)}`}
+                    title="在查词页查看这个词"
+                  >
+                    {t('folderDetail.details')}
+                  </Link>
                   <Button variant="outline" size="sm"
                     type="button"
                     onPress={() => void pinToTop(word)}

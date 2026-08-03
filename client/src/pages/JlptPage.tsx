@@ -349,11 +349,20 @@ export function JlptPage() {
           <TabsView
             activeKey={tab}
             onChange={setTab}
+            // 6 个 tab 要在手机上一屏放下：收窄内边距、缩一号字。日文分区名
+            // （文字・語彙 等）只在 ≥md 显示 —— 中文短标签已经足够辨认。
+            // 超出时 Tabs.ListContainer 自带横向滑动 + 渐隐箭头兜底。
+            className="max-md:**:data-[slot=tabs-tab]:px-2 max-md:**:data-[slot=tabs-tab]:text-[13px]"
             items={[
               { key: 'mock', label: '模拟考试', children: <ExamPaperList /> },
               ...CATEGORIES.map((c) => ({
                 key: c.key,
-                label: `${c.label} ${c.section}`,
+                label: (
+                  <>
+                    {c.label}
+                    <span className="max-md:hidden"> {c.section}</span>
+                  </>
+                ),
                 children: <PracticeTable groups={byCategory.get(c.key) ?? []} />,
               })),
               {
