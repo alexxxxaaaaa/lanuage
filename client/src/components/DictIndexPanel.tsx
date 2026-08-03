@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Chip, ScrollShadow, Spinner, Tabs } from '@heroui/react'
+import { Star } from 'lucide-react'
 import {
   DictIndex,
   type DictDirection,
@@ -95,6 +96,20 @@ async function buildIndex(
 const HAS_KANA = /[぀-ヿ]/
 const HAS_LATIN = /[a-zA-Z]/
 
+/** Tab 徽标上的词数。十万级的数字写全会挤爆侧栏，按界面语言缩写。 */
+const COMPACT_LOCALE: Record<string, string> = {
+  zh: 'zh-Hans-CN',
+  jp: 'ja-JP',
+  en: 'en',
+}
+
+function formatCount(count: number, uiLanguage: string) {
+  return new Intl.NumberFormat(COMPACT_LOCALE[uiLanguage] ?? 'en', {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(count)
+}
+
 /**
  * 从输入内容推断该看哪个方向。只在信号明确时给答案：
  * 假名一定是日语，拉丁字母在这个场景下是拼音。汉字两边都可能，返回 null
@@ -122,8 +137,9 @@ type Props = {
  * 右侧的词库索引栏 —— 相当于纸质辞书的词头一览。
  *
  * 内容是本地词库 + 我的单词库（AI 查词添加的词）合起来的一份词头表，
- * 每行标出它的来源。设置里关掉本地词库后只剩 AI 添加的词，此时全部同源，
- * 标签和日中/中日的分栏一并收起。日语之外没有本地词库，索引里同样只有 AI 词。
+ * 每行标出它的来源，入过词单的行尾亮一颗星。设置里关掉本地词库后只剩
+ * AI 添加的词，此时全部同源，行内的来源标签收起，但分栏 Tab 恒在 ——
+ * 词数徽标挂在 Tab 文字后面。日语之外没有本地词库，索引里同样只有 AI 词。
  *
  * 定位、滚动全在本地完成，敲一个字就跳一次也不产生任何请求。窄屏直接不渲染：
  * 它是桌面端的翻阅辅助，手机上挤不下也没意义。
@@ -134,10 +150,11 @@ type Props = {
  * 这里从头到尾只碰可见的那十几行，滚动条仍然覆盖全部词条。
  */
 export function DictIndexPanel({ query, language, onPick }: Props) {
-  const { t } = useI18n()
+  const { t, language: uiLanguage } = useI18n()
   const localDictEnabled = useSettings((state) => state.settings.localDictEnabled)
   const revision = useWordIndex((state) => state.revision)
   const [index, setIndex] = useState<DictIndex | null>(null)
+  const [counts, setCounts] = useState<Partial<Record<IndexKind, number>>>({})
   const [failed, setFailed] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -192,6 +209,27 @@ export function DictIndexPanel({ query, language, onPick }: Props) {
     }
   }, [kind, withLocal, revision])
 
+  // 每个分栏的索引都建一份：Tab 徽标要同时给出两栏的词数。结果是模块级
+  // 缓存，当前栏那份和上面的 effect 合并成一次构建，切 Tab 也因此秒开。
+  useEffect(() => {
+    let cancelled = false
+    for (const each of kinds) {
+      void buildIndex(each, withLocal, revision)
+        .then((built) => {
+          if (cancelled) return
+          setCounts((prev) =>
+            prev[each] === built.size ? prev : { ...prev, [each]: built.size },
+          )
+        })
+        .catch(() => {
+          // 拉不到的那栏不显示徽标即可，列表区自己会给失败态。
+        })
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [kinds, withLocal, revision])
+
   // 视口高度决定要渲染几行。用 ResizeObserver 而不是读一次 clientHeight：
   // 侧栏高度跟着窗口变，折叠浏览器窗口后区间要跟着重算。
   // observe() 本身会立刻回调一次初始尺寸，所以不必在这里同步读一遍。
@@ -233,38 +271,32 @@ export function DictIndexPanel({ query, language, onPick }: Props) {
   // 剩下的全是 AI 添加的词。
   const showTags = withLocal
 
-  const tabs: { id: IndexKind; label: string }[] = [
-    { id: 'ja-zh', label: t('wordSearch.indexJaZh') },
-    { id: 'zh-ja', label: t('wordSearch.indexZhJa') },
-  ]
+  const tabLabel: Record<IndexKind, string> = {
+    'ja-zh': t('wordSearch.indexJaZh'),
+    'zh-ja': t('wordSearch.indexZhJa'),
+    en: t('wordSearch.indexEn'),
+  }
 
   return (
     <aside className="sticky top-4 hidden h-[calc(100vh-7rem)] w-[300px] shrink-0 flex-col gap-3 xl:flex">
-      <div className="flex items-baseline justify-between gap-2">
-        <h3 className="m-0 text-base">{t('wordSearch.indexTitle')}</h3>
-        <span className="muted text-[13px]">
-          {index ? t('wordSearch.indexCount', { count: index.size }) : ''}
-        </span>
-      </div>
-
-      {kinds.length > 1 ? (
-        <Tabs
-          selectedKey={kind}
-          onSelectionChange={(key) => setKind(key as IndexKind)}
-          variant="secondary"
-        >
-          <Tabs.ListContainer>
-            <Tabs.List aria-label={t('wordSearch.indexTitle')}>
-              {tabs.map((tab) => (
-                <Tabs.Tab key={tab.id} id={tab.id}>
-                  {tab.label}
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-              ))}
-            </Tabs.List>
-          </Tabs.ListContainer>
-        </Tabs>
-      ) : null}
+      {/* 只有一栏时也渲染 Tabs：词数徽标挂在 Tab 文字后面，没有别的家。 */}
+      <Tabs selectedKey={kind} onSelectionChange={(key) => setKind(key as IndexKind)}>
+        <Tabs.ListContainer>
+          <Tabs.List aria-label={t('wordSearch.indexTitle')}>
+            {kinds.map((id) => (
+              <Tabs.Tab key={id} id={id}>
+                {tabLabel[id]}
+                {counts[id] != null ? (
+                  <Chip size="sm" variant="soft" className="tabular-nums">
+                    <Chip.Label>{formatCount(counts[id], uiLanguage)}</Chip.Label>
+                  </Chip>
+                ) : null}
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs.ListContainer>
+      </Tabs>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-surface">
         {failed ? (
@@ -301,27 +333,33 @@ export function DictIndexPanel({ query, language, onPick }: Props) {
                   aria-posinset={row.line + 1}
                   onClick={() => onPick(row)}
                   style={{ top: row.line * ROW_HEIGHT, height: ROW_HEIGHT }}
-                  className={`absolute inset-x-0 flex flex-col justify-center gap-0.5 px-3 text-left transition-colors duration-100 ${
+                  className={`absolute inset-x-0 flex items-center gap-2 px-3 text-left transition-colors duration-100 ${
                     row.line === activeLine
                       ? 'bg-accent/10 hover:bg-accent/15'
                       : 'hover:bg-accent/6'
                   }`}
                 >
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate text-[15px] text-foreground">{row.word}</span>
-                    {showTags && row.source !== 'ai' ? (
-                      <Chip size="sm" variant="soft">
-                        {t('wordSearch.tagLocal')}
-                      </Chip>
-                    ) : null}
-                    {showTags && row.source !== 'local' ? (
-                      <Chip size="sm" color="accent" variant="soft">
-                        {t('wordSearch.tagAi')}
-                      </Chip>
+                  <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate text-[15px] text-foreground">{row.word}</span>
+                      {showTags && row.source !== 'ai' ? (
+                        <Chip size="sm" variant="soft">
+                          {t('wordSearch.tagLocal')}
+                        </Chip>
+                      ) : null}
+                      {showTags && row.source !== 'local' ? (
+                        <Chip size="sm" color="accent" variant="soft">
+                          {t('wordSearch.tagAi')}
+                        </Chip>
+                      ) : null}
+                    </span>
+                    {row.reading ? (
+                      <span className="muted truncate text-[12px]">{row.reading}</span>
                     ) : null}
                   </span>
-                  {row.reading ? (
-                    <span className="muted truncate text-[12px]">{row.reading}</span>
+                  {/* 入过词单的词（非纯本地行）在行尾亮一颗星。 */}
+                  {row.source !== 'local' ? (
+                    <Star className="size-3.5 shrink-0 fill-gold text-gold" aria-hidden />
                   ) : null}
                 </button>
               ))}

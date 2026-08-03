@@ -1,13 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Chip, ProgressBar, Skeleton, Tooltip, toast } from '@heroui/react'
-import { RotateCcw, Sparkles, Trash2 } from 'lucide-react'
+import {
+  Button,
+  Checkbox,
+  CheckboxGroup,
+  Chip,
+  Input,
+  Popover,
+  ProgressBar,
+  Skeleton,
+  Tag,
+  TagGroup,
+  Tooltip,
+  toast,
+} from '@heroui/react'
+import { Plus, RotateCcw, Sparkles, Trash2 } from 'lucide-react'
 import { SelectField } from '../components/ui/SelectField'
-import { SourceSection } from '../components/ui/SourceSection'
 import { alertDialog, confirm } from '../components/ui/dialog'
-import { Link, useSearchParams } from 'react-router'
+import { useSearchParams } from 'react-router'
 import { fillWordByAi } from '../api/ai'
 import { getErrorMessage, isDuplicateWordError } from '../api/error'
-import { createWord, getWords } from '../api/words'
+import { createWord, deleteWord, getWords, updateWord } from '../api/words'
 import { clearAiDictEntry, fetchDictEntries, type DictEntry } from '../api/dict'
 import {
   AI_SOURCE,
@@ -221,46 +233,6 @@ export function WordSearchPage() {
     () => (Array.isArray(folders) ? folders : []),
     [folders],
   )
-  // Once an AI result arrives the result's detected language takes priority
-  // over the EN/JP toggle the user originally clicked.
-  const effectiveLanguage: 'en' | 'jp' = aiView?.language ?? targetLanguage
-  const defaultWordFolderId =
-    wordFolders.find((folder) => folder.language === effectiveLanguage)?.id ??
-    wordFolders[0]?.id ??
-    ''
-  const [selectedWordFolderId, setSelectedWordFolderId] = useState('')
-
-  // When a new AI result arrives, its detected language wins over the EN/JP
-  // toggle, so JP results land in a JP word list even if the user left the
-  // default EN toggle alone.
-  const [folderPickedFor, setFolderPickedFor] = useState<AiDictView | null>(null)
-  let pickedFromResult = false
-  if (aiView && folderPickedFor !== aiView) {
-    setFolderPickedFor(aiView)
-    pickedFromResult = true
-    const matching = wordFolders.find((f) => f.language === aiView.language)
-    if (matching) setSelectedWordFolderId(matching.id)
-  }
-  // Otherwise keep the select pointed at something real — the chosen word list
-  // can disappear while the page is open.
-  //
-  // Both guards are load-bearing. A setState *during render* re-runs the
-  // component unconditionally — React skips the usual same-value bail-out for
-  // render-phase updates — so this branch has to stop firing on its own or the
-  // pass count hits React's limit and the whole page throws "Too many
-  // re-renders" and unmounts to a blank screen. That is exactly what a reload
-  // straight onto this route did: `folders` starts empty, so `.some()` was
-  // always false and the branch re-armed itself every pass. With no folders
-  // there is nothing to reconcile against, and re-selecting the value already
-  // held is never worth a render.
-  if (
-    !pickedFromResult &&
-    wordFolders.length > 0 &&
-    selectedWordFolderId !== defaultWordFolderId &&
-    !wordFolders.some((folder) => folder.id === selectedWordFolderId)
-  ) {
-    setSelectedWordFolderId(defaultWordFolderId)
-  }
 
   /** The one submit path: Enter in the box, a picked suggestion, the button. */
   const submitKeyword = (raw: string = keyword) => {
@@ -342,44 +314,119 @@ export function WordSearchPage() {
         }
       : null)
 
-  // 所选词单的查重：词头+语言完全一致才算同一个词（服务端唯一键同口径）。
-  // localMatches 来自「我的单词库」的同一次查询，不用多发请求；AI 归一化词形
+  // 这个词头在单词库里对应的那条 Word：词单标签、加词/移除都围绕它。
+  // localMatches 来自 q-effect 的同一次查询，不用多发请求；AI 归一化词形
   // 和输入不一致的漏网场景仍由服务端 409 兜底。
-  const existingWord = addSeed
-    ? (localMatches.find(
-        (match) =>
-          match.word === addSeed.word && match.language === addSeed.language,
-      ) ?? null)
-    : null
-  const alreadyInFolder = Boolean(
-    existingWord &&
-      selectedWordFolderId &&
-      existingWord.folderIds.includes(selectedWordFolderId),
+  const existingWord = useMemo(() => {
+    const term = q.trim()
+    return (
+      (aiView
+        ? localMatches.find(
+            (match) => match.word === aiView.word && match.language === aiView.language,
+          )
+        : undefined) ??
+      localMatches.find((match) => match.word === term) ??
+      null
+    )
+  }, [localMatches, aiView, q])
+
+  // 标题区的词头/读音：AI 内容优先，其次单词库，再退到本地词典的精确词头，
+  // 最后兜底显示查询词本身（此时可能还什么内容都没有）。
+  const exactLocalEntry = useMemo(() => {
+    const term = q.trim()
+    if (!term) return null
+    return localEntries.find((entry) => entry.word === term) ?? null
+  }, [localEntries, q])
+  const headWord = aiView?.word ?? existingWord?.word ?? exactLocalEntry?.word ?? q.trim()
+  const headReading =
+    aiView?.reading ?? existingWord?.reading ?? exactLocalEntry?.reading ?? ''
+  // 发音只在词头语言明确时给：中文查询在 AI 出结果前词头还是中文，不该念。
+  const speakLang: 'en' | 'jp' | null =
+    aiView?.language ??
+    (existingWord
+      ? existingWord.language === 'jp'
+        ? 'jp'
+        : 'en'
+      : exactLocalEntry?.direction === 'ja-zh'
+        ? 'jp'
+        : effectiveSource !== 'zh'
+          ? effectiveSource
+          : null)
+
+  // 词单标签行的数据。语言口径：已入库的词跟它自己，否则跟播种内容/目标语言。
+  const wordLanguage: 'en' | 'jp' =
+    existingWord?.language === 'jp' || existingWord?.language === 'en'
+      ? existingWord.language
+      : (addSeed?.language ?? targetLanguage)
+  const currentFolders = useMemo(() => {
+    if (!existingWord) return []
+    const byId = new Map(wordFolders.map((folder) => [folder.id, folder]))
+    return existingWord.folderIds.flatMap((id) => {
+      const folder = byId.get(id) ?? existingWord.folders?.find((item) => item.id === id)
+      return folder ? [{ id, name: folder.name }] : []
+    })
+  }, [existingWord, wordFolders])
+  const availableFolders = useMemo(
+    () =>
+      wordFolders.filter(
+        (folder) =>
+          folder.language === wordLanguage &&
+          !existingWord?.folderIds.includes(folder.id),
+      ),
+    [wordFolders, wordLanguage, existingWord],
   )
 
-  const handleAddWord = async () => {
-    if (!addSeed || alreadyInFolder) return
-    if (!selectedWordFolderId) {
-      void alertDialog.warning({ title: t('wordSearch.pickFolder') })
-      return
+  // 「+ 添加到词单」弹层：多选未加入的词单，也可以现场新建一个同语言词单。
+  const [isAddOpen, setIsAddOpen] = useState(false)
+  const [pickedFolderIds, setPickedFolderIds] = useState<string[]>([])
+  const [newFolderName, setNewFolderName] = useState('')
+
+  const handleAddOpenChange = (open: boolean) => {
+    setIsAddOpen(open)
+    if (open) {
+      setPickedFolderIds([])
+      setNewFolderName('')
     }
+  }
+
+  const handleAddToFolders = async () => {
+    const name = newFolderName.trim()
+    if (pickedFolderIds.length === 0 && !name) return
     setIsSavingWord(true)
     try {
-      const saved = await createWord({
-        folderIds: [selectedWordFolderId],
-        language: addSeed.language,
-        word: addSeed.word,
-        reading: addSeed.reading,
-        partOfSpeech: addSeed.partOfSpeech,
-        meaning: addSeed.meaning,
-        example: addSeed.example,
-        note: addSeed.note,
-      })
-      // 就地同步：按钮翻成「已添加」，「我的单词库」区块也立刻带上这条。
-      setLocalMatches((prev) => [saved, ...prev.filter((m) => m.id !== saved.id)])
-      // 右侧索引里也要出现这个词（这里没走 useAppStore.createWord）。
+      const folderIds = [...pickedFolderIds]
+      if (name) {
+        const folder = await useAppStore
+          .getState()
+          .createFolder({ name, language: wordLanguage })
+        if (!folder) throw new Error(t('wordSearch.addFailed'))
+        folderIds.push(folder.id)
+      }
+      if (existingWord) {
+        const updated = await updateWord(existingWord.id, {
+          folderIds: [...new Set([...existingWord.folderIds, ...folderIds])],
+        })
+        setLocalMatches((prev) =>
+          prev.map((match) => (match.id === updated.id ? updated : match)),
+        )
+      } else if (addSeed) {
+        const saved = await createWord({
+          folderIds,
+          language: addSeed.language,
+          word: addSeed.word,
+          reading: addSeed.reading,
+          partOfSpeech: addSeed.partOfSpeech,
+          meaning: addSeed.meaning,
+          example: addSeed.example,
+          note: addSeed.note,
+        })
+        setLocalMatches((prev) => [saved, ...prev.filter((m) => m.id !== saved.id)])
+      }
+      // 右侧索引和词单卡片的计数都要跟上（这里没走 useAppStore.createWord）。
       useWordIndex.getState().refresh()
+      void useAppStore.getState().fetchFolders()
       toast.success(t('wordSearch.addedSuccess'))
+      setIsAddOpen(false)
     } catch (saveError) {
       if (isDuplicateWordError(saveError)) {
         void alertDialog.warning({ title: t('wordSearch.duplicate') })
@@ -389,6 +436,53 @@ export function WordSearchPage() {
           content: getErrorMessage(saveError, t('wordSearch.tryLater')),
         })
       }
+    } finally {
+      setIsSavingWord(false)
+    }
+  }
+
+  /**
+   * 点掉一个词单标签。服务端要求词至少留在一个词单里，所以移除最后一个
+   * 标签等于把词从单词库删掉（连复习进度），这一步要用户确认。词单被移空
+   * 时顺手删掉词单本身 —— 词单是词的标签，空标签没有存在的意义。
+   */
+  const handleRemoveFolder = async (folderId: string) => {
+    if (!existingWord || isSavingWord) return
+    const isLast = existingWord.folderIds.length <= 1
+    if (isLast) {
+      const ok = await confirm({
+        title: t('wordSearch.removeLastTitle'),
+        content: t('wordSearch.removeLastContent', { word: existingWord.word }),
+        status: 'warning',
+      })
+      if (!ok) return
+    }
+    setIsSavingWord(true)
+    try {
+      if (isLast) {
+        await deleteWord(existingWord.id)
+        setLocalMatches((prev) => prev.filter((match) => match.id !== existingWord.id))
+      } else {
+        const updated = await updateWord(existingWord.id, {
+          folderIds: existingWord.folderIds.filter((id) => id !== folderId),
+        })
+        setLocalMatches((prev) =>
+          prev.map((match) => (match.id === updated.id ? updated : match)),
+        )
+      }
+      useWordIndex.getState().refresh()
+      toast.success(t('wordSearch.removedSuccess'))
+      const rest = await getWords({ folderId }).catch(() => null)
+      if (rest && rest.length === 0) {
+        await useAppStore.getState().deleteFolder(folderId)
+      } else {
+        void useAppStore.getState().fetchFolders()
+      }
+    } catch (removeError) {
+      void alertDialog.error({
+        title: t('wordSearch.removeFailed'),
+        content: getErrorMessage(removeError, t('wordSearch.tryLater')),
+      })
     } finally {
       setIsSavingWord(false)
     }
@@ -464,51 +558,145 @@ export function WordSearchPage() {
           </div>
 
           {hasQuery ? (
-            <SourceSection
-              // 本地词库关闭（或查英语）时区块里只有 AI 内容，标题直接叫
-              // 「AI 释义」，不再出现「综合词库 / 本地」的概念。
-              title={showLocalBlock ? t('wordSearch.dictTitle') : t('wordSearch.sourceAi')}
-              aside={
-                showLocalBlock ? (
-                  <span className="muted">
-                    {t('wordSearch.matched', { count: localEntries.length })}
-                  </span>
-                ) : undefined
-              }
-            >
-              <div className="grid gap-4">
-                {showLocalBlock ? (
-                  isSearchingLocal ? (
-                    <div className="grid gap-2 py-1">
-                      <Skeleton className="h-4 w-2/5 rounded-lg" />
-                      <Skeleton className="h-3 w-4/5 rounded-lg" />
-                      <Skeleton className="h-3 w-3/5 rounded-lg" />
-                    </div>
-                  ) : localEntries.length === 0 ? (
-                    <p className="muted m-0">{t('wordSearch.dictEmpty')}</p>
-                  ) : (
-                    <DictEntryResults entries={localEntries} />
-                  )
+            <article className="card grid gap-3">
+              {/* 标题区：词头 + 发音 + 读音就是这张卡的标题；
+                  没生成过 AI 释义时，生成按钮放右上角。 */}
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+                  <h3 className="m-0 text-2xl/tight font-bold text-foreground">
+                    {headWord}
+                  </h3>
+                  {speakLang ? (
+                    <SpeakButton
+                      text={headWord}
+                      reading={headReading}
+                      lang={speakLang}
+                      size="md"
+                    />
+                  ) : null}
+                  {headReading ? (
+                    <span className="muted text-sm">{headReading}</span>
+                  ) : null}
+                </div>
+                {!aiView && !isSearchingAi ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    type="button"
+                    onPress={() => void runAiLookup(q)}
+                  >
+                    <Sparkles className="size-3.5" aria-hidden />
+                    {t('wordSearch.aiGenerate')}
+                  </Button>
                 ) : null}
+              </div>
 
-                {/* AI 小节：固定在词典来源之后，是词典视图的一部分而不是独立模块。 */}
-                <div
-                  className={
-                    showLocalBlock
-                      ? 'grid gap-3 border-t border-border pt-3'
-                      : 'grid gap-3'
-                  }
-                >
-                  {/* 标题栏：混排模式下用 Chip 标出 AI 小节；纯 AI 模式下区块
-                      标题已经是「AI 释义」，只剩右侧的操作按钮。 */}
-                  {showLocalBlock || aiView ? (
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    {showLocalBlock ? (
-                      <Chip size="sm" variant="soft" color="accent">
-                        <Chip.Label>{t('wordSearch.sourceAi')}</Chip.Label>
+              {/* 词单标签行：已在的词单可点叉移除，末尾是「+ 添加到词单」；
+                  本地词库开启时右侧标出本地 / AI 哪边有内容（和右侧索引同款）。 */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {currentFolders.length > 0 ? (
+                  <TagGroup
+                    aria-label={t('wordSearch.inFolders')}
+                    size="sm"
+                    onRemove={(keys) => void handleRemoveFolder(String([...keys][0]))}
+                  >
+                    <TagGroup.List items={currentFolders} className="gap-1.5">
+                      {(folder) => (
+                        <Tag key={folder.id} id={folder.id} textValue={folder.name}>
+                          {folder.name}
+                        </Tag>
+                      )}
+                    </TagGroup.List>
+                  </TagGroup>
+                ) : null}
+                {existingWord || addSeed ? (
+                  <Popover isOpen={isAddOpen} onOpenChange={handleAddOpenChange}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      type="button"
+                      className="h-7 min-h-7 gap-1 rounded-full border border-dashed border-border px-2.5 text-xs font-normal text-muted"
+                    >
+                      <Plus className="size-3.5" aria-hidden />
+                      {t('wordSearch.addWord')}
+                    </Button>
+                    <Popover.Content className="w-72">
+                      <Popover.Dialog className="grid gap-3">
+                        <Popover.Heading className="m-0 text-sm font-semibold">
+                          {t('wordSearch.addWord')}
+                        </Popover.Heading>
+                        {availableFolders.length > 0 ? (
+                          <CheckboxGroup
+                            aria-label={t('wordSearch.addWord')}
+                            value={pickedFolderIds}
+                            onChange={setPickedFolderIds}
+                            className="max-h-56 gap-2 overflow-y-auto"
+                          >
+                            {availableFolders.map((folder) => (
+                              <Checkbox key={folder.id} value={folder.id}>
+                                <Checkbox.Content>
+                                  <Checkbox.Control>
+                                    <Checkbox.Indicator />
+                                  </Checkbox.Control>
+                                  <span className="truncate">{folder.name}</span>
+                                </Checkbox.Content>
+                              </Checkbox>
+                            ))}
+                          </CheckboxGroup>
+                        ) : (
+                          <p className="muted m-0 text-[13px]">
+                            {t('wordSearch.noFolderOption')}
+                          </p>
+                        )}
+                        <Input
+                          value={newFolderName}
+                          onChange={(event) => setNewFolderName(event.target.value)}
+                          placeholder={t('wordSearch.newFolderPlaceholder')}
+                        />
+                        <Button
+                          size="sm"
+                          type="button"
+                          isPending={isSavingWord}
+                          isDisabled={
+                            pickedFolderIds.length === 0 && !newFolderName.trim()
+                          }
+                          onPress={() => void handleAddToFolders()}
+                        >
+                          {t('wordSearch.confirmAdd')}
+                        </Button>
+                      </Popover.Dialog>
+                    </Popover.Content>
+                  </Popover>
+                ) : null}
+                {showLocalBlock && (localEntries.length > 0 || aiView) ? (
+                  <span className="ml-auto flex items-center gap-1.5">
+                    {localEntries.length > 0 ? (
+                      <Chip size="sm" variant="soft">
+                        <Chip.Label>{t('wordSearch.tagLocal')}</Chip.Label>
                       </Chip>
                     ) : null}
                     {aiView ? (
+                      <Chip size="sm" color="accent" variant="soft">
+                        <Chip.Label>{t('wordSearch.tagAi')}</Chip.Label>
+                      </Chip>
+                    ) : null}
+                  </span>
+                ) : null}
+              </div>
+
+              {/* AI 释义：排在其他来源上面。没生成时整块不出现（按钮在右上角）。 */}
+              {aiView || isSearchingAi || aiProgress > 0 ? (
+                <div className="grid gap-3 border-t border-border pt-3">
+                  {aiView ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Chip size="sm" variant="soft" color="accent">
+                        <Chip.Label>{t('wordSearch.sourceAi')}</Chip.Label>
+                      </Chip>
+                      {aiView.partOfSpeech ? (
+                        <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-bold text-accent">
+                          {aiView.partOfSpeech}
+                        </span>
+                      ) : null}
                       <div className="ml-auto flex items-center gap-1.5">
                         <Button
                           variant="secondary"
@@ -535,8 +723,7 @@ export function WordSearchPage() {
                           <Tooltip.Content>{t('wordSearch.aiClear')}</Tooltip.Content>
                         </Tooltip>
                       </div>
-                    ) : null}
-                  </div>
+                    </div>
                   ) : null}
 
                   {isSearchingAi || aiProgress > 0 ? (
@@ -552,165 +739,55 @@ export function WordSearchPage() {
                     </ProgressBar>
                   ) : null}
 
-                  {aiView ? (
-                    <div className="grid gap-3">
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        <strong className="text-[22px] text-foreground">{aiView.word}</strong>
-                        <SpeakButton
-                          text={aiView.word}
-                          reading={aiView.reading}
-                          lang={aiView.language}
-                          size="md"
-                        />
-                        {aiView.reading ? (
-                          <span className="muted text-[13px]">{aiView.reading}</span>
-                        ) : null}
-                        {aiView.partOfSpeech ? (
-                          <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-bold text-accent">
-                            {aiView.partOfSpeech}
-                          </span>
-                        ) : null}
-                      </div>
+                  {aiView?.meaning ? (
+                    <p className="m-0 text-[15px]/[1.7] whitespace-pre-wrap text-foreground">
+                      {aiView.meaning}
+                    </p>
+                  ) : null}
 
-                      {aiView.meaning ? (
-                        <p className="m-0 text-[15px]/[1.7] whitespace-pre-wrap text-foreground">
-                          {aiView.meaning}
-                        </p>
-                      ) : null}
-
-                      {aiView.example ? (
-                        <div className="grid gap-1 rounded-xl border border-border bg-foreground/2 px-3.5 py-3">
-                          <span className="text-xs font-bold tracking-[0.06em] text-muted uppercase">
-                            {t('wordSearch.example')}
-                          </span>
-                          <p className="m-0 leading-[1.7] whitespace-pre-wrap text-foreground">
-                            {aiView.example}
-                          </p>
-                        </div>
-                      ) : null}
-
-                      {aiView.note ? (
-                        <div className="grid gap-1 rounded-xl border border-border bg-foreground/2 px-3.5 py-3">
-                          <span className="text-xs font-bold tracking-[0.06em] text-muted uppercase">
-                            {t('wordSearch.note')}
-                          </span>
-                          <p className="m-0 leading-[1.7] whitespace-pre-wrap text-foreground">
-                            {aiView.note}
-                          </p>
-                        </div>
-                      ) : null}
+                  {aiView?.example ? (
+                    <div className="grid gap-1 rounded-xl border border-border bg-foreground/2 px-3.5 py-3">
+                      <span className="text-xs font-bold tracking-[0.06em] text-muted uppercase">
+                        {t('wordSearch.example')}
+                      </span>
+                      <p className="m-0 leading-[1.7] whitespace-pre-wrap text-foreground">
+                        {aiView.example}
+                      </p>
                     </div>
-                  ) : !isSearchingAi ? (
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="muted m-0">{t('wordSearch.aiGenerateHint')}</p>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        type="button"
-                        isPending={isSearchingAi}
-                        onPress={() => void runAiLookup(q)}
-                      >
-                        <Sparkles className="size-3.5" aria-hidden />
-                        {t('wordSearch.aiGenerate')}
-                      </Button>
+                  ) : null}
+
+                  {aiView?.note ? (
+                    <div className="grid gap-1 rounded-xl border border-border bg-foreground/2 px-3.5 py-3">
+                      <span className="text-xs font-bold tracking-[0.06em] text-muted uppercase">
+                        {t('wordSearch.note')}
+                      </span>
+                      <p className="m-0 leading-[1.7] whitespace-pre-wrap text-foreground">
+                        {aiView.note}
+                      </p>
                     </div>
                   ) : null}
                 </div>
+              ) : null}
 
-                {/* 词头级「加入单词库」：整块词典（本地 + AI）共用一个入口。 */}
-                {addSeed ? (
-                  <div className="flex flex-wrap items-center gap-3 border-t border-border pt-3">
-                    <label className="session-inline min-w-[220px] flex-1">
-                      <span className="muted">{t('wordSearch.saveTo')}</span>
-                      <SelectField
-                        value={selectedWordFolderId || undefined}
-                        onChange={(v) => setSelectedWordFolderId(v ?? '')}
-                        isDisabled={wordFolders.length === 0}
-                        placeholder={
-                          wordFolders.length === 0
-                            ? t('wordSearch.noFolderOption')
-                            : undefined
-                        }
-                        className="min-w-[180px]"
-                        options={wordFolders
-                          .filter((folder) => folder.language === effectiveLanguage)
-                          .map((folder) => ({
-                            value: folder.id,
-                            label: `${folder.name}(${folder.language.toUpperCase()})`,
-                          }))}
-                      />
-                    </label>
-                    {wordFolders.length === 0 ? (
-                      <Link className="button button--outline" to="/folders">
-                        {t('wordSearch.createFolder')}
-                      </Link>
-                    ) : null}
-                    {alreadyInFolder ? (
-                      <span className="muted text-[13px]">
-                        {t('wordSearch.alreadyInFolderHint')}
-                      </span>
-                    ) : null}
-                    <Button
-                      type="button"
-                      onPress={() => void handleAddWord()}
-                      isDisabled={
-                        alreadyInFolder || isSavingWord || wordFolders.length === 0
-                      }
-                    >
-                      {alreadyInFolder
-                        ? t('wordSearch.alreadyAdded')
-                        : isSavingWord
-                          ? t('wordSearch.addingWord')
-                          : t('wordSearch.addWord')}
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
-            </SourceSection>
+              {/* 其他来源：本地词库的词典条目，排在 AI 释义后面。 */}
+              {showLocalBlock ? (
+                <div className="grid gap-4 border-t border-border pt-3">
+                  {isSearchingLocal ? (
+                    <div className="grid gap-2 py-1">
+                      <Skeleton className="h-4 w-2/5 rounded-lg" />
+                      <Skeleton className="h-3 w-4/5 rounded-lg" />
+                      <Skeleton className="h-3 w-3/5 rounded-lg" />
+                    </div>
+                  ) : localEntries.length === 0 ? (
+                    <p className="muted m-0">{t('wordSearch.dictEmpty')}</p>
+                  ) : (
+                    <DictEntryResults entries={localEntries} />
+                  )}
+                </div>
+              ) : null}
+            </article>
           ) : null}
 
-          {hasQuery ? (
-            <SourceSection
-              title={t('wordSearch.myLibrary')}
-              aside={
-                <span className="muted">
-                  {t('wordSearch.matched', { count: localMatches.length })}
-                </span>
-              }
-            >
-              {isSearchingLocal ? (
-                <div className="grid gap-2 py-1">
-                  <Skeleton className="h-4 w-2/5 rounded-lg" />
-                  <Skeleton className="h-3 w-3/5 rounded-lg" />
-                </div>
-              ) : localMatches.length === 0 ? (
-                <p className="muted">{t('wordSearch.emptyLocal')}</p>
-              ) : (
-                <div className="grid gap-2">
-                  {localMatches.map((match) => (
-                    <Link
-                      key={match.id}
-                      className="grid min-w-0 gap-1 rounded-[10px] border border-border bg-surface px-3 py-2.5 text-foreground no-underline transition-colors duration-150 hover:border-accent/30 hover:bg-accent/6"
-                      to={`/folders/${match.folderIds[0] ?? ''}#word-${match.id}`}
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <strong>{match.word}</strong>
-                        {match.reading ? (
-                          <span className="muted text-[13px]">{match.reading}</span>
-                        ) : null}
-                        <span className="folder-language">
-                          {match.folders?.[0]?.name ?? match.language.toUpperCase()}
-                        </span>
-                      </div>
-                      {match.meaning ? (
-                        <p className="muted m-0 text-[13px]">{match.meaning}</p>
-                      ) : null}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </SourceSection>
-          ) : null}
         </div>
 
         <DictIndexPanel

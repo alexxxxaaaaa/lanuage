@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
-import { ToggleButton, ToggleButtonGroup } from '@heroui/react'
+import { Tabs } from '@heroui/react'
 
-// antd's Segmented in HeroUI terms: a single-select ToggleButtonGroup that
-// always keeps one option chosen.
+// antd's Segmented in HeroUI terms: the default pill-style Tabs used as a
+// single-select control. Panels live in the caller's own state — Tabs here is
+// purely the switcher, so there are no Tabs.Panel children.
 
 type SegmentedOption<T extends string> = {
   value: T
@@ -13,7 +14,6 @@ type SegmentedControlProps<T extends string> = {
   value: T
   onChange: (value: T) => void
   options: SegmentedOption<T>[]
-  size?: 'sm' | 'md' | 'lg'
   className?: string
   'aria-label'?: string
 }
@@ -22,29 +22,25 @@ export function SegmentedControl<T extends string>({
   value,
   onChange,
   options,
-  size,
   className,
   'aria-label': ariaLabel,
 }: SegmentedControlProps<T>) {
   return (
-    <ToggleButtonGroup
-      disallowEmptySelection
-      aria-label={ariaLabel}
+    <Tabs
       className={className}
-      selectedKeys={[value]}
-      selectionMode="single"
-      size={size}
-      onSelectionChange={(keys) => {
-        const next = [...keys][0]
-        if (next != null) onChange(String(next) as T)
-      }}
+      selectedKey={value}
+      onSelectionChange={(key) => onChange(String(key) as T)}
     >
-      {options.map((option, i) => (
-        <ToggleButton key={option.value} id={option.value}>
-          {i > 0 ? <ToggleButtonGroup.Separator /> : null}
-          {option.label}
-        </ToggleButton>
-      ))}
-    </ToggleButtonGroup>
+      <Tabs.ListContainer>
+        <Tabs.List aria-label={ariaLabel ?? 'Options'}>
+          {options.map((option) => (
+            <Tabs.Tab key={option.value} id={option.value}>
+              {option.label}
+              <Tabs.Indicator />
+            </Tabs.Tab>
+          ))}
+        </Tabs.List>
+      </Tabs.ListContainer>
+    </Tabs>
   )
 }
