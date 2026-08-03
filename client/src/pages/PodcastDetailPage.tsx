@@ -610,6 +610,10 @@ export function PodcastDetailPage() {
   }
 
   const lines = podcast.transcript.lines
+  // MP3-backed podcasts have no video — the top "video" box is just a redundant
+  // native <audio>; keep it mounted (it drives playback) but hide it, and drop
+  // the 视频 toggles so tapping 视频 doesn't pop an empty frame.
+  const isMp3 = !!podcast.mp3Url
 
   return (
     // pb-24 leaves room for the fixed bottom toolbar.
@@ -631,7 +635,7 @@ export function PodcastDetailPage() {
       <div
         className="card sticky top-3 z-20 flex justify-center overflow-hidden p-3 shadow-overlay"
         style={
-          videoHidden
+          videoHidden || isMp3
             ? {
                 position: 'absolute',
                 visibility: 'hidden',
@@ -643,17 +647,19 @@ export function PodcastDetailPage() {
               }
             : undefined
         }
-        aria-hidden={videoHidden}
+        aria-hidden={videoHidden || isMp3}
       >
-        <button
-          type="button"
-          className="absolute top-1.5 right-1.5 z-[2] inline-flex size-7 min-h-0 cursor-pointer items-center justify-center rounded-full border-none p-0 text-sm leading-none text-background bg-foreground/60 transition-colors duration-150 hover:bg-foreground/85"
-          onClick={() => setVideoHidden(true)}
-          aria-label="收起视频"
-          title="收起视频"
-        >
-          ✕
-        </button>
+        {!isMp3 ? (
+          <button
+            type="button"
+            className="absolute top-1.5 right-1.5 z-[2] inline-flex size-7 min-h-0 cursor-pointer items-center justify-center rounded-full border-none p-0 text-sm leading-none text-background bg-foreground/60 transition-colors duration-150 hover:bg-foreground/85"
+            onClick={() => setVideoHidden(true)}
+            aria-label="收起视频"
+            title="收起视频"
+          >
+            ✕
+          </button>
+        ) : null}
         {/* The YouTube API injects its iframe into the empty div below, so both
           * the placeholder and the injected frame get the same fill rules. */}
         <div className="relative aspect-video w-full max-w-[560px] overflow-hidden rounded-xl [&>div]:absolute [&>div]:inset-0 [&>div]:size-full [&_iframe]:absolute [&_iframe]:inset-0 [&_iframe]:size-full [&_iframe]:border-0">
@@ -673,7 +679,7 @@ export function PodcastDetailPage() {
           )}
         </div>
       </div>
-      {videoHidden ? (
+      {!isMp3 && videoHidden ? (
         <button
           type="button"
           className="fixed top-[72px] right-5 z-[15] cursor-pointer rounded-full border-none bg-accent px-3.5 py-2 text-[13px] font-medium text-accent-foreground shadow-[0_4px_12px_-4px_var(--accent)] transition-[background-color,transform] duration-150 hover:-translate-y-px hover:bg-accent-hover"
@@ -783,7 +789,7 @@ export function PodcastDetailPage() {
         })}
       </div>
 
-      <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-overlay py-2 pr-3.5 pl-2 text-[13px] whitespace-nowrap shadow-overlay [&>*]:shrink-0 [&>*]:whitespace-nowrap max-sm:gap-1.5 max-sm:py-1.5 max-sm:pr-2.5 max-sm:pl-1.5">
+      <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-overlay py-2 pr-3.5 pl-2 text-[13px] whitespace-nowrap shadow-overlay [&>*]:shrink-0 [&>*]:whitespace-nowrap max-sm:bottom-3 max-sm:max-w-[calc(100vw-1rem)] max-sm:gap-1.5 max-sm:py-1.5 max-sm:pr-2.5 max-sm:pl-1.5">
         <button
           type="button"
           className="inline-flex size-10 min-h-0 cursor-pointer items-center justify-center rounded-full border-none bg-accent p-0 text-sm leading-none text-accent-foreground transition-[filter] duration-150 hover:brightness-110 active:scale-[0.96]"
@@ -797,7 +803,7 @@ export function PodcastDetailPage() {
         <span className="min-w-9 text-center text-xs tabular-nums text-muted">{formatTime(currentSec * 1000)}</span>
         <input
           type="range"
-          className="podcast-progress"
+          className="podcast-progress !shrink max-sm:min-w-[40px] max-sm:flex-[1_1_40px]"
           min={0}
           max={Math.max(1, podcast.durationSec)}
           step={1}
@@ -836,18 +842,20 @@ export function PodcastDetailPage() {
           options={SPEEDS.map((s) => ({ value: s, label: `${s}x` }))}
         />
 
-        <button
-          type="button"
-          className={`h-8 min-h-0 cursor-pointer rounded-full border px-3.5 text-[13px] font-medium disabled:cursor-not-allowed disabled:opacity-45 ${
-            videoHidden
-              ? 'border-border bg-surface text-muted hover:bg-foreground/4'
-              : 'border-accent/25 bg-accent/10 text-accent'
-          }`}
-          onClick={() => setVideoHidden((v) => !v)}
-          title={videoHidden ? '显示视频' : '隐藏视频'}
-        >
-          视频
-        </button>
+        {!isMp3 ? (
+          <button
+            type="button"
+            className={`h-8 min-h-0 cursor-pointer rounded-full border px-3.5 text-[13px] font-medium disabled:cursor-not-allowed disabled:opacity-45 ${
+              videoHidden
+                ? 'border-border bg-surface text-muted hover:bg-foreground/4'
+                : 'border-accent/25 bg-accent/10 text-accent'
+            }`}
+            onClick={() => setVideoHidden((v) => !v)}
+            title={videoHidden ? '显示视频' : '隐藏视频'}
+          >
+            视频
+          </button>
+        ) : null}
 
         {podcast.primaryLang === 'jp' ? (
           <button

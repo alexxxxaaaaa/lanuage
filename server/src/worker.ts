@@ -16,6 +16,15 @@ export type WorkerBindings = {
   QBANK_MEDIA_BASE?: string
 }
 
+// Cloudflare D1 returns COUNT()/aggregate results as BigInt. JSON.stringify
+// throws on BigInt, so any endpoint returning a Prisma `_count` / `groupBy`
+// (folder detail word counts, notes word counts, …) 500s in production while
+// working locally (better-sqlite3 returns plain numbers). Teach BigInt to
+// serialize as a number so those responses go through Hono's c.json() cleanly.
+;(BigInt.prototype as unknown as { toJSON: () => number }).toJSON = function () {
+  return Number(this)
+}
+
 const app = createApp()
 
 export default {
