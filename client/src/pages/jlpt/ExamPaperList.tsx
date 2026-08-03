@@ -13,7 +13,7 @@ import {
 import { getErrorMessage } from '../../api/error'
 import { confirm } from '../../components/ui/dialog'
 import { useOnPageReactivated } from '../../components/layout/pageContext'
-import { useExamSettings } from '../../store/examSettings'
+import { useSettings } from '../../store/useSettings'
 import { examModeLabel, paperLabel } from './constants'
 import {
   ACTION_LINK,
@@ -37,7 +37,7 @@ const PHASE_TEXT: Record<ExamPhase, string> = {
 
 export function ExamPaperList() {
   const navigate = useNavigate()
-  const mode = useExamSettings((s) => s.mode)
+  const mode = useSettings((s) => s.settings.examMode)
   const [papers, setPapers] = useState<ExamPaper[] | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 

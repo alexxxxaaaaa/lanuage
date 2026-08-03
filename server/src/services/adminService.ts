@@ -117,7 +117,7 @@ export async function getUserDetail(id: string) {
   if (!user) throw new AppError('用户不存在', 404)
 
   const [wordCount, expressionCount, aiTotals] = await Promise.all([
-    prisma.word.count({ where: { folder: { userId: id } } }),
+    prisma.word.count({ where: { userId: id } }),
     prisma.expression.count({ where: { folder: { userId: id } } }),
     prisma.aiUsageLog.aggregate({
       where: { userId: id },
@@ -158,8 +158,9 @@ export async function deleteUser(id: string) {
   if (!user) throw new AppError('用户不存在', 404)
 
   await prisma.$transaction(async (tx) => {
-    await tx.review.deleteMany({ where: { word: { folder: { userId: id } } } })
-    await tx.word.deleteMany({ where: { folder: { userId: id } } })
+    await tx.review.deleteMany({ where: { word: { userId: id } } })
+    await tx.wordFolder.deleteMany({ where: { word: { userId: id } } })
+    await tx.word.deleteMany({ where: { userId: id } })
     await tx.folder.deleteMany({ where: { userId: id } })
     await tx.expression.deleteMany({ where: { folder: { userId: id } } })
     await tx.expressionFolder.deleteMany({ where: { userId: id } })
@@ -215,9 +216,25 @@ export async function listFolders(params: {
 export async function deleteFolder(id: string) {
   const folder = await prisma.folder.findUnique({ where: { id } })
   if (!folder) throw new AppError('分类不存在', 404)
+  // 和 folderService.deleteFolder 同一套语义：只删归属，词只有在不属于任何
+  // 别的词单时才跟着删。
+  const memberIds = (
+    await prisma.wordFolder.findMany({ where: { folderId: id }, select: { wordId: true } })
+  ).map((link) => link.wordId)
+  const stillElsewhere = new Set(
+    (
+      await prisma.wordFolder.findMany({
+        where: { wordId: { in: memberIds }, folderId: { not: id } },
+        select: { wordId: true },
+      })
+    ).map((link) => link.wordId),
+  )
+  const orphanIds = memberIds.filter((wordId) => !stillElsewhere.has(wordId))
+
   await prisma.$transaction(async (tx) => {
-    await tx.review.deleteMany({ where: { word: { folderId: id } } })
-    await tx.word.deleteMany({ where: { folderId: id } })
+    await tx.wordFolder.deleteMany({ where: { folderId: id } })
+    await tx.review.deleteMany({ where: { wordId: { in: orphanIds } } })
+    await tx.word.deleteMany({ where: { id: { in: orphanIds } } })
     await tx.folder.delete({ where: { id } })
   })
   return { ok: true }
@@ -233,9 +250,9 @@ export async function listWords(params: {
 }) {
   const { userId, folderId, language, keyword, page, pageSize } = params
   const where: any = {}
-  if (folderId) where.folderId = folderId
+  if (folderId) where.folders = { some: { folderId } }
   if (language) where.language = language
-  if (userId) where.folder = { userId }
+  if (userId) where.userId = userId
   if (keyword) {
     where.OR = [
       { word: { contains: keyword } },
@@ -252,9 +269,8 @@ export async function listWords(params: {
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
-        folder: {
-          select: { name: true, user: { select: { id: true, username: true } } },
-        },
+        user: { select: { id: true, username: true } },
+        folders: { select: { folder: { select: { id: true, name: true } } } },
       },
     }),
   ])
@@ -271,10 +287,10 @@ export async function listWords(params: {
       partOfSpeech: w.partOfSpeech,
       example: w.example,
       language: w.language,
-      folderId: w.folderId,
-      folderName: w.folder.name,
-      userId: w.folder.user.id,
-      username: w.folder.user.username,
+      folderId: w.folders[0]?.folder.id ?? '',
+      folderName: w.folders.map((link) => link.folder.name).join(' / '),
+      userId: w.user.id,
+      username: w.user.username,
       createdAt: w.createdAt,
     })),
   }
@@ -283,6 +299,7 @@ export async function listWords(params: {
 export async function deleteWord(id: string) {
   await prisma.$transaction(async (tx) => {
     await tx.review.deleteMany({ where: { wordId: id } })
+    await tx.wordFolder.deleteMany({ where: { wordId: id } })
     await tx.word.delete({ where: { id } })
   })
   return { ok: true }

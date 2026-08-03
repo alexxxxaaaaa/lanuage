@@ -2,13 +2,13 @@ import { apiClient } from './client'
 
 export type AiFillWordPayload = {
   word: string
-  /** Legacy: kept for backwards compatibility with existing callers. */
-  language?: 'en' | 'jp'
   /** What language the user typed in. `zh` enables translation mode. */
-  sourceLanguage?: 'en' | 'jp' | 'zh'
+  sourceLanguage: 'en' | 'jp' | 'zh'
   /** Only meaningful when sourceLanguage='zh' — what to translate INTO. */
   targetLanguage?: 'en' | 'jp'
   extended?: boolean
+  /** 已有 AI 缓存时强制重新生成（「重新生成」按钮）。 */
+  refresh?: boolean
 }
 
 export type AiFillWordResult = {
@@ -19,13 +19,8 @@ export type AiFillWordResult = {
   meaning: string
   example: string
   note: string
-}
-
-export type AiQuizResult = {
-  question: string
-  options: string[]
-  answerIndex: number
-  explanation: string
+  /** true = 命中服务端 DictEntry 缓存，没烧 token。 */
+  cached: boolean
 }
 
 /**
@@ -91,17 +86,6 @@ export async function getAiUsage(days = 7) {
   const response = await apiClient.get<AiUsageSummary>('/api/ai/usage', {
     params: { days },
   })
-  return response.data
-}
-
-export async function generateWordQuiz(payload: {
-  word: string
-  reading: string
-  meaning: string
-  example: string
-  language: 'en' | 'jp'
-}) {
-  const response = await apiClient.post<AiQuizResult>('/api/ai/quiz-word', payload)
   return response.data
 }
 

@@ -2,44 +2,40 @@ import { Hono } from 'hono'
 import {
   fillGrammarByAi,
   fillWordByAi,
-  fillWordByAiAuto,
   generateExampleOnlyByAi,
   generateExpressionCasualByAi,
-  generateWordQuizByAi,
   getAiUsageSummary,
   translateExpressionToZhByAi,
 } from '../services/aiService'
+import { AppError } from '../errors/AppError'
 import { getUserId, type AppEnv } from '../middleware/requireAuth'
 
 export const aiRouter = new Hono<AppEnv>()
 
 aiRouter.post('/fill-word', async (c) => {
-  const { word, language, sourceLanguage, targetLanguage, extended } =
+  const { word, sourceLanguage, targetLanguage, extended, refresh } =
     await c.req.json<{
       word?: string
-      language?: 'en' | 'jp'
       sourceLanguage?: 'en' | 'jp' | 'zh'
       targetLanguage?: 'en' | 'jp'
       extended?: boolean
+      refresh?: boolean
     }>()
-  const userId = getUserId(c)
-  // sourceLanguage is the new contract; fall back to the legacy `language`
-  // field so existing callers (e.g. fillExamplesInFolder script) keep working.
-  const source = sourceLanguage ?? language
-  if (source === 'zh' || source === 'en' || source === 'jp') {
-    const result = await fillWordByAi({
-      word: word ?? '',
-      // Legacy field; for zh source we still need *some* SupportedLanguage —
-      // use the target (or jp default) so the param check passes.
-      language: source === 'zh' ? targetLanguage ?? 'jp' : source,
-      sourceLanguage: source,
-      targetLanguage,
-      extended: !!extended,
-      userId,
-    })
-    return c.json(result)
+  if (
+    sourceLanguage !== 'zh' &&
+    sourceLanguage !== 'en' &&
+    sourceLanguage !== 'jp'
+  ) {
+    throw new AppError('sourceLanguage must be en, jp, or zh', 400)
   }
-  const result = await fillWordByAiAuto(userId, word ?? '', !!extended)
+  const result = await fillWordByAi({
+    word: word ?? '',
+    sourceLanguage,
+    targetLanguage,
+    extended: !!extended,
+    refresh: !!refresh,
+    userId: getUserId(c),
+  })
   return c.json(result)
 })
 
@@ -63,25 +59,6 @@ aiRouter.post('/example-only', async (c) => {
     word: body.word ?? '',
     reading: body.reading,
     meaning: body.meaning,
-    language: body.language === 'jp' ? 'jp' : 'en',
-    userId: getUserId(c),
-  })
-  return c.json(result)
-})
-
-aiRouter.post('/quiz-word', async (c) => {
-  const body = await c.req.json<{
-    word?: string
-    reading?: string
-    meaning?: string
-    example?: string
-    language?: 'en' | 'jp'
-  }>()
-  const result = await generateWordQuizByAi({
-    word: body.word ?? '',
-    reading: body.reading ?? '',
-    meaning: body.meaning ?? '',
-    example: body.example ?? '',
     language: body.language === 'jp' ? 'jp' : 'en',
     userId: getUserId(c),
   })

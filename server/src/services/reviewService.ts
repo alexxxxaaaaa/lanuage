@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma'
+import { flattenWord, WORD_FOLDERS } from '../lib/wordShape'
 import { AppError } from '../errors/AppError'
 
 const MIN_EASE_FACTOR = 1.3
@@ -101,7 +102,7 @@ export async function getTodayReviews(userId: string, folderId?: string) {
   const todayEnd = endOfDay(now)
   const trimmedFolderId = folderId?.trim()
 
-  return prisma.review.findMany({
+  const items = await prisma.review.findMany({
     where: {
       lastReviewedAt: {
         not: null,
@@ -110,21 +111,18 @@ export async function getTodayReviews(userId: string, folderId?: string) {
         lte: todayEnd,
       },
       word: {
-        folder: { userId },
-        ...(trimmedFolderId ? { folderId: trimmedFolderId } : {}),
+        userId,
+        ...(trimmedFolderId ? { folders: { some: { folderId: trimmedFolderId } } } : {}),
       },
     },
     orderBy: {
       nextReviewDate: 'asc',
     },
     include: {
-      word: {
-        include: {
-          folder: true,
-        },
-      },
+      word: { include: WORD_FOLDERS },
     },
   })
+  return items.map((item) => ({ ...item, word: flattenWord(item.word) }))
 }
 
 export async function updateReview(userId: string, wordId: string, rating: string) {
@@ -135,10 +133,10 @@ export async function updateReview(userId: string, wordId: string, rating: strin
   assertRating(rating)
 
   const word = await prisma.word.findFirst({
-    where: { id: wordId, folder: { userId } },
+    where: { id: wordId, userId },
     include: {
       review: true,
-      folder: true,
+      ...WORD_FOLDERS,
     },
   })
 
@@ -188,11 +186,7 @@ export async function updateReview(userId: string, wordId: string, rating: strin
       firstLearnedAt,
     },
     include: {
-      word: {
-        include: {
-          folder: true,
-        },
-      },
+      word: { include: WORD_FOLDERS },
     },
   })
   // Log the event for weekly-review analytics. Best-effort; we don't want
@@ -204,7 +198,7 @@ export async function updateReview(userId: string, wordId: string, rating: strin
   } catch {
     /* ignore */
   }
-  return updated
+  return { ...updated, word: flattenWord(updated.word) }
 }
 
 /**
@@ -243,7 +237,7 @@ export async function correctReview(
   }
 
   const word = await prisma.word.findFirst({
-    where: { id: wordId, folder: { userId } },
+    where: { id: wordId, userId },
     include: { review: true },
   })
   if (!word) {
@@ -281,7 +275,7 @@ export async function correctReview(
       firstLearnedAt,
     },
     include: {
-      word: { include: { folder: true } },
+      word: { include: WORD_FOLDERS },
     },
   })
   // Correction replaces the previous event's outcome — log the new rating
@@ -293,7 +287,7 @@ export async function correctReview(
   } catch {
     /* ignore */
   }
-  return updated
+  return { ...updated, word: flattenWord(updated.word) }
 }
 
 export async function markWordMastered(userId: string, wordId: string) {
@@ -301,7 +295,7 @@ export async function markWordMastered(userId: string, wordId: string) {
     throw new AppError('wordId is required', 400)
   }
   const word = await prisma.word.findFirst({
-    where: { id: wordId, folder: { userId } },
+    where: { id: wordId, userId },
     include: { review: true },
   })
   if (!word) {
@@ -334,10 +328,11 @@ export async function markWordMastered(userId: string, wordId: string) {
     })
   }
 
-  return prisma.review.findUnique({
+  const refreshed = await prisma.review.findUnique({
     where: { wordId: word.id },
-    include: { word: { include: { folder: true } } },
+    include: { word: { include: WORD_FOLDERS } },
   })
+  return refreshed ? { ...refreshed, word: flattenWord(refreshed.word) } : null
 }
 
 export async function getTodayLearnedStats(userId: string) {
@@ -351,13 +346,13 @@ export async function getTodayLearnedStats(userId: string) {
     prisma.review.count({
       where: {
         firstLearnedAt: { gte: start, lte: end },
-        word: { language: 'en', folder: { userId } },
+        word: { language: 'en', userId },
       },
     }),
     prisma.review.count({
       where: {
         firstLearnedAt: { gte: start, lte: end },
-        word: { language: 'jp', folder: { userId } },
+        word: { language: 'jp', userId },
       },
     }),
   ])
@@ -376,14 +371,14 @@ export async function getTomorrowReviewStats(userId: string) {
       where: {
         lastReviewedAt: { not: null },
         nextReviewDate: { gte: start, lte: end },
-        word: { language: 'en', folder: { userId } },
+        word: { language: 'en', userId },
       },
     }),
     prisma.review.count({
       where: {
         lastReviewedAt: { not: null },
         nextReviewDate: { gte: start, lte: end },
-        word: { language: 'jp', folder: { userId } },
+        word: { language: 'jp', userId },
       },
     }),
   ])

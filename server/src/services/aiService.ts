@@ -3,19 +3,26 @@ import { prisma } from "../lib/prisma";
 import { getEnv } from "../lib/env";
 import { estimateCallCostUsd, getModelRates } from "../config/aiPricing";
 import { AppError } from "../errors/AppError";
+import {
+  AI_SOURCE,
+  aiCacheWord,
+  aiResultToDictEntryData,
+  dictEntryRowToFillResult,
+  directionForLanguage,
+} from "../lib/aiDictEntry";
 
 type SupportedLanguage = "en" | "jp";
 type SourceLanguage = SupportedLanguage | "zh";
 
 type FillWordInput = {
   word: string;
-  /** Legacy field; kept for callers that don't pass sourceLanguage. */
-  language: SupportedLanguage;
-  /** New: the language the user typed. Defaults to `language`. */
-  sourceLanguage?: SourceLanguage;
-  /** New: only meaningful when source=zh — what language to translate INTO. */
+  /** The language the user typed. */
+  sourceLanguage: SourceLanguage;
+  /** Only meaningful when source=zh — what language to translate INTO. */
   targetLanguage?: SupportedLanguage;
   extended?: boolean;
+  /** Force regeneration even when a cached AI dict row exists. */
+  refresh?: boolean;
   userId: string;
 };
 
@@ -27,22 +34,6 @@ type FillWordResult = {
   meaning: string;
   example: string;
   note: string;
-};
-
-type QuizWordInput = {
-  word: string;
-  reading: string;
-  meaning: string;
-  example: string;
-  language: SupportedLanguage;
-  userId: string;
-};
-
-type QuizWordResult = {
-  question: string;
-  options: string[];
-  answerIndex: number;
-  explanation: string;
 };
 
 type ExpressionCasualInput = {
@@ -75,7 +66,6 @@ export function getDefaultModel() {
 }
 const MAX_OUTPUT_TOKENS = 180;
 const MAX_OUTPUT_TOKENS_EXTENDED = 400;
-const MAX_QUIZ_OUTPUT_TOKENS = 130;
 const MAX_EXPRESSION_OUTPUT_TOKENS = 200;
 
 const DAILY_TOKEN_BUDGET_DEFAULT = 50000;
@@ -223,12 +213,6 @@ function parseModelJsonObject<T>(content: string): T {
   throw new AppError("AI returned invalid JSON", 502);
 }
 
-function detectLanguageFromWord(word: string): SupportedLanguage {
-  const normalized = word.trim();
-  if (/[\u3040-\u30ff\u31f0-\u31ff\u4e00-\u9faf]/.test(normalized)) return "jp";
-  return "en";
-}
-
 function buildPrompt(word: string, language: SupportedLanguage) {
   const languageHint =
     language === "jp" ? "jp + kana reading" : "en + IPA reading";
@@ -311,21 +295,6 @@ function normalizeEnglishAdjectiveNote(result: FillWordResult) {
   const word = sanitize(result.word);
   if (!word) return result.note;
   return `比较级: more ${word}; 最高级: most ${word}`;
-}
-
-function buildQuizPrompt(input: QuizWordInput) {
-  return [
-    "Generate one multiple-choice question for vocabulary review.",
-    "Return JSON only with keys: question, options, answerIndex, explanation.",
-    "- options must be exactly 4 short choices in Chinese",
-    "- answerIndex must be 0..3",
-    "- explanation must be short Chinese",
-    `language: ${input.language}`,
-    `word: ${input.word}`,
-    `reading: ${input.reading}`,
-    `meaning: ${input.meaning}`,
-    `example: ${input.example}`,
-  ].join("\n");
 }
 
 function buildExpressionCasualPrompt(input: { zhText: string; language?: SupportedLanguage }) {
@@ -417,37 +386,6 @@ function isSparseFillWordResult(result: FillWordResult) {
   return !result.meaning || !result.example;
 }
 
-function safeParseQuizJson(content: string): QuizWordResult {
-  try {
-    const parsed = parseModelJsonObject<Partial<QuizWordResult>>(content);
-    const options = Array.isArray(parsed.options)
-      ? parsed.options
-          .map((item) => sanitize(String(item)))
-          .filter(Boolean)
-          .slice(0, 4)
-      : [];
-    const answerIndex = Number(parsed.answerIndex);
-    if (
-      !sanitize(parsed.question) ||
-      options.length !== 4 ||
-      !Number.isInteger(answerIndex) ||
-      answerIndex < 0 ||
-      answerIndex > 3
-    ) {
-      throw new AppError("AI returned invalid quiz format", 502);
-    }
-    return {
-      question: sanitize(parsed.question),
-      options,
-      answerIndex,
-      explanation: sanitize(parsed.explanation),
-    };
-  } catch (error) {
-    if (error instanceof AppError) throw error;
-    throw new AppError("AI returned invalid quiz JSON", 502);
-  }
-}
-
 function safeParseExpressionJson(
   content: string,
   originalZhText: string,
@@ -473,9 +411,11 @@ function safeParseExpressionJson(
   }
 }
 
-export async function fillWordByAi(input: FillWordInput) {
+export async function fillWordByAi(
+  input: FillWordInput,
+): Promise<FillWordResult & { cached: boolean }> {
   const word = sanitize(input.word);
-  const source: SourceLanguage = input.sourceLanguage ?? input.language;
+  const source = input.sourceLanguage;
   // For zh source the result's language is the target; otherwise the result
   // word is in the source language itself.
   const target: SupportedLanguage =
@@ -493,6 +433,21 @@ export async function fillWordByAi(input: FillWordInput) {
   }
   if (source !== "zh" && !SUPPORTED_LANGUAGES.includes(source)) {
     throw new AppError("sourceLanguage must be en, jp, or zh", 400);
+  }
+
+  // Cache-first：非翻译模式先查 DictEntry 的 ai 行，命中零 token 直接返回。
+  // extended 生成的内容更全，跳过缓存读但照样写（覆盖旧行）。zh 输入没法当
+  // 缓存键（缓存按目标语词头存），恒生成，但结果照写 —— 之后直接查那个
+  // 日语/英语词就能命中。
+  if (!isTranslateMode && !input.refresh && !input.extended) {
+    const row = await prisma.dictEntry.findFirst({
+      where: {
+        direction: directionForLanguage(target),
+        word: aiCacheWord(word, target),
+        source: AI_SOURCE,
+      },
+    });
+    if (row) return { ...dictEntryRowToFillResult(row), cached: true };
   }
 
   await assertWithinDailyBudget(input.userId);
@@ -522,7 +477,8 @@ export async function fillWordByAi(input: FillWordInput) {
   }
   firstResult.note = normalizeEnglishAdjectiveNote(firstResult);
   if (!isSparseFillWordResult(firstResult)) {
-    return firstResult;
+    await writeAiDictCache(firstResult);
+    return { ...firstResult, cached: false };
   }
 
   // A second pass at the same prompt, sharpened. An empty reply here is not
@@ -537,14 +493,15 @@ export async function fillWordByAi(input: FillWordInput) {
     log: usageLog,
   });
   if (!retryContent) {
-    return firstResult;
+    await writeAiDictCache(firstResult);
+    return { ...firstResult, cached: false };
   }
 
   const retryResult = safeParseJson(retryContent, word);
   retryResult.note = normalizeEnglishAdjectiveNote(retryResult);
   // In translate mode the result word is the translation (from AI), not the
   // Chinese input — don't clobber it. In definition mode the word stays.
-  return {
+  const merged: FillWordResult = {
     ...firstResult,
     ...retryResult,
     word: isTranslateMode
@@ -557,6 +514,28 @@ export async function fillWordByAi(input: FillWordInput) {
     example: retryResult.example || firstResult.example,
     note: retryResult.note || firstResult.note,
   };
+  await writeAiDictCache(merged);
+  return { ...merged, cached: false };
+}
+
+/**
+ * 生成成功后落 DictEntry 缓存（source='ai'，同 (direction, word) 全局一份）。
+ * delete+create 非严格原子（D1 batch），最坏 delete 成功 create 失败 → 缓存行
+ * 丢失，下次生成自愈；写失败不能丢掉用户已付 token 的生成结果，降级为仅日志。
+ */
+async function writeAiDictCache(result: FillWordResult) {
+  try {
+    const data = aiResultToDictEntryData(result);
+    if (!data.word) return;
+    await prisma.$transaction([
+      prisma.dictEntry.deleteMany({
+        where: { direction: data.direction, word: data.word, source: AI_SOURCE },
+      }),
+      prisma.dictEntry.create({ data }),
+    ]);
+  } catch (error) {
+    console.warn("writeAiDictCache failed:", error);
+  }
 }
 
 type ExampleOnlyInput = {
@@ -783,30 +762,6 @@ export async function explainQbankQuestionByAi(
   }
 }
 
-export async function generateWordQuizByAi(input: QuizWordInput) {
-  const word = sanitize(input.word);
-  if (!word) throw new AppError("word is required", 400);
-  if (!SUPPORTED_LANGUAGES.includes(input.language)) {
-    throw new AppError("language must be en or jp", 400);
-  }
-
-  await assertWithinDailyBudget(input.userId);
-
-  const content = await completeJsonOrThrow({
-    system: "You create concise, accurate vocabulary quiz JSON only.",
-    user: buildQuizPrompt(input),
-    maxOutputTokens: MAX_QUIZ_OUTPUT_TOKENS,
-    log: {
-      word,
-      language: input.language,
-      feature: "word_quiz",
-      userId: input.userId,
-    },
-  });
-
-  return safeParseQuizJson(content);
-}
-
 export async function generateExpressionCasualByAi(
   input: ExpressionCasualInput,
 ) {
@@ -858,18 +813,6 @@ export async function translateExpressionToZhByAi(
   });
 
   return safeParseExpressionTranslateJson(content);
-}
-
-export async function fillWordByAiAuto(
-  userId: string,
-  wordInput: string,
-  extended?: boolean,
-) {
-  const word = sanitize(wordInput);
-  if (!word) throw new AppError("word is required", 400);
-  const language = detectLanguageFromWord(word);
-  const result = await fillWordByAi({ word, language, extended, userId });
-  return { ...result, language };
 }
 
 export async function getAiUsageSummary(userId: string, days = 7) {

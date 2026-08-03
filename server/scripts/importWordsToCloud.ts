@@ -100,7 +100,7 @@ async function ensureFolder(token: string): Promise<Folder> {
 }
 
 async function postWord(token: string, folderId: string, record: WordRecord) {
-  const payload = JSON.stringify({ ...record, folderId })
+  const payload = JSON.stringify({ ...record, folderIds: [folderId] })
   // Retry on transient gateway errors / non-JSON HTML responses. Stop on 409
   // (duplicate) and other 4xx since those are deterministic.
   let lastErr: unknown

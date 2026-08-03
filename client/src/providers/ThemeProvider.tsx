@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, type ReactNode } from 'react'
 
 import { ThemeContext, type Theme, type ThemeContextValue } from './themeContext'
-
-const STORAGE_KEY = 'theme'
+import { useSettings } from '../store/useSettings'
+import type { ThemeChoice } from '../api/settings'
 
 function applyToDOM(theme: Theme) {
   const el = document.documentElement
@@ -20,53 +20,40 @@ function applyToDOM(theme: Theme) {
 }
 
 /**
- * Resolve the theme and apply it to <html> **synchronously**, at module
- * evaluation time — before React's first render. This is what keeps the app
- * from flashing light-mode chrome on a dark-mode reload.
- *
- * Only an explicit choice is stored. Anything else (first visit, or the
- * retired `'system'` value from an older build) falls back to the OS
- * preference once, and the next toggle pins it.
+ * 设置里存的是「用户选过什么」，空串表示没选过 —— 那就跟随系统。系统偏好只在
+ * 启动时读一次：它后来变了也不该顶掉用户已经明确选定的值。
  */
-let initialTheme: Theme = 'light'
+let prefersDark = false
 try {
-  const stored = localStorage.getItem(STORAGE_KEY)
-  initialTheme =
-    stored === 'light' || stored === 'dark'
-      ? stored
-      : window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
-        : 'light'
+  prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
 } catch {
-  /* private browsing */
+  /* 无痕模式 / 不支持 matchMedia */
 }
-applyToDOM(initialTheme)
 
+function resolveTheme(choice: ThemeChoice): Theme {
+  return choice || (prefersDark ? 'dark' : 'light')
+}
+
+// 在 React 首帧之前把主题落到 <html> 上。设置的本机快照是同步读出来的
+// （见 store/useSettings.ts），所以深色模式下刷新不会先闪一屏浅色 ——
+// 跟服务端对账是之后的事，对上了再重渲染一次。
+applyToDOM(resolveTheme(useSettings.getState().settings.theme))
+
+/**
+ * 主题的读写口子。存在哪、怎么和账号同步全在 useSettings 里，这里只负责
+ * 把「用户的选择」解析成实际生效的 light / dark 并落到 DOM 上。
+ * 跨标签页同步也在 store 里，不必再单独监听 storage。
+ */
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(initialTheme)
-
-  const setTheme = useCallback((next: Theme) => {
-    setThemeState(next)
-    try {
-      localStorage.setItem(STORAGE_KEY, next)
-    } catch {
-      /* quota exceeded */
-    }
-  }, [])
+  const choice = useSettings((state) => state.settings.theme)
+  const update = useSettings((state) => state.update)
+  const theme = resolveTheme(choice)
 
   useEffect(() => {
     applyToDOM(theme)
   }, [theme])
 
-  // Sync across browser tabs.
-  useEffect(() => {
-    const handler = (e: StorageEvent) => {
-      if (e.key !== STORAGE_KEY) return
-      if (e.newValue === 'light' || e.newValue === 'dark') setThemeState(e.newValue)
-    }
-    window.addEventListener('storage', handler)
-    return () => window.removeEventListener('storage', handler)
-  }, [])
+  const setTheme = useCallback((next: Theme) => update({ theme: next }), [update])
 
   const value = useMemo<ThemeContextValue>(() => ({ theme, setTheme }), [theme, setTheme])
 

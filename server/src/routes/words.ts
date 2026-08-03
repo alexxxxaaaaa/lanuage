@@ -4,6 +4,7 @@ import {
   deleteWord,
   getTodayNewWords,
   getWords,
+  listWordIndex,
   suggestWords,
   updateWord,
 } from '../services/wordService'
@@ -21,7 +22,7 @@ wordsRouter.post('/', async (c) => {
     partOfSpeech?: string
     sourceNoteId?: string
     language?: string
-    folderId?: string
+    folderIds?: string[]
   }>()
   const created = await createWord(getUserId(c), {
     word: body.word ?? '',
@@ -32,7 +33,7 @@ wordsRouter.post('/', async (c) => {
     partOfSpeech: body.partOfSpeech ?? '',
     sourceNoteId: body.sourceNoteId,
     language: body.language ?? '',
-    folderId: body.folderId ?? '',
+    folderIds: Array.isArray(body.folderIds) ? body.folderIds : [],
   })
   return c.json(created, 201)
 })
@@ -41,6 +42,11 @@ wordsRouter.get('/today-new', async (c) => {
   const folderId = c.req.query('folderId')
   const words = await getTodayNewWords(getUserId(c), folderId)
   return c.json(words)
+})
+
+wordsRouter.get('/index', async (c) => {
+  const items = await listWordIndex(getUserId(c))
+  return c.json({ items })
 })
 
 wordsRouter.get('/suggest', async (c) => {
@@ -89,7 +95,8 @@ wordsRouter.get('/export', async (c) => {
       word.example,
       word.note,
       word.language,
-      word.folder?.name ?? '',
+      // 一个词可能挂着多个词单。
+      (word.folders ?? []).map((folder: { name: string }) => folder.name).join(' / '),
       word.createdAt instanceof Date ? word.createdAt.toISOString() : word.createdAt,
       word.review?.lastReviewedAt instanceof Date
         ? word.review.lastReviewedAt.toISOString()
@@ -132,7 +139,7 @@ wordsRouter.patch('/:id', async (c) => {
     note?: string
     partOfSpeech?: string
     sourceNoteId?: string | null
-    folderId?: string
+    folderIds?: string[]
     isPinned?: boolean
   }>()
   const updated = await updateWord(getUserId(c), c.req.param('id'), body)

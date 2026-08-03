@@ -7,8 +7,9 @@ export type NoteWord = {
   word: string
   reading: string
   meaning: string
-  folderId: string
-  folder: { id: string; name: string }
+  /** 词单是挂在词上的标签，可能有多个。 */
+  folderIds: string[]
+  folders: { id: string; name: string }[]
 }
 
 export type NoteDetail = {

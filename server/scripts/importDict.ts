@@ -90,8 +90,9 @@ async function exportD1() {
   }
 
   // 第一片先清空旧数据，重跑整套分片得到的结果和第一次完全一样。
-  shard.push('DELETE FROM "DictEntry";')
-  bytes += 32
+  // source='ai' 的行是 AI 生成的全局缓存（fill-word 落的），不随词库重灌。
+  shard.push('DELETE FROM "DictEntry" WHERE "source" <> \'ai\';')
+  bytes += 52
 
   for await (const row of readRows()) {
     const stmt = insertStatement(row)
@@ -155,10 +156,10 @@ async function exportD1() {
   process.stdout.write(`执行：bash d1_dict/apply.sh\n`)
 }
 
-/** 灌本地 SQLite。 */
+/** 灌本地 SQLite。AI 缓存行（source='ai'）保留，只重灌词库来源。 */
 async function importLocal() {
   const prisma = createNodePrismaClient()
-  await prisma.dictEntry.deleteMany()
+  await prisma.dictEntry.deleteMany({ where: { source: { not: 'ai' } } })
 
   let batch: Row[] = []
   let total = 0

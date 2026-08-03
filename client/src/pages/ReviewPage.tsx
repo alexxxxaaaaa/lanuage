@@ -170,7 +170,7 @@ export function ReviewPage() {
 
   /** Words of this wordlist still due — the pool a (re)start draws from. */
   const pool = useMemo(
-    () => dueReviews.filter((item) => item.word.folderId === folderId),
+    () => dueReviews.filter((item) => item.word.folderIds.includes(folderId)),
     [dueReviews, folderId],
   )
 
@@ -811,7 +811,7 @@ export function ReviewPage() {
           <div className="flex flex-wrap items-center gap-3 max-md:w-full max-md:gap-2">
             {/* The wordlist this session belongs to — and the way back to it. */}
             <Link className="review-tag no-underline" to={`/folders/${folderId}`}>
-              {folderName || currentWord.folder.name}
+              {folderName || currentWord.folders?.[0]?.name}
             </Link>
           </div>
         </div>

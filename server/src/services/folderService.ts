@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma'
+import { flattenWord } from '../lib/wordShape'
 import { AppError } from '../errors/AppError'
 
 const SUPPORTED_LANGUAGES = ['en', 'jp'] as const
@@ -52,39 +53,48 @@ export async function getFolders(userId: string) {
   const todayEnd = new Date()
   todayEnd.setHours(23, 59, 59, 999)
 
+  // 归属现在在 WordFolder 上，所以按它分组、条件下沉到 word.review。
+  // 一个词挂在两个词单里就两边各算一次，这是对的：两个词单各自的「今日到期」
+  // 都该显示它，复习掉之后两边一起归零。
   const [dueGroups, masteredGroups, reviewedTodayGroups] = await Promise.all([
-    prisma.word.groupBy({
+    prisma.wordFolder.groupBy({
       by: ['folderId'],
       where: {
         folderId: { in: folderIds },
-        review: {
-          is: {
-            lastReviewedAt: { not: null },
-            nextReviewDate: { lte: todayEnd },
+        word: {
+          review: {
+            is: {
+              lastReviewedAt: { not: null },
+              nextReviewDate: { lte: todayEnd },
+            },
           },
         },
       },
       _count: { _all: true },
     }),
-    prisma.word.groupBy({
+    prisma.wordFolder.groupBy({
       by: ['folderId'],
       where: {
         folderId: { in: folderIds },
-        review: {
-          is: {
-            OR: [{ repetition: { gte: 5 } }, { interval: { gte: 21 } }],
+        word: {
+          review: {
+            is: {
+              OR: [{ repetition: { gte: 5 } }, { interval: { gte: 21 } }],
+            },
           },
         },
       },
       _count: { _all: true },
     }),
-    prisma.word.groupBy({
+    prisma.wordFolder.groupBy({
       by: ['folderId'],
       where: {
         folderId: { in: folderIds },
-        review: {
-          is: {
-            lastReviewedAt: { gte: todayStart, lte: todayEnd },
+        word: {
+          review: {
+            is: {
+              lastReviewedAt: { gte: todayStart, lte: todayEnd },
+            },
           },
         },
       },
@@ -117,10 +127,18 @@ export async function getFolderById(userId: string, id: string) {
         // Pinning a word refreshes pinnedAt = now, so it surfaces back to top.
         // New words receive pinnedAt = createdAt at insertion.
         orderBy: [
-          { pinnedAt: 'desc' },
-          { createdAt: 'desc' },
+          { word: { pinnedAt: 'desc' } },
+          { word: { createdAt: 'desc' } },
         ],
-        include: { review: true, sourceNote: true },
+        include: {
+          word: {
+            include: {
+              review: true,
+              sourceNote: true,
+              folders: { include: { folder: true } },
+            },
+          },
+        },
       },
       _count: {
         select: { words: true },
@@ -132,7 +150,8 @@ export async function getFolderById(userId: string, id: string) {
     throw new AppError('folder not found', 404)
   }
 
-  return folder
+  // 连接表只是存储细节，对外还是一串词。
+  return { ...folder, words: folder.words.map(({ word }) => flattenWord(word)) }
 }
 
 export async function updateFolder(
@@ -175,9 +194,26 @@ export async function deleteFolder(userId: string, id: string) {
     throw new AppError('folder not found', 404)
   }
 
+  // 删词单只解除归属；词本身只有在不属于任何别的词单时才跟着消失 —— 一个词
+  // 同时在两个词单里，删掉其中一个不该把它连同复习进度一起带走。
+  const memberIds = (
+    await prisma.wordFolder.findMany({ where: { folderId: id }, select: { wordId: true } })
+  ).map((link) => link.wordId)
+
+  const stillElsewhere = new Set(
+    (
+      await prisma.wordFolder.findMany({
+        where: { wordId: { in: memberIds }, folderId: { not: id } },
+        select: { wordId: true },
+      })
+    ).map((link) => link.wordId),
+  )
+  const orphanIds = memberIds.filter((wordId) => !stillElsewhere.has(wordId))
+
   await prisma.$transaction([
-    prisma.review.deleteMany({ where: { word: { folderId: id } } }),
-    prisma.word.deleteMany({ where: { folderId: id } }),
+    prisma.wordFolder.deleteMany({ where: { folderId: id } }),
+    prisma.review.deleteMany({ where: { wordId: { in: orphanIds } } }),
+    prisma.word.deleteMany({ where: { id: { in: orphanIds } } }),
     prisma.folder.delete({ where: { id } }),
   ])
 

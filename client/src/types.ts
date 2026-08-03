@@ -80,7 +80,9 @@ export type UpdateWordPayload = {
   note?: string
   partOfSpeech?: string
   sourceNoteId?: string | null
-  folderId?: string
+  /** 全量覆盖归属的词单，至少要留一个。 */
+  folderIds?: string[]
+  /** 置顶：把词顶回列表最前，没有反向操作。 */
   isPinned?: boolean
 }
 
@@ -107,12 +109,12 @@ export type Word = {
   note: string
   partOfSpeech: string
   language: string
-  folderId: string
+  /** 这个词挂在哪几个词单里。词单是词的标签，可以同时有多个，也可以只有一个。 */
+  folderIds: string[]
+  folders?: Folder[]
   sourceNoteId?: string | null
-  isPinned?: boolean
   pinnedAt?: string | null
   createdAt?: string
-  folder?: Folder
   sourceNote?: NoteRef | null
   review?: Review | null
 }
@@ -129,9 +131,7 @@ export type ReviewItem = {
   firstLearnedAt?: string | null
   nextReviewDate: string
   lastReviewedAt: string | null
-  word: Word & {
-    folder: Folder
-  }
+  word: Word
 }
 
 export type ReviewRating = 'again' | 'hard' | 'easy'
@@ -145,7 +145,8 @@ export type CreateWordPayload = {
   partOfSpeech: string
   sourceNoteId?: string
   language: string
-  folderId: string
+  /** 加进哪些词单（与 UpdateWordPayload.folderIds 对齐）。 */
+  folderIds: string[]
 }
 
 export type Grammar = {

@@ -30,6 +30,18 @@ export async function getTodayNewWords(params?: { folderId?: string }) {
   return response.data
 }
 
+/** 查词页右侧索引栏用的词头，只有定序和展示要用的字段。 */
+export type WordIndexItem = {
+  word: string
+  reading: string
+  language: string
+}
+
+export async function getWordIndex() {
+  const response = await apiClient.get<{ items: WordIndexItem[] }>('/api/words/index')
+  return response.data.items ?? []
+}
+
 export type WordSuggestion = {
   id: string
   word: string

@@ -74,7 +74,7 @@ export async function getWeeklyReview(userId: string): Promise<WeeklyReview> {
       prisma.review.count({
         where: {
           firstLearnedAt: { gte: windowStart },
-          word: { folder: { userId } },
+          word: { userId },
         },
       }),
       prisma.grammarReview.count({

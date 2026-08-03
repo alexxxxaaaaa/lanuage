@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Chip, Input, TextArea } from '@heroui/react'
+import { Sparkles } from 'lucide-react'
 import { Modal } from '../components/ui/Modal'
 import { Pager } from '../components/ui/Pager'
-import { SelectField } from '../components/ui/SelectField'
+import { MultiSelectField, SelectField } from '../components/ui/SelectField'
 import { alertDialog } from '../components/ui/dialog'
 import { Link, useLocation, useParams } from 'react-router'
 import { fillWordByAi } from '../api/ai'
-import { isDuplicateWordError } from '../api/error'
+import { getErrorMessage, isDuplicateWordError } from '../api/error'
 import { useI18n } from '../i18n'
 import { getNotes } from '../api/notes'
 import { SpeakButton } from '../components/SpeakButton'
@@ -37,7 +38,8 @@ type WordFormState = {
   note: string
   partOfSpeech: string
   sourceNoteId: string
-  folderId: string
+  /** 这个词挂在哪几个词单里。至少留一个，否则它就没有任何入口了。 */
+  folderIds: string[]
 }
 
 function toFormState(word: Word): WordFormState {
@@ -49,7 +51,7 @@ function toFormState(word: Word): WordFormState {
     note: word.note,
     partOfSpeech: word.partOfSpeech ?? '',
     sourceNoteId: word.sourceNote?.id ?? '',
-    folderId: word.folderId,
+    folderIds: word.folderIds,
   }
 }
 
@@ -84,6 +86,15 @@ function hasLearnedProgress(word: Word) {
   return Boolean(word.review?.lastReviewedAt) || (word.review?.repetition ?? 0) > 0
 }
 
+/**
+ * 释义和例句都空 = 还没有 AI 生成的内容（从词典/手动只加了词头）。
+ * 这种卡片走紧凑布局 + 「AI 补全」按钮；note 不参与判断 —— 只写了备注的
+ * 词不该被当成空卡强推 AI。
+ */
+function isEmptyContent(word: Word) {
+  return !word.meaning.trim() && !word.example.trim()
+}
+
 export function FolderDetailPage() {
   const { t } = useI18n()
   const PAGE_SIZE = 12
@@ -95,7 +106,8 @@ export function FolderDetailPage() {
   const isSubmitting = useAppStore((state) => state.isSubmitting)
   const error = useAppStore((state) => state.error)
   const dueCount = useAppStore(
-    (state) => state.dueReviews.filter((item) => item.word.folderId === id).length,
+    (state) =>
+      state.dueReviews.filter((item) => item.word.folderIds.includes(id ?? '')).length,
   )
 
   // Per-tab folder snapshot. Used to live in useAppStore.currentFolder but
@@ -109,6 +121,8 @@ export function FolderDetailPage() {
   // updateWord calls — each one (via the store) refetched the whole folder,
   // and that blew past D1's row-read / Worker CPU budget => 503/500.
   const [pinningId, setPinningId] = useState<string | null>(null)
+  // 「AI 补全」在途的词 id —— 同一时刻只放一个生成，防连点、防并发烧 token。
+  const [aiFillingId, setAiFillingId] = useState<string | null>(null)
 
   const [editingWordId, setEditingWordId] = useState<string | null>(null)
   const [form, setForm] = useState<WordFormState | null>(null)
@@ -317,7 +331,7 @@ export function FolderDetailPage() {
         note: form.note.trim(),
         partOfSpeech: form.partOfSpeech.trim(),
         sourceNoteId: form.sourceNoteId || null,
-        folderId: form.folderId,
+        folderIds: form.folderIds,
       })
       reloadFolder()
 
@@ -373,6 +387,45 @@ export function FolderDetailPage() {
     }
   }
 
+  /**
+   * 「AI 补全」：给释义/例句都空的词生成内容填进去。走 pinToTop 同款
+   * 「绕 store 直调 API + 本地打补丁」路径，不整词单重拉、不打断分页/筛选。
+   * fill-word 是 cache-first 的 —— 查词页生成过的词这里零 token 秒回。
+   */
+  const aiCompleteWord = async (word: Word) => {
+    if (aiFillingId) return
+    setAiFillingId(word.id)
+    try {
+      const filled = await fillWordByAi({
+        word: word.word,
+        sourceLanguage: word.language as 'en' | 'jp',
+        targetLanguage: word.language as 'en' | 'jp',
+      })
+      const updated = await updateWordApi(word.id, {
+        // 触发条件保证 meaning/example 原本为空，直接用 AI 值；
+        // note/partOfSpeech 可能有用户手填的内容，只补空。
+        meaning: filled.meaning,
+        example: filled.example,
+        note: word.note || filled.note,
+        partOfSpeech: word.partOfSpeech || filled.partOfSpeech,
+      })
+      setFolder((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          words: prev.words.map((w) => (w.id === updated.id ? updated : w)),
+        }
+      })
+    } catch (err) {
+      void alertDialog.error({
+        title: t('folderDetail.aiCompleteFailed'),
+        content: getErrorMessage(err, ''),
+      })
+    } finally {
+      setAiFillingId(null)
+    }
+  }
+
   const openBatchModal = () => {
     setBatchInput('')
     setBatchResults([])
@@ -423,7 +476,6 @@ export function FolderDetailPage() {
     try {
       filled = await fillWordByAi({
         word,
-        language: folder.language as 'en' | 'jp',
         sourceLanguage: folder.language as 'en' | 'jp',
         targetLanguage: folder.language as 'en' | 'jp',
       })
@@ -439,7 +491,7 @@ export function FolderDetailPage() {
         note: filled.note || '',
         partOfSpeech: filled.partOfSpeech || '',
         language: folder.language,
-        folderId: folder.id,
+        folderIds: [folder.id],
       })
       return { status: 'success' }
     } catch (err) {
@@ -682,7 +734,7 @@ export function FolderDetailPage() {
             <article
               key={word.id}
               id={`word-${word.id}`}
-              className={`card word-card flex h-full min-h-55 flex-col gap-3.5 p-5.5 pb-5 [&_.word-meaning]:flex-1 [&_.word-meaning]:leading-[1.55] ${
+              className={`card word-card flex h-full ${isEmptyContent(word) ? '' : 'min-h-55'} flex-col gap-3.5 p-5.5 pb-5 [&_.word-meaning]:flex-1 [&_.word-meaning]:leading-[1.55] ${
                 highlightedWordId === word.id
                   ? 'shadow-[0_0_0_3px_var(--accent-soft-hover),var(--surface-shadow)] transition-[box-shadow] duration-400'
                   : ''
@@ -785,6 +837,22 @@ export function FolderDetailPage() {
               {word.note ? (
                 <p className="muted word-note-text">{t('folderDetail.noteLabel', { value: word.note })}</p>
               ) : null}
+              {isEmptyContent(word) ? (
+                <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-separator pt-3">
+                  <p className="muted m-0 text-[13px]">{t('folderDetail.aiCompleteHint')}</p>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    type="button"
+                    isPending={aiFillingId === word.id}
+                    isDisabled={aiFillingId !== null && aiFillingId !== word.id}
+                    onPress={() => void aiCompleteWord(word)}
+                  >
+                    <Sparkles className="size-3.5" aria-hidden />
+                    {t('folderDetail.aiComplete')}
+                  </Button>
+                </div>
+              ) : null}
             </article>
           ),
         )}
@@ -842,20 +910,21 @@ export function FolderDetailPage() {
                 />
               </label>
               <label className="form-field col-span-full">
-                <span>{t('folderDetail.formFolder')}</span>
-                <SelectField
-                  value={form.folderId || undefined}
+                <span>{t('folderDetail.formFolders')}</span>
+                <MultiSelectField
+                  values={form.folderIds}
                   isDisabled={isLoadingFolders}
-                  onChange={(v) =>
-                    setForm((prev) =>
-                      prev ? { ...prev, folderId: v ?? '' } : prev,
-                    )
+                  onChange={(next) =>
+                    setForm((prev) => (prev ? { ...prev, folderIds: next } : prev))
                   }
                   placeholder={t('folderDetail.formChooseFolder')}
-                  options={folderList.map((item) => ({
-                    value: item.id,
-                    label: `${item.name} (${item.language})`,
-                  }))}
+                  options={folderList
+                    // 词只能挂进同语言的词单，服务端也是这么校验的。
+                    .filter((item) => item.language === folder?.language)
+                    .map((item) => ({
+                      value: item.id,
+                      label: `${item.name} (${item.language})`,
+                    }))}
                 />
               </label>
               <label className="form-field col-span-full">

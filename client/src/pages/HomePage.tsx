@@ -119,10 +119,12 @@ export function HomePage() {
   const dueByFolder = useMemo(() => {
     const map = new Map<string, { name: string; items: PreviewWord[] }>()
     for (const item of dueListItems) {
-      const { folder } = item.word
-      const group = map.get(folder.id) ?? { name: folder.name, items: [] }
-      group.items.push({ ...item.word, id: item.wordId })
-      map.set(folder.id, group)
+      // 词挂在几个词单里就进几组 —— 每个词单的「今日到期」都该看到它。
+      for (const folder of item.word.folders ?? []) {
+        const group = map.get(folder.id) ?? { name: folder.name, items: [] }
+        group.items.push({ ...item.word, id: item.wordId })
+        map.set(folder.id, group)
+      }
     }
     return map
   }, [dueListItems])
@@ -152,9 +154,7 @@ export function HomePage() {
 
   const newWordsForLearnFolder = useMemo(() => {
     if (!learnFolderId) return [] as Word[]
-    const filtered = todayNewWords.filter(
-      (w) => (w.folder?.id ?? w.folderId) === learnFolderId,
-    )
+    const filtered = todayNewWords.filter((w) => w.folderIds.includes(learnFolderId))
     // The modal previews exactly what the upcoming /learn session will cover,
     // so it must respect the same `Learn Count` cap the learn page applies.
     return sessionLimit === null ? filtered : filtered.slice(0, sessionLimit)

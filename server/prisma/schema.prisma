@@ -15,46 +15,82 @@ model User {
   passwordHash      String
   createdAt         DateTime           @default(now())
   folders           Folder[]
+  words             Word[]
   notes             Note[]
   expressionFolders ExpressionFolder[]
   aiUsageLogs       AiUsageLog[]
   grammars          Grammar[]
   podcasts          Podcast[]
   reviewEvents      ReviewEvent[]
+  settings          UserSettings?
+}
+
+/// 设置页的偏好，跟账号走而不是跟浏览器走 —— 换台机器登录看到的是同一套。
+/// 行是懒建的：没这一行就等于「还没设置过」，客户端会把本机的选择推上来，
+/// 见 client/src/store/useSettings.ts。
+model UserSettings {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id])
+  /// 'light' | 'dark'；空串 = 跟随系统，客户端解析。
+  theme            String  @default("")
+  /// 'zh' | 'en' | 'jp'
+  uiLanguage       String  @default("zh")
+  /// JLPT 模拟考试的严格程度：'strict' | 'self'
+  examMode         String  @default("strict")
+  /// 查词页是否显示本地 Wiktextract 词库的来源分块（关掉只剩 AI 释义 + 我的单词库）。
+  localDictEnabled Boolean @default(true)
 }
 
 model Folder {
-  id        String   @id @default(uuid())
+  id        String       @id @default(uuid())
   name      String
   language  String
   userId    String
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
-  words     Word[]
+  createdAt DateTime     @default(now())
+  user      User         @relation(fields: [userId], references: [id])
+  words     WordFolder[]
 
   @@index([userId])
 }
 
+/// 「我的词」—— 一个用户一个词一行，和词单解耦。
+///
+/// 词单归属挂在 WordFolder 上，所以同一个词能同时在多个词单里，而 Review 始终只有
+/// 一份：加进第二个词单不会让复习进度分叉，也不会在今日复习里出现两次。
+/// language 留在这里而不是从词单推导 —— 词单没了它也还是日语词。
 model Word {
-  id           String    @id @default(uuid())
+  id           String       @id @default(uuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id])
   word         String
   reading      String
   meaning      String
   example      String
   note         String
-  partOfSpeech String    @default("")
+  partOfSpeech String       @default("")
   language     String
-  folderId     String
   sourceNoteId String?
-  isPinned     Boolean   @default(false)
+  sourceNote   Note?        @relation(fields: [sourceNoteId], references: [id])
+  /// 统一的时间线：建词时落一次，置顶再刷新一次，列表按它倒序。
   pinnedAt     DateTime?
-  folder       Folder    @relation(fields: [folderId], references: [id])
-  sourceNote   Note?     @relation(fields: [sourceNoteId], references: [id])
+  createdAt    DateTime     @default(now())
+  folders      WordFolder[]
   review       Review?
-  createdAt    DateTime  @default(now())
 
-  @@unique([folderId, word])
-  @@index([folderId, isPinned, pinnedAt])
+  @@unique([userId, word, language])
+  @@index([userId, pinnedAt])
+}
+
+/// 词 ↔ 词单。词单在这个模型里是挂在词上的标签，不是装词的盒子。
+model WordFolder {
+  wordId    String
+  folderId  String
+  createdAt DateTime @default(now())
+  word      Word     @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  folder    Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@id([wordId, folderId])
+  @@index([folderId])
 }
 
 model Note {
@@ -386,6 +422,11 @@ model ReviewEvent {
 // 由 server/scripts/buildDict.ts 生成 data/dict/*.jsonl，再用
 // scripts/importDict.ts 灌进来。右侧索引栏走随前端发布的静态 .idx 文件，
 // 不查这张表；这里只服务「点某个词 / 回车精确匹配」时的详情取用。
+//
+// source='ai' 的行是 AI 生成的全局释义缓存（同一 (direction, word) 一份，
+// 第一个生成的人付 token，之后所有人直接读；重新生成 = 换行，清除 = 删行，
+// 见 lib/aiDictEntry.ts 与 aiService.fillWordByAi）。importDict 重灌词库时
+// 保留这些行。'en-zh' 方向只有 ai 行。
 model DictEntry {
   id        Int    @id @default(autoincrement())
   word      String

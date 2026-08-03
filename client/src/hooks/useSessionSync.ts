@@ -3,12 +3,14 @@ import { useEffect } from 'react'
 import { fetchMe } from '../api/auth'
 import { useAppStore } from '../store/useAppStore'
 import { useAuthStore } from '../store/authStore'
+import { useSettings } from '../store/useSettings'
 
 /**
  * Session-scoped background work for a signed-in shell:
  *
  *  1. Re-reads `/me` on mount so a server-side change to the account (the
- *     admin flag) takes effect without a re-login.
+ *     admin flag) takes effect without a re-login，同时和账号里的设置对一次账
+ *     （启动时先用的是本机快照，见 store/useSettings.ts）。
  *  2. Refreshes today's review queue when the calendar day rolls over. With
  *     keep-alive pages the app can stay mounted for days, so the cached queue
  *     would otherwise be 24h stale when the user comes back next morning.
@@ -30,6 +32,7 @@ export function useSessionSync(): void {
     fetchMe()
       .then(setUser)
       .catch(() => {})
+    void useSettings.getState().sync()
   }, [token, setUser])
 
   useEffect(() => {

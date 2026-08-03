@@ -295,13 +295,13 @@ export function NoteDetailPage() {
                   <li key={word.id}>
                     <Link
                       className="flex flex-col gap-0.5 rounded-xl bg-surface-secondary px-3.5 py-2.5 no-underline hover:bg-surface-tertiary"
-                      to={`/folders/${word.folderId}#word-${word.id}`}
+                      to={`/folders/${word.folderIds[0] ?? ''}#word-${word.id}`}
                     >
                       <span className="flex items-baseline gap-2">
                         <b className="text-foreground">{word.word}</b>
                         <span className="text-[13px] text-muted">{word.reading}</span>
                         <span className="ml-auto shrink-0 text-xs text-muted">
-                          {word.folder.name}
+                          {word.folders.map((folder) => folder.name).join(' / ')}
                         </span>
                       </span>
                       {word.meaning ? (

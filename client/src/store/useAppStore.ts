@@ -12,6 +12,7 @@ import {
   deleteWord as deleteWordApi,
   updateWord as updateWordApi,
 } from '../api/words'
+import { useWordIndex } from './useWordIndex'
 import type {
   CreateFolderPayload,
   CreateWordPayload,
@@ -151,7 +152,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       set((state) => ({
         isSubmitting: false,
         // Its words went with it — keep the due pool from listing ghosts.
-        dueReviews: state.dueReviews.filter((item) => item.word.folderId !== id),
+        dueReviews: state.dueReviews.filter((item) => !item.word.folderIds.includes(id)),
       }))
       await get().fetchFolders()
     } catch (error) {
@@ -206,6 +207,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       await createWordApi(payload)
       set({ isSubmitting: false })
+      // 查词页右侧索引里也要出现这个词。
+      useWordIndex.getState().refresh()
       await get().fetchFolders()
     } catch (error) {
       set({
@@ -221,6 +224,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       await updateWordApi(id, payload)
       set({ isSubmitting: false })
+      // 置顶之类的改动不影响索引，只有词头/读音变了才需要重拉。
+      if (payload.word !== undefined || payload.reading !== undefined) {
+        useWordIndex.getState().refresh()
+      }
     } catch (error) {
       set({
         isSubmitting: false,
@@ -235,6 +242,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       await deleteWordApi(id)
       set({ isSubmitting: false })
+      useWordIndex.getState().refresh()
       await get().fetchFolders()
     } catch (error) {
       set({

@@ -1,6 +1,13 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma'
+import { flattenWord, WORD_FOLDERS } from '../lib/wordShape'
 import { AppError } from '../errors/AppError'
+
+/**
+ * 「我的词」。一个用户一个词一行，词单归属挂在 WordFolder 上 —— 所以同一个词
+ * 可以同时属于多个词单，而复习状态只有一份。对外仍然把归属摊平成
+ * `folders` / `folderIds`，前端不用认识连接表。
+ */
 
 type CreateWordInput = {
   word: string
@@ -11,24 +18,25 @@ type CreateWordInput = {
   partOfSpeech: string
   sourceNoteId?: string
   language: string
-  folderId: string
+  /** 加进哪些词单。词已经收录过就只是补挂缺的归属，不会再建一行。 */
+  folderIds: string[]
 }
 
 type UpdateWordInput = Partial<
-  Pick<
-    CreateWordInput,
-    | 'word'
-    | 'reading'
-    | 'meaning'
-    | 'example'
-    | 'note'
-    | 'partOfSpeech'
-    | 'folderId'
-  >
+  Pick<CreateWordInput, 'word' | 'reading' | 'meaning' | 'example' | 'note' | 'partOfSpeech'>
 > & {
   sourceNoteId?: string | null
+  /** 全量覆盖这个词的词单归属。不传就不动。 */
+  folderIds?: string[]
+  /** 置顶 = 刷新 pinnedAt，把词顶回列表最前。没有「取消置顶」。 */
   isPinned?: boolean
 }
+
+const WORD_INCLUDE = {
+  ...WORD_FOLDERS,
+  sourceNote: true,
+  review: true,
+} satisfies Prisma.WordInclude
 
 function assertRequiredField(value: string, fieldName: string) {
   if (!value.trim()) {
@@ -47,93 +55,95 @@ function normalizeText(input?: string) {
   return sanitizeUnicode((input ?? '').trim())
 }
 
-async function assertNoDuplicateWordInFolder(input: {
-  folderId: string
-  word: string
-  excludeWordId?: string
-}) {
-  const duplicated = await prisma.word.findFirst({
-    where: {
-      folderId: input.folderId,
-      word: input.word,
-      ...(input.excludeWordId ? { id: { not: input.excludeWordId } } : {}),
-    },
-  })
-
-  if (duplicated) {
-    throw new AppError('word already exists in this folder', 409)
-  }
-}
-
 function mapUniqueError(error: unknown): never {
   const code =
     typeof error === 'object' && error !== null && 'code' in error
       ? String((error as { code?: unknown }).code)
       : ''
   if (code === 'P2002') {
-    throw new AppError('word already exists in this folder', 409)
+    throw new AppError('word already exists in your library', 409)
   }
   throw error
 }
 
-export async function createWord(userId: string, input: CreateWordInput) {
-  const normalizedWord = normalizeText(input.word)
-  const normalizedReading = normalizeText(input.reading)
-  const normalizedMeaning = normalizeText(input.meaning)
-  const normalizedExample = normalizeText(input.example)
-  const normalizedNote = normalizeText(input.note)
-  const normalizedPartOfSpeech = normalizeText(input.partOfSpeech)
-  const normalizedSourceNoteId = normalizeText(input.sourceNoteId)
-  const normalizedLanguage = normalizeText(input.language)
-  const normalizedFolderId = normalizeText(input.folderId)
-
-  assertRequiredField(normalizedWord, 'word')
-  assertRequiredField(input.reading, 'reading')
-  assertRequiredField(input.language, 'language')
-  assertRequiredField(input.folderId, 'folderId')
-
-  const folder = await prisma.folder.findFirst({
-    where: { id: normalizedFolderId, userId },
+/** 取用户自己的词单，顺带校验语言 —— 词只能挂进同语言的词单。 */
+async function loadOwnedFolders(userId: string, folderIds: string[], language: string) {
+  const folders = await prisma.folder.findMany({
+    where: { id: { in: folderIds }, userId },
   })
-
-  if (!folder) {
+  if (folders.length !== folderIds.length) {
     throw new AppError('folder not found', 404)
   }
-
-  if (folder.language !== normalizedLanguage) {
+  if (folders.some((folder) => folder.language !== language)) {
     throw new AppError('word language must match folder language', 400)
   }
+  return folders
+}
 
-  if (normalizedSourceNoteId) {
-    const sourceNote = await prisma.note.findFirst({
-      where: { id: normalizedSourceNoteId, userId },
-    })
+export async function createWord(userId: string, input: CreateWordInput) {
+  const word = normalizeText(input.word)
+  const language = normalizeText(input.language)
+  const folderIds = Array.from(
+    new Set((input.folderIds ?? []).map((id) => normalizeText(id)).filter(Boolean)),
+  )
+  const sourceNoteId = normalizeText(input.sourceNoteId)
+
+  assertRequiredField(word, 'word')
+  assertRequiredField(input.reading, 'reading')
+  assertRequiredField(language, 'language')
+  if (folderIds.length === 0) {
+    throw new AppError('folderIds is required', 400)
+  }
+
+  await loadOwnedFolders(userId, folderIds, language)
+
+  if (sourceNoteId) {
+    const sourceNote = await prisma.note.findFirst({ where: { id: sourceNoteId, userId } })
     if (!sourceNote) {
       throw new AppError('source note not found', 404)
     }
   }
 
-  await assertNoDuplicateWordInFolder({
-    folderId: normalizedFolderId,
-    word: normalizedWord,
+  // 已经收录过的词不再建第二行 —— 只是补挂缺的词单，复习进度原封不动带过去。
+  const existing = await prisma.word.findUnique({
+    where: { userId_word_language: { userId, word, language } },
+    include: WORD_INCLUDE,
   })
+  if (existing) {
+    const linked = new Set(existing.folders.map((link) => link.folderId))
+    const toAdd = folderIds.filter((id) => !linked.has(id))
+    if (toAdd.length === 0) {
+      throw new AppError('word already exists in this folder', 409)
+    }
+    const updated = await prisma.word.update({
+      where: { id: existing.id },
+      // 顺手顶到最前，和新建的词一样出现在词单开头。
+      data: {
+        pinnedAt: new Date(),
+        folders: { create: toAdd.map((folderId) => ({ folderId })) },
+      },
+      include: WORD_INCLUDE,
+    })
+    return flattenWord(updated)
+  }
 
   try {
-    return await prisma.word.create({
+    const created = await prisma.word.create({
       data: {
-        word: normalizedWord,
-        reading: normalizedReading,
-        meaning: normalizedMeaning,
-        example: normalizedExample,
-        note: normalizedNote,
-        partOfSpeech: normalizedPartOfSpeech,
-        sourceNoteId: normalizedSourceNoteId || null,
-        language: normalizedLanguage,
-        folderId: normalizedFolderId,
+        userId,
+        word,
+        reading: normalizeText(input.reading),
+        meaning: normalizeText(input.meaning),
+        example: normalizeText(input.example),
+        note: normalizeText(input.note),
+        partOfSpeech: normalizeText(input.partOfSpeech),
+        sourceNoteId: sourceNoteId || null,
+        language,
         // Every word gets a pinnedAt at birth — the list is sorted by
         // pinnedAt desc, so new entries naturally surface to the top and
         // share the same timeline as user-triggered pins.
         pinnedAt: new Date(),
+        folders: { create: folderIds.map((folderId) => ({ folderId })) },
         review: {
           create: {
             interval: 1,
@@ -143,12 +153,9 @@ export async function createWord(userId: string, input: CreateWordInput) {
           },
         },
       },
-      include: {
-        folder: true,
-        sourceNote: true,
-        review: true,
-      },
+      include: WORD_INCLUDE,
     })
+    return flattenWord(created)
   } catch (error) {
     mapUniqueError(error)
   }
@@ -157,31 +164,60 @@ export async function createWord(userId: string, input: CreateWordInput) {
 export async function getWords(userId: string, folderId?: string, query?: string) {
   const normalized = query?.trim()
 
-  return prisma.word.findMany({
+  // 带关键词时走原生 LIKE —— Prisma 的 contains 挂不了 ESCAPE，用户输入 % / _
+  // 会被当通配符（suggestWords 早就转义了，这里补齐同样的规则）。
+  if (normalized) {
+    const escaped = normalized.replace(/[\\%_]/g, (ch) => `\\${ch}`)
+    const contains = `%${escaped}%`
+    const folderFilter = folderId
+      ? Prisma.sql`AND EXISTS (SELECT 1 FROM WordFolder wf WHERE wf.wordId = w.id AND wf.folderId = ${folderId})`
+      : Prisma.empty
+    const idRows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT w.id FROM Word w
+      WHERE w.userId = ${userId}
+        AND (
+          w.word LIKE ${contains} ESCAPE '\\'
+          OR w.reading LIKE ${contains} ESCAPE '\\'
+        )
+        ${folderFilter}
+      ORDER BY w.pinnedAt DESC, w.createdAt DESC
+    `)
+    if (idRows.length === 0) return []
+    const ids = idRows.map((row) => row.id)
+    const rows = await prisma.word.findMany({
+      where: { id: { in: ids } },
+      include: WORD_INCLUDE,
+    })
+    const order = new Map(ids.map((id, index) => [id, index]))
+    rows.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
+    return rows.map(flattenWord)
+  }
+
+  const rows = await prisma.word.findMany({
     where: {
-      folder: { userId },
-      ...(folderId ? { folderId } : {}),
-      ...(normalized
-        ? {
-            OR: [
-              { word: { contains: normalized } },
-              { reading: { contains: normalized } },
-            ],
-          }
-        : {}),
+      userId,
+      ...(folderId ? { folders: { some: { folderId } } } : {}),
     },
     // Unified timeline: every word has pinnedAt (set on creation, refreshed on
     // user pin), so a single descending sort puts the most recently created OR
     // pinned items at the top. Newer events always win.
-    orderBy: [
-      { pinnedAt: 'desc' },
-      { createdAt: 'desc' },
-    ],
-    include: {
-      folder: true,
-      sourceNote: true,
-      review: true,
-    },
+    orderBy: [{ pinnedAt: 'desc' }, { createdAt: 'desc' }],
+    include: WORD_INCLUDE,
+  })
+  return rows.map(flattenWord)
+}
+
+/**
+ * 查词页右侧索引栏用的全量词头。
+ *
+ * 只下发定序和展示要用的三列：用户可能有几千个词，getWords 那套带
+ * folders / sourceNote / review 的完整对象在这里全是浪费。去重、排序、
+ * 和本地词库的合并都在客户端做（见 client/src/lib/dictIndex.ts）。
+ */
+export async function listWordIndex(userId: string) {
+  return prisma.word.findMany({
+    where: { userId },
+    select: { word: true, reading: true, language: true },
   })
 }
 
@@ -196,7 +232,7 @@ export async function suggestWords(userId: string, query: string, limit = 10) {
   const safeLimit = Math.min(Math.max(limit, 1), 20)
 
   // Raw query so we can ORDER BY exact > prefix > contains relevance buckets.
-  // The Folder join scopes results to this user.
+  // 词单只是拿来在建议行上标个出处，一个词可能挂着多个 —— 取任意一个即可。
   const rows = await prisma.$queryRaw<
     Array<{
       id: string
@@ -204,15 +240,16 @@ export async function suggestWords(userId: string, query: string, limit = 10) {
       reading: string
       meaning: string
       language: string
-      folderId: string
+      folderId: string | null
       folderName: string | null
     }>
   >`
-    SELECT w.id, w.word, w.reading, w.meaning, w.language, w.folderId,
-           f.name AS folderName
+    SELECT w.id, w.word, w.reading, w.meaning, w.language,
+           (SELECT wf.folderId FROM WordFolder wf WHERE wf.wordId = w.id LIMIT 1) AS folderId,
+           (SELECT f.name FROM WordFolder wf JOIN Folder f ON f.id = wf.folderId
+             WHERE wf.wordId = w.id LIMIT 1) AS folderName
     FROM Word w
-    JOIN Folder f ON f.id = w.folderId
-    WHERE f.userId = ${userId}
+    WHERE w.userId = ${userId}
       AND (
         w.word LIKE ${contains} ESCAPE '\\'
         OR w.reading LIKE ${contains} ESCAPE '\\'
@@ -235,7 +272,7 @@ export async function suggestWords(userId: string, query: string, limit = 10) {
     reading: row.reading,
     meaning: row.meaning,
     language: row.language,
-    folderId: row.folderId,
+    folderId: row.folderId ?? '',
     folderName: row.folderName ?? '',
   }))
 }
@@ -245,34 +282,25 @@ export async function getTodayNewWords(userId: string, folderId?: string) {
   //   - its Review row has lastReviewedAt = NULL, OR
   //   - it has no Review row at all (legacy / orphan).
   //
-  // History of approaches that didn't quite work:
-  //   1. Prisma `OR: [{review: {is: null}}, {review: {is: {lastReviewedAt: null}}}]`
-  //      generated two correlated EXISTS subqueries OR'd together — choked D1.
-  //   2. Single Prisma `where review.is.lastReviewedAt = null` silently dropped
-  //      the no-Review-row case (the relation must exist), so 8-9 orphan words
-  //      went missing from Learn even though folder UI counted them as unlearned.
-  //   3. "Fetch all, JS-filter" with take:500 pre-filter broke the global
-  //      no-folder call: recently-learned words crowded out older unlearned ones.
-  //   4. Two parallel Prisma queries + JS merge looked clean but Prisma's
-  //      `review: { is: null }` on D1 (1-to-1 optional relation) appeared to
-  //      generate SQL that didn't match the orphans we expected.
-  //
-  // Raw SQL LEFT JOIN is the unambiguous answer. One query, one subquery for
-  // the user-scope, post-filter LIMIT — no Prisma semantics to second-guess.
+  // Raw SQL LEFT JOIN rather than Prisma's `review: { is: null }` — the latter
+  // silently dropped words with no Review row at all on D1, so orphans went
+  // missing from Learn even though the folder UI counted them as unlearned.
   // We then re-load full Word objects (with folder/review includes) keyed by
   // the IDs the raw query returned, so the caller gets the same shape as
   // before.
   // No LIMIT on the raw scan — the WHERE clause already restricts to
   // unreviewed-only, so the result is bounded by the user's actual unlearned
-  // count, not by their full word inventory. Previously LIMIT 500 was
-  // cutting off folders whose unlearned words had older pinnedAt when the
-  // user had > 500 total unlearned across all folders.
+  // count, not by their full word inventory.
   const rows = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT w.id
     FROM Word w
     LEFT JOIN Review r ON r.wordId = w.id
-    WHERE w.folderId IN (SELECT id FROM Folder WHERE userId = ${userId})
-      ${folderId ? Prisma.sql`AND w.folderId = ${folderId}` : Prisma.empty}
+    WHERE w.userId = ${userId}
+      ${
+        folderId
+          ? Prisma.sql`AND EXISTS (SELECT 1 FROM WordFolder wf WHERE wf.wordId = w.id AND wf.folderId = ${folderId})`
+          : Prisma.empty
+      }
       AND (r.id IS NULL OR r.lastReviewedAt IS NULL)
     ORDER BY
       CASE WHEN w.pinnedAt IS NULL THEN 1 ELSE 0 END,
@@ -284,40 +312,25 @@ export async function getTodayNewWords(userId: string, folderId?: string) {
   const ids = rows.map((r) => r.id)
   const words = await prisma.word.findMany({
     where: { id: { in: ids } },
-    include: { folder: true, review: true },
+    include: WORD_INCLUDE,
   })
 
   // Re-sort by the original raw-query order (Prisma's findMany doesn't
   // preserve `in:` ordering).
   const order = new Map(ids.map((id, idx) => [id, idx] as const))
   words.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
-  return words
+  return words.map(flattenWord)
 }
 
-export async function updateWord(
-  userId: string,
-  id: string,
-  updates: UpdateWordInput,
-) {
-  const existing = await prisma.word.findFirst({
-    where: { id, folder: { userId } },
-  })
+export async function updateWord(userId: string, id: string, updates: UpdateWordInput) {
+  const existing = await prisma.word.findFirst({ where: { id, userId } })
   if (!existing) {
     throw new AppError('word not found', 404)
   }
 
-  const data: Omit<Partial<CreateWordInput>, 'sourceNoteId'> & {
-    sourceNoteId?: string | null
-    isPinned?: boolean
-    pinnedAt?: Date | null
-  } = {}
-  const requiredFields: Array<'word' | 'reading'> = ['word', 'reading']
-  const optionalFields: Array<'meaning' | 'example' | 'note' | 'partOfSpeech'> = [
-    'meaning',
-    'example',
-    'note',
-    'partOfSpeech',
-  ]
+  const data: Prisma.WordUpdateInput = {}
+  const requiredFields = ['word', 'reading'] as const
+  const optionalFields = ['meaning', 'example', 'note', 'partOfSpeech'] as const
 
   for (const field of requiredFields) {
     const value = updates[field]
@@ -338,82 +351,67 @@ export async function updateWord(
   }
 
   if (updates.sourceNoteId !== undefined) {
-    const normalizedSourceNoteId = normalizeText(updates.sourceNoteId ?? '')
-    if (normalizedSourceNoteId) {
-      const sourceNote = await prisma.note.findFirst({
-        where: { id: normalizedSourceNoteId, userId },
-      })
+    const sourceNoteId = normalizeText(updates.sourceNoteId ?? '')
+    if (sourceNoteId) {
+      const sourceNote = await prisma.note.findFirst({ where: { id: sourceNoteId, userId } })
       if (!sourceNote) {
         throw new AppError('source note not found', 404)
       }
-      data.sourceNoteId = normalizedSourceNoteId
+      data.sourceNote = { connect: { id: sourceNoteId } }
     } else {
-      data.sourceNoteId = null
+      data.sourceNote = { disconnect: true }
     }
   }
 
-  if (updates.folderId !== undefined) {
-    const normalizedFolderId = normalizeText(updates.folderId)
-    if (!normalizedFolderId) {
-      throw new AppError('folderId cannot be empty', 400)
+  if (updates.folderIds !== undefined) {
+    const folderIds = [...new Set(updates.folderIds.map(normalizeText).filter(Boolean))]
+    if (folderIds.length === 0) {
+      throw new AppError('a word must stay in at least one folder', 400)
     }
-    const targetFolder = await prisma.folder.findFirst({
-      where: { id: normalizedFolderId, userId },
-    })
-    if (!targetFolder) {
-      throw new AppError('folder not found', 404)
+    await loadOwnedFolders(userId, folderIds, existing.language)
+    // 全量覆盖。已经挂着的归属保持原样（不重建），避免 createdAt 白白刷新。
+    data.folders = {
+      deleteMany: { folderId: { notIn: folderIds } },
+      connectOrCreate: folderIds.map((folderId) => ({
+        where: { wordId_folderId: { wordId: id, folderId } },
+        create: { folderId },
+      })),
     }
-    data.folderId = normalizedFolderId
-    data.language = targetFolder.language
   }
 
   if (updates.isPinned === true) {
     // Pin = bump to top: refresh pinnedAt. There is no unpin operation —
     // every word always has a pinnedAt (set at creation), the user just
     // re-stamps it to surface the word back to the top.
-    data.isPinned = true
     data.pinnedAt = new Date()
   }
 
   if (Object.keys(data).length === 0) {
-    return prisma.word.findUnique({
-      where: { id },
-      include: { folder: true, sourceNote: true, review: true },
-    })
-  }
-
-  const effectiveWord = data.word ?? existing.word
-  const effectiveFolderId =
-    (data.folderId as string | undefined) ?? existing.folderId
-  if (data.word !== undefined || data.folderId !== undefined) {
-    await assertNoDuplicateWordInFolder({
-      folderId: effectiveFolderId,
-      word: effectiveWord,
-      excludeWordId: id,
-    })
+    const row = await prisma.word.findUnique({ where: { id }, include: WORD_INCLUDE })
+    return row ? flattenWord(row) : null
   }
 
   try {
-    return await prisma.word.update({
+    const updated = await prisma.word.update({
       where: { id },
       data,
-      include: { folder: true, sourceNote: true, review: true },
+      include: WORD_INCLUDE,
     })
+    return flattenWord(updated)
   } catch (error) {
     mapUniqueError(error)
   }
 }
 
 export async function deleteWord(userId: string, id: string) {
-  const existing = await prisma.word.findFirst({
-    where: { id, folder: { userId } },
-  })
+  const existing = await prisma.word.findFirst({ where: { id, userId } })
   if (!existing) {
     throw new AppError('word not found', 404)
   }
 
   await prisma.$transaction([
     prisma.review.deleteMany({ where: { wordId: id } }),
+    prisma.wordFolder.deleteMany({ where: { wordId: id } }),
     prisma.word.delete({ where: { id } }),
   ])
 

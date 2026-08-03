@@ -29,6 +29,71 @@ type SelectFieldProps<T extends string | number> = {
   'aria-label'?: string
 }
 
+type MultiSelectFieldProps = {
+  values: string[]
+  onChange: (values: string[]) => void
+  options: SelectOption[]
+  placeholder?: string
+  className?: string
+  isDisabled?: boolean
+  fullWidth?: boolean
+  'aria-label'?: string
+}
+
+/**
+ * 多选版。给「一个词属于哪几个词单」这种关系用 —— 词单是挂在词上的标签，
+ * 可以同时有多个，所以这里不做「至少选一个」的限制，由调用方按业务判断。
+ */
+export function MultiSelectField({
+  values,
+  onChange,
+  options,
+  placeholder,
+  className,
+  isDisabled,
+  fullWidth,
+  'aria-label': ariaLabel,
+}: MultiSelectFieldProps) {
+  return (
+    <Select
+      aria-label={ariaLabel}
+      className={className}
+      disabledKeys={options.filter((o) => o.disabled).map((o) => o.value)}
+      fullWidth={fullWidth}
+      isDisabled={isDisabled}
+      placeholder={placeholder}
+      selectionMode="multiple"
+      value={values}
+      onChange={(keys) => {
+        if (keys == null) return onChange([])
+        onChange((Array.isArray(keys) ? keys : [keys]).map(String))
+      }}
+    >
+      <Select.Trigger>
+        <Select.Value />
+        <Select.Indicator />
+      </Select.Trigger>
+      <Select.Popover>
+        <ListBox selectionMode="multiple">
+          {options.map((option) => (
+            <ListBox.Item
+              key={option.value}
+              id={option.value}
+              textValue={
+                option.textValue ??
+                (typeof option.label === 'string' ? option.label : option.value)
+              }
+            >
+              {option.label}
+              <ListBox.ItemIndicator />
+            </ListBox.Item>
+          ))}
+        </ListBox>
+      </Select.Popover>
+    </Select>
+  )
+}
+
 export function SelectField<T extends string | number = string>({
   value,
   onChange,

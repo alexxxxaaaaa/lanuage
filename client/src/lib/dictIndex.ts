@@ -1,19 +1,39 @@
 /**
  * 右侧索引栏的数据源。
  *
- * 索引是随前端发布的静态文件 client/public/dict/<direction>.idx，每行三列：
- *   sortKey \t 词头 \t 读音
- * 由 server/scripts/buildDict.ts 按五十音順 / 拼音序排好，客户端只做定位，
- * 不排序、不请求接口 —— 所以每敲一个字都能零延迟滚到位置。
+ * 两个来源合成一份词头一览：
+ *   - 本地词库：随前端发布的静态文件 client/public/dict/<direction>.idx，每行三列
+ *     `sortKey \t 词头 \t 读音`，由 server/scripts/buildDict.ts 按五十音順 /
+ *     拼音序排好，客户端只做定位，不排序、不请求接口；
+ *   - 用户自己的单词库：AI 查词添加的词，走接口拿全量词头（见 api/words.ts）。
+ *
+ * 两边都收录的词只占一行，标成 both，展示时两个标签一起挂。
  */
 import { kanaSortKey, pinyinSortKey } from '../../../shared/dictSort'
 
 export type DictDirection = 'ja-zh' | 'zh-ja'
 
-export type IndexRow = {
+/** 索引的三种形态。日语之外没有本地词库，索引里只会有 AI 添加的词。 */
+export type IndexKind = DictDirection | 'en'
+
+/** 这一行的词从哪来。both = 本地词库和我的单词库都有。 */
+export type IndexSource = 'local' | 'ai' | 'both'
+
+/** 排好序的一条词头，还没落到具体某一行。 */
+export type IndexEntry = {
+  sortKey: string
+  word: string
+  reading: string
+}
+
+export type IndexRow = IndexEntry & {
   /** 行号，同时是虚拟列表里的定位坐标。 */
   line: number
-  sortKey: string
+  source: IndexSource
+}
+
+/** 合并进来的用户词。 */
+export type UserWord = {
   word: string
   reading: string
 }
@@ -21,6 +41,16 @@ export type IndexRow = {
 /** 有假名 / 拉丁字母说明用户在按读音查，纯汉字则按词头查。 */
 const HAS_KANA = /[぀-ヿ]/
 const HAS_LATIN = /[a-zA-Z]/
+
+/**
+ * 用户词的排序键，必须和本地索引文件用的是同一套规则，两边才能归并到一起。
+ * 英语没有本地词库可对齐，按小写词头排即可。
+ */
+const SORT_KEY: Record<IndexKind, (word: UserWord) => string> = {
+  'ja-zh': (w) => kanaSortKey(w.reading || w.word),
+  'zh-ja': (w) => pinyinSortKey(w.reading),
+  en: (w) => w.word.toLowerCase(),
+}
 
 /** lower_bound：第一个使 valueAt(i) >= key 成立的下标。 */
 function lowerBound(size: number, key: string, valueAt: (i: number) => string): number {
@@ -36,24 +66,24 @@ function lowerBound(size: number, key: string, valueAt: (i: number) => string): 
 
 export class DictIndex {
   readonly rows: IndexRow[]
-  readonly direction: DictDirection
+  readonly kind: IndexKind
 
-  private constructor(rows: IndexRow[], direction: DictDirection) {
+  private constructor(rows: IndexRow[], kind: IndexKind) {
     this.rows = rows
-    this.direction = direction
+    this.kind = kind
   }
 
   get size() {
     return this.rows.length
   }
 
-  static async load(direction: DictDirection, signal?: AbortSignal) {
+  /** 解析静态索引文件。结果按 sortKey 有序，可以直接参与归并。 */
+  static async loadLocal(direction: DictDirection, signal?: AbortSignal) {
     const res = await fetch(`/dict/${direction}.idx`, { signal })
     if (!res.ok) throw new Error(`词库索引加载失败：${res.status}`)
     const text = await res.text()
 
-    const rows: IndexRow[] = []
-    let line = 0
+    const entries: IndexEntry[] = []
     // 手写切分而不是 text.split('\n').map(...)：后者会先落一个十万级的中间数组。
     for (let start = 0; start < text.length; ) {
       let end = text.indexOf('\n', start)
@@ -61,8 +91,7 @@ export class DictIndex {
       const t1 = text.indexOf('\t', start)
       const t2 = t1 === -1 ? -1 : text.indexOf('\t', t1 + 1)
       if (t1 !== -1 && t2 !== -1 && t2 < end) {
-        rows.push({
-          line: line++,
+        entries.push({
           sortKey: text.slice(start, t1),
           word: text.slice(t1 + 1, t2),
           reading: text.slice(t2 + 1, end),
@@ -70,7 +99,53 @@ export class DictIndex {
       }
       start = end + 1
     }
-    return new DictIndex(rows, direction)
+    return entries
+  }
+
+  /**
+   * 本地词头 + 用户词合成一份索引。
+   *
+   * 两边各自有序，所以是一次线性归并 —— 用户词只有几百上千条，单独排一次再并进
+   * 十万条里，比把两边拼起来整体重排便宜一个量级。同名词只留本地那一行，
+   * 标成 both：索引是「词头一览」，同一个词头出现两次没有意义。
+   */
+  static merge(
+    kind: IndexKind,
+    local: readonly IndexEntry[],
+    userWords: readonly UserWord[],
+  ): DictIndex {
+    const mine = new Map<string, UserWord>()
+    for (const word of userWords) {
+      if (!mine.has(word.word)) mine.set(word.word, word)
+    }
+
+    const localWords = new Set<string>()
+    for (const entry of local) localWords.add(entry.word)
+
+    const toSortKey = SORT_KEY[kind]
+    const extras: IndexEntry[] = []
+    for (const [word, item] of mine) {
+      if (localWords.has(word)) continue
+      extras.push({ sortKey: toSortKey(item), word, reading: item.reading })
+    }
+    extras.sort((a, b) => (a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0))
+
+    const rows: IndexRow[] = []
+    let i = 0
+    let j = 0
+    while (i < local.length || j < extras.length) {
+      const fromLocal =
+        j >= extras.length || (i < local.length && local[i].sortKey <= extras[j].sortKey)
+      const entry = fromLocal ? local[i++] : extras[j++]
+      rows.push({
+        line: rows.length,
+        sortKey: entry.sortKey,
+        word: entry.word,
+        reading: entry.reading,
+        source: fromLocal ? (mine.has(entry.word) ? 'both' : 'local') : 'ai',
+      })
+    }
+    return new DictIndex(rows, kind)
   }
 
   /**
@@ -96,22 +171,25 @@ export class DictIndex {
   }
 
   /**
-   * 定位到最匹配输入的行号，输入为空则回到列表开头。
-   *
-   * 输入的归一化用的是 shared/dictSort ——「按读音排序」和「按读音定位」
-   * 必须是同一套规则，所以那份文件同时被构建脚本和这里引用。
+   * 输入按读音查时的归一化结果，空串表示这串输入不是读音、该按词头查。
+   * 归一化用的是 shared/dictSort ——「按读音排序」和「按读音定位」必须是同一套
+   * 规则，所以那份文件同时被构建脚本和这里引用。
    */
+  private readingKey(query: string): string {
+    if (this.kind === 'en') return query.toLowerCase()
+    if (this.kind === 'ja-zh') return HAS_KANA.test(query) ? kanaSortKey(query) : ''
+    return HAS_LATIN.test(query) ? pinyinSortKey(query) : ''
+  }
+
+  /** 定位到最匹配输入的行号，输入为空则回到列表开头。 */
   locate(query: string): number {
     const q = query.trim()
     if (!q || this.size === 0) return 0
 
-    const byReading = this.direction === 'ja-zh' ? HAS_KANA.test(q) : HAS_LATIN.test(q)
-    if (byReading) {
-      const key = this.direction === 'ja-zh' ? kanaSortKey(q) : pinyinSortKey(q)
-      if (key) {
-        const at = lowerBound(this.size, key, (i) => this.rows[i].sortKey)
-        return Math.min(at, this.size - 1)
-      }
+    const key = this.readingKey(q)
+    if (key) {
+      const at = lowerBound(this.size, key, (i) => this.rows[i].sortKey)
+      return Math.min(at, this.size - 1)
     }
 
     const order = this.ensureWordOrder()
@@ -123,19 +201,9 @@ export class DictIndex {
    * 预热按词头排序的那份顺序。
    *
    * 11 万条排一次约几百毫秒。等用户敲下第一个汉字再排，这几百毫秒正好砸在
-   * 输入响应上；索引加载完先在空闲时段排掉，用的时候就是现成的。
+   * 输入响应上；索引装好后先在空闲时段排掉，用的时候就是现成的。
    */
   warmUp() {
     this.ensureWordOrder()
-  }
-
-  /** 词头精确命中就返回该行 —— 回车时用它判断本地词库有没有收录。 */
-  findExact(word: string): IndexRow | null {
-    if (this.size === 0) return null
-    const order = this.ensureWordOrder()
-    const at = lowerBound(this.size, word, (i) => this.rows[order[i]].word)
-    if (at >= this.size) return null
-    const row = this.rows[order[at]]
-    return row.word === word ? row : null
   }
 }

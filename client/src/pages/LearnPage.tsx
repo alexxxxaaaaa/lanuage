@@ -207,7 +207,7 @@ export function LearnPage() {
   )
   const dueCount = useAppStore(
     (state) =>
-      state.dueReviews.filter((item) => item.word.folderId === folderId).length,
+      state.dueReviews.filter((item) => item.word.folderIds.includes(folderId)).length,
   )
 
   const [allWords, setAllWords] = useState<Word[]>([])
@@ -865,7 +865,7 @@ export function LearnPage() {
             <p className="eyebrow">{phaseDisplay}</p>
             <h2>
               {t('learn.cardTitle', {
-                folder: folderName || currentWord.folder?.name || '',
+                folder: folderName || currentWord.folders?.[0]?.name || '',
               })}
             </h2>
             <p className="muted">

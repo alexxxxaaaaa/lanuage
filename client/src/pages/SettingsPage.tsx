@@ -1,4 +1,4 @@
-import { Card } from '@heroui/react'
+import { Card, Switch } from '@heroui/react'
 import { Moon, Sun } from 'lucide-react'
 
 import type { ExamMode } from '../api/qbankExam'
@@ -6,14 +6,15 @@ import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { useI18n, type UiLanguage } from '../i18n'
 import { EXAM_MODES } from './jlpt/constants'
 import { useTheme, type Theme } from '../providers/themeContext'
-import { useExamSettings } from '../store/examSettings'
+import { useSettings } from '../store/useSettings'
 
 const LOCALES: readonly UiLanguage[] = ['zh', 'en', 'jp']
 
 export function SettingsPage() {
   const { language, setLanguage, t } = useI18n()
   const { theme, setTheme } = useTheme()
-  const { mode: examMode, setMode: setExamMode } = useExamSettings()
+  const { examMode, localDictEnabled } = useSettings((state) => state.settings)
+  const update = useSettings((state) => state.update)
 
   return (
     <section className="page">
@@ -72,6 +73,26 @@ export function SettingsPage() {
 
       <Card>
         <Card.Header>
+          <Card.Title>{t('settings.localDict')}</Card.Title>
+          <Card.Description>{t('settings.localDictDesc')}</Card.Description>
+        </Card.Header>
+        <Card.Content>
+          <Switch
+            isSelected={localDictEnabled}
+            onChange={(next) => update({ localDictEnabled: next })}
+          >
+            <Switch.Content>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+              {localDictEnabled ? t('settings.localDictOn') : t('settings.localDictOff')}
+            </Switch.Content>
+          </Switch>
+        </Card.Content>
+      </Card>
+
+      <Card>
+        <Card.Header>
           <Card.Title>{t('settings.examMode')}</Card.Title>
           <Card.Description>{t('settings.examModeDesc')}</Card.Description>
         </Card.Header>
@@ -79,7 +100,7 @@ export function SettingsPage() {
           <SegmentedControl<ExamMode>
             aria-label={t('settings.examMode')}
             value={examMode}
-            onChange={setExamMode}
+            onChange={(mode) => update({ examMode: mode })}
             options={EXAM_MODES.map((m) => ({ value: m.value, label: m.label }))}
           />
           <ul className="m-0 grid list-none gap-1.5 p-0">

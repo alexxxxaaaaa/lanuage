@@ -57,8 +57,11 @@ export function FoldersPage() {
       getTodayNewWords()
         .then((list) => {
           const counts: Record<string, number> = {}
+          // 一个词可以挂在多个词单里，挂着它的每个词单都该算上一次。
           for (const word of Array.isArray(list) ? list : []) {
-            counts[word.folderId] = (counts[word.folderId] ?? 0) + 1
+            for (const folderId of word.folderIds) {
+              counts[folderId] = (counts[folderId] ?? 0) + 1
+            }
           }
           setNewWordCounts(counts)
         })
@@ -80,7 +83,9 @@ export function FoldersPage() {
   const dueByFolder = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const item of dueReviews) {
-      counts[item.word.folderId] = (counts[item.word.folderId] ?? 0) + 1
+      for (const folderId of item.word.folderIds) {
+        counts[folderId] = (counts[folderId] ?? 0) + 1
+      }
     }
     return counts
   }, [dueReviews])

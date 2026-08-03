@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma'
 import { AppError } from '../errors/AppError'
+import { flattenWord } from '../lib/wordShape'
 import { noteContentToPreview, noteContentToText } from '../lib/noteContent'
 
 /** 列表摘要的长度。够铺满一行，又不至于让列表接口把整篇正文运下去。 */
@@ -146,8 +147,7 @@ export async function getNoteById(userId: string, id: string) {
           word: true,
           reading: true,
           meaning: true,
-          folderId: true,
-          folder: { select: { id: true, name: true } },
+          folders: { select: { folderId: true, folder: true } },
         },
         orderBy: { createdAt: 'desc' },
       },
@@ -158,7 +158,12 @@ export async function getNoteById(userId: string, id: string) {
     throw new AppError('note not found', 404)
   }
 
-  return { ...note, lessonAt: note.lessonAt ?? note.createdAt }
+  return {
+    ...note,
+    // 连接表摊平成词单数组，和 words 接口的形状一致（共用 wordShape）。
+    words: note.words.map(flattenWord),
+    lessonAt: note.lessonAt ?? note.createdAt,
+  }
 }
 
 /**

@@ -14,6 +14,7 @@ import { notesRouter } from './routes/notes'
 import { podcastsRouter } from './routes/podcasts'
 import { qbankRouter } from './routes/qbank'
 import { reviewRouter } from './routes/review'
+import { settingsRouter } from './routes/settings'
 import { weeklyReviewRouter } from './routes/weeklyReview'
 import { wordsRouter } from './routes/words'
 import { handleError } from './middleware/errorHandler'
@@ -45,6 +46,9 @@ export function createApp() {
 
   app.use('/api/review/*', requireAuth)
   app.route('/api/review', reviewRouter)
+
+  app.use('/api/settings/*', requireAuth)
+  app.route('/api/settings', settingsRouter)
 
   app.use('/api/notes/*', requireAuth)
   app.route('/api/notes', notesRouter)

@@ -154,7 +154,7 @@ export function AddWordPage() {
 
     try {
       await useAppStore.getState().createWord({
-        folderId: form.folderId,
+        folderIds: [form.folderId],
         sourceNoteId: form.sourceNoteId || undefined,
         word: form.word,
         reading: form.reading,
@@ -208,7 +208,16 @@ export function AddWordPage() {
       })
     }, 400)
     try {
-      const result = await fillWordByAi({ word: term, extended })
+      // 这里的检测和 aiService 旧的 auto 规则一致：含假名或汉字 → 日语，否则
+      // 英语。注意不能用查词页的 detectFromChars —— 它把纯汉字判成中文，
+      // 而加词页语境下「勉強」这类词该按日语查定义，不是中→日翻译。
+      const detected: 'en' | 'jp' = /[぀-ヿㇰ-ㇿ一-龯]/.test(term) ? 'jp' : 'en'
+      const result = await fillWordByAi({
+        word: term,
+        sourceLanguage: detected,
+        targetLanguage: detected,
+        extended,
+      })
       const nextFolderId = pickFolderByLanguage(folderList, result.language, form.folderId)
       if (!nextFolderId) {
         void alertDialog.warning({

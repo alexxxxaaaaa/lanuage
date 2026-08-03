@@ -1,25 +1,23 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, type ReactNode } from 'react'
 
 import {
   I18nContext,
-  LANGUAGE_KEY,
   interpolate,
-  loadLanguage,
   lookup,
   messages,
   type I18nContextValue,
   type UiLanguage,
 } from '../i18n'
+import { useSettings } from '../store/useSettings'
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<UiLanguage>(loadLanguage)
+  const language = useSettings((state) => state.settings.uiLanguage)
+  const update = useSettings((state) => state.update)
 
-  const setLanguage = useCallback((next: UiLanguage) => {
-    setLanguageState(next)
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(LANGUAGE_KEY, next)
-    }
-  }, [])
+  const setLanguage = useCallback(
+    (next: UiLanguage) => update({ uiLanguage: next }),
+    [update],
+  )
 
   const value = useMemo<I18nContextValue>(
     () => ({
