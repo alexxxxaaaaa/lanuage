@@ -17,6 +17,7 @@
     "import:words": "node --import tsx scripts/importWordsToCloud.ts",
     "import:qbank": "node --import tsx scripts/importQbank.ts",
     "build:dict": "node --import tsx scripts/buildDict.ts",
+    "merge:dict": "node --import tsx scripts/mergeDict.ts",
     "import:dict": "node --import tsx scripts/importDict.ts",
     "export:qbank-d1-sql": "node --import tsx scripts/exportQbankD1Sql.ts",
     "upload:qbank-media": "bash scripts/uploadQbankMedia.sh",

@@ -397,7 +397,7 @@ model DictEntry {
   senses    String
   // 'ja-zh' | 'zh-ja'
   direction String
-  // 'zhwiktionary' | 'jawiktionary' —— 展示时按这个分块。
+  // 来源标识 —— 展示时按来源分块，不同来源的词条不会互相合并。
   source    String
   // 五十音順 / 拼音序的排序键，和 .idx 索引文件里的第一列同源。
   sortKey   String

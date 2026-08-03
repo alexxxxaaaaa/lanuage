@@ -1,9 +1,11 @@
 # 日中 / 中日 词库
 
-由 [`server/scripts/buildDict.ts`](../../scripts/buildDict.ts) 从 Wiktextract 抽取生成。
+由 [`server/scripts/buildDict.ts`](../../scripts/buildDict.ts) 从 Wiktextract 抽取基础词库，
+并可用 [`server/scripts/mergeDict.ts`](../../scripts/mergeDict.ts) 合并其他词典来源。
 
 ```bash
 npm run build:dict          # 抽取 → 本目录 *.jsonl + client/public/dict/*.idx
+npm run merge:dict -- --input-dir "/path/to/output" # 同源清洗合并 + 重建索引
 npm run import:dict         # 灌本地 SQLite
 npm run import:dict -- --d1 # 生成 D1 分片 SQL → server/d1_dict/
 bash d1_dict/apply.sh       # 打到线上 D1
@@ -15,8 +17,8 @@ bash d1_dict/apply.sh       # 打到线上 D1
 
 | 文件 | 方向 | 词条数 | 大小 | 读音覆盖 |
 |---|---|---|---|---|
-| `ja-zh.jsonl` | 日 → 中 | 115,428 | 26.6 MB | 84.0%（假名） |
-| `zh-ja.jsonl` | 中 → 日 | 46,841 | 9.2 MB | 99.8%（拼音） |
+| `ja-zh.jsonl` | 日 → 中 | 462,366 | 164.8 MB | 95.4%（假名） |
+| `zh-ja.jsonl` | 中 → 日 | 109,753 | 39.0 MB | 99.9%（拼音） |
 
 每行一个 JSON 对象：
 
@@ -40,8 +42,8 @@ bash d1_dict/apply.sh       # 打到线上 D1
 
 | 文件 | 行数 | 原始 | gzip |
 |---|---|---|---|
-| `ja-zh.idx` | 112,542 | 5.2 MB | 1.1 MB |
-| `zh-ja.idx` | 42,263 | 1.1 MB | 0.3 MB |
+| `ja-zh.idx` | 305,405 | 13.2 MB | — |
+| `zh-ja.idx` | 87,175 | 2.3 MB | — |
 
 排序键的算法在 [`shared/dictSort.ts`](../../../shared/dictSort.ts) —— 构建脚本用它定序，
 客户端用同一份归一化用户输入后做二分定位，所以两边必须是同一份实现。
@@ -54,10 +56,15 @@ bash d1_dict/apply.sh       # 打到线上 D1
 
 ## 数据来源
 
-两个方向都取自**原生支持该方向**的词典，没有做跨语言桥接：
+所有数据都取自**原生支持该方向**的词典，没有做跨语言桥接：
 
 - **日中** ← 中文维基词典里的日语词条（kaikki.org `zh-extract`，`lang_code === "ja"`）
 - **中日** ← 日语维基词典里的中文词条（kaikki.org `ja-extract`，`lang_code === "zh"`）
+- **日中** ← `shinjidai-jc`、`shinseiki-jc`、`moji`
+- **中日** ← `baishuishe-cj`
+
+合并时以 `source` 为严格边界：不同来源即使内容相同也全部保留；只在同一来源内
+合并词头、读音、罗马字和词性均相同的记录，并对义项、例句做精确去重。
 
 **JMdict 未采用**：其 218,290 条词条里只有 293 条带中文 gloss（0.13%，且多为零星词源标注），
 释义语言实际是英/德/荷/匈/俄/西/法/斯洛文尼亚/瑞典，不是原生日中词典。
@@ -77,8 +84,8 @@ bash d1_dict/apply.sh       # 打到线上 D1
 
 ## 许可与署名
 
-内容来自维基词典（Wiktionary），采用 **CC BY-SA 4.0** 许可，可自由使用与再分发，
-惟须署名并以相同方式共享。
+维基词典（Wiktionary）部分采用 **CC BY-SA 4.0** 许可，可自由使用与再分发，
+惟须署名并以相同方式共享。其他来源沿用各自的许可与使用条件，发布前须另行确认。
 
 - 日中：中文维基词典 https://zh.wiktionary.org — © Wiktionary 贡献者，CC BY-SA 4.0
 - 中日：日语维基词典 https://ja.wiktionary.org — © Wiktionary 贡献者，CC BY-SA 4.0

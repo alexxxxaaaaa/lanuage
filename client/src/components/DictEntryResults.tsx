@@ -8,6 +8,10 @@ const NUMBERED = /^\d+[.、]/
 const SOURCE_LABEL: Record<string, string> = {
   zhwiktionary: 'wordSearch.sourceZhWiktionary',
   jawiktionary: 'wordSearch.sourceJaWiktionary',
+  'shinjidai-jc': 'wordSearch.sourceShinjidai',
+  'shinseiki-jc': 'wordSearch.sourceShinseiki',
+  moji: 'wordSearch.sourceMoji',
+  'baishuishe-cj': 'wordSearch.sourceBaishuishe',
 }
 
 type Props = {
