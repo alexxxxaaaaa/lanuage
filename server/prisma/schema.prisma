@@ -24,12 +24,13 @@ model User {
 }
 
 model Folder {
-  id       String @id @default(uuid())
-  name     String
-  language String
-  userId   String
-  user     User   @relation(fields: [userId], references: [id])
-  words    Word[]
+  id        String   @id @default(uuid())
+  name      String
+  language  String
+  userId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  words     Word[]
 
   @@index([userId])
 }
