@@ -105,6 +105,9 @@ export function WordSearchPage() {
   //   - jp/en source → same as source (definition mode)
   const targetLanguage: 'en' | 'jp' =
     effectiveSource === 'zh' ? chineseTarget : effectiveSource
+  // 本地词库只有日中 / 中日两个方向，查英语时它一条也帮不上 —— 无论是输入
+  // 就选了英语，还是中文查英语。右侧索引栏这时整个不渲染。
+  const hasLocalDict = targetLanguage !== 'en'
 
   useEffect(() => {
     void useAppStore.getState().fetchFolders()
@@ -180,10 +183,20 @@ export function WordSearchPage() {
     let cancelled = false
     void (async () => {
       try {
+        // 语种从 trimmed 现算，不读 effectiveSource —— 后者派生自 keyword，
+        // 而这个 effect 是被 URL 的 q 触发的，两者可以差一帧。runAiLookup
+        // 里也是同样的理由。
+        const source = sourceOverride === 'auto' ? detectFromChars(trimmed) : sourceOverride
+        const target = source === 'zh' ? chineseTarget : source
+        // 查英语时本地词库必定为空，这个请求不用发。
+        const dictApplies = target !== 'en'
+
         // 本地词库精确匹配和「我的单词库」一起发，两个都是本地查询，
         // 串行没有意义。任一失败都不该让另一边的结果消失。
         const [dict, mine] = await Promise.all([
-          fetchDictEntries(trimmed).catch(() => [] as DictEntry[]),
+          dictApplies
+            ? fetchDictEntries(trimmed).catch(() => [] as DictEntry[])
+            : Promise.resolve([] as DictEntry[]),
           getWords({ q: trimmed }).catch(() => [] as Word[]),
         ])
         if (cancelled) return
@@ -383,7 +396,7 @@ export function WordSearchPage() {
             {error ? <p className="error-text m-0">{error}</p> : null}
           </div>
 
-          {hasQuery ? (
+          {hasQuery && hasLocalDict ? (
             <SourceSection
               title={t('wordSearch.dictTitle')}
               aside={
@@ -575,7 +588,9 @@ export function WordSearchPage() {
           </SourceSection>
         </div>
 
-        <DictIndexPanel query={activeTerm} onPick={handlePickFromIndex} />
+        {hasLocalDict ? (
+          <DictIndexPanel query={activeTerm} onPick={handlePickFromIndex} />
+        ) : null}
       </div>
     </section>
   )
