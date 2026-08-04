@@ -11,6 +11,13 @@ import { getErrorMessage } from '../api/error'
 import { usePageActive, usePageTitle } from '../components/layout/pageContext'
 import { getStoredToken } from '../store/authStore'
 import { getTokenizer, renderFuriganaHtml } from '../utils/furigana'
+import {
+  clearSelection,
+  readSubtitleSelection,
+  type SubtitleSelection,
+} from '../utils/subtitleSelection'
+import { AddWordFromSubtitleDialog } from '../components/AddWordFromSubtitleDialog'
+import { useAppStore } from '../store/useAppStore'
 import type { Podcast } from '../types'
 import { Button } from '@heroui/react'
 
@@ -106,6 +113,19 @@ export function PodcastDetailPage() {
   const [editText, setEditText] = useState('')
   const [editZh, setEditZh] = useState('')
   const [isSavingEdit, setIsSavingEdit] = useState(false)
+
+  // 划词加词。selection 是「当前选中了什么」，随拖动实时变；wordDraft 是点了
+  // 「加入词单」那一刻的快照 —— 弹框打开后 selection 会被清掉（点按钮就会失
+  // 焦），快照才能让弹框留住词和整句。
+  const [selection, setSelection] = useState<SubtitleSelection | null>(null)
+  const [wordDraft, setWordDraft] = useState<{
+    text: string
+    sentence: string
+    sentenceZh?: string
+  } | null>(null)
+  const [savedWordToast, setSavedWordToast] = useState<string | null>(null)
+  // 有选中就不能 seek：播放中拖选字幕，松手那下会冒泡成行的 onClick。
+  const hasSelectionRef = useRef(false)
 
   const playerRef = useRef<YTPlayer | null>(null)
   const playerHostRef = useRef<HTMLDivElement | null>(null)
@@ -575,6 +595,51 @@ export function PodcastDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [podcast?.youtubeId, isActive])
 
+  // 划词监听。selectionchange 在拖动中会连发，但读一次 selection 很便宜，
+  // 而且拖到哪浮动按钮就跟到哪，比等 pointerup 更跟手。移动端长按选词也走
+  // 这个事件，所以不用另外处理 touch。
+  //
+  // 弹框开着时不更新：弹框里的输入框一获得焦点，页面选区就被清空，
+  // 否则会把 selection 抹掉、按钮乱闪。
+  useEffect(() => {
+    if (!isActive || wordDraft) return
+    const handler = () => {
+      const next = readSubtitleSelection()
+      hasSelectionRef.current = !!next
+      setSelection(next)
+    }
+    document.addEventListener('selectionchange', handler)
+    // 按钮用的是视口坐标，而这一页在播放时会自动把当前行滚到中间 ——
+    // 不跟着滚动重算，按钮就会僵在原地、离开它标注的那个词。
+    window.addEventListener('scroll', handler, true)
+    return () => {
+      document.removeEventListener('selectionchange', handler)
+      window.removeEventListener('scroll', handler, true)
+    }
+  }, [isActive, wordDraft])
+
+  // 存完词后的一句提示，2.5 秒自动收。
+  useEffect(() => {
+    if (!savedWordToast) return
+    const timer = window.setTimeout(() => setSavedWordToast(null), 2500)
+    return () => window.clearTimeout(timer)
+  }, [savedWordToast])
+
+  const openWordDraft = () => {
+    if (!selection || !podcast) return
+    const line = podcast.transcript.lines[selection.lineIndex]
+    if (!line) return
+    // 词单下拉要有东西可选 —— 这一页平时不拉 folders。
+    void useAppStore.getState().fetchFolders()
+    setWordDraft({
+      text: selection.text,
+      sentence: line.text,
+      sentenceZh: line.zh || undefined,
+    })
+    setSelection(null)
+    hasSelectionRef.current = false
+  }
+
   // Auto-scroll active line into view. Re-fires when the tab regains focus
   // so the user lands back on the current line instead of "the top" — which
   // is misleading because scroll position on this page is driven entirely by
@@ -709,6 +774,9 @@ export function PodcastDetailPage() {
                 // Don't seek while editing — the user is trying to interact
                 // with the form, not jump elsewhere.
                 if (isEditing) return
+                // 刚划完词：松手那下会冒泡到这里，seek 会把选区清掉、顺手
+                // 跳走。播放中划词加词就靠这一句才成立。
+                if (hasSelectionRef.current) return
                 // Paused = the user is reading / selecting text to copy a word;
                 // a jump-to-seek would steal the click. Only seek while playing.
                 if (!isPlaying) return
@@ -793,6 +861,54 @@ export function PodcastDetailPage() {
           )
         })}
       </div>
+
+      {/* 划词后跟着选区冒出来的「加入词单」。fixed + 视口坐标，因为 rect 来自
+        * getBoundingClientRect；top 减 44 让它浮在选区上方，贴顶时翻到下方。 */}
+      {selection ? (
+        <button
+          type="button"
+          className="fixed z-50 -translate-x-1/2 cursor-pointer rounded-full border border-border bg-overlay px-3 py-1.5 text-[13px] whitespace-nowrap shadow-overlay"
+          style={{
+            left: selection.rect.left + selection.rect.width / 2,
+            top:
+              selection.rect.top > 52
+                ? selection.rect.top - 44
+                : selection.rect.bottom + 8,
+          }}
+          // pointerdown 而不是 click：click 之前浏览器已经把选区清了，
+          // openWordDraft 就读不到 selection 了。
+          onPointerDown={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            openWordDraft()
+          }}
+        >
+          ＋ 加入词单「{selection.text.length > 8 ? `${selection.text.slice(0, 8)}…` : selection.text}」
+        </button>
+      ) : null}
+
+      {wordDraft ? (
+        <AddWordFromSubtitleDialog
+          // 一次划词一个新实例：弹框的初始表单是从 props 算出来的，复用实例
+          // 会让第二个词沿用第一个词的字段。
+          key={`${wordDraft.text}@${wordDraft.sentence}`}
+          onClose={() => {
+            setWordDraft(null)
+            clearSelection()
+          }}
+          selectedText={wordDraft.text}
+          sentence={wordDraft.sentence}
+          sentenceZhFallback={wordDraft.sentenceZh}
+          language={podcast.primaryLang}
+          onSaved={(word) => setSavedWordToast(word)}
+        />
+      ) : null}
+
+      {savedWordToast ? (
+        <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-overlay px-3.5 py-2 text-[13px] shadow-overlay max-sm:bottom-20">
+          已加入词单：{savedWordToast}
+        </div>
+      ) : null}
 
       <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-overlay py-2 pr-3.5 pl-2 text-[13px] whitespace-nowrap shadow-overlay [&>*]:shrink-0 [&>*]:whitespace-nowrap max-sm:bottom-3 max-sm:max-w-[calc(100vw-1rem)] max-sm:gap-1.5 max-sm:py-1.5 max-sm:pr-2.5 max-sm:pl-1.5">
         <button
