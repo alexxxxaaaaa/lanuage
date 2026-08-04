@@ -26,9 +26,18 @@ import {
   directionForLanguage,
   entryToAiView,
   fillResultToAiView,
-  languageForDirection,
   type AiDictView,
 } from '../lib/aiDictEntry'
+import type { IndexRow } from '../lib/dictIndex'
+import {
+  DIRECTION_LABEL,
+  DIRECTION_META,
+  DIRECTIONS,
+  detectDirection,
+  resolveByDict,
+  type DirectionChoice,
+  type SearchDirection,
+} from '../lib/searchDirection'
 import { DictEntryResults } from '../components/DictEntryResults'
 import { DictIndexPanel } from '../components/DictIndexPanel'
 import { SearchSuggest, type SearchSuggestHandle } from '../components/SearchSuggest'
@@ -40,24 +49,14 @@ import { useSettings } from '../store/useSettings'
 import { useWordIndex } from '../store/useWordIndex'
 import type { Word } from '../types'
 
-type SourceOverride = 'auto' | 'zh' | 'jp' | 'en'
+const DIRECTION_KEY = 'word-search-direction'
 
-const CHINESE_TARGET_KEY = 'word-search-chinese-target'
-
-function readStoredChineseTarget(): 'jp' | 'en' {
-  if (typeof window === 'undefined') return 'jp'
-  const v = window.localStorage.getItem(CHINESE_TARGET_KEY)
-  return v === 'en' || v === 'jp' ? v : 'jp'
-}
-
-function detectFromChars(text: string): 'zh' | 'jp' | 'en' {
-  // Kana presence is the only unambiguous Japanese signal — kanji is shared
-  // with Chinese. Pure ASCII = English. Otherwise treat as Chinese; the user
-  // can override via the picker if a kanji-only string is actually Japanese.
-  if (/[぀-ヿㇰ-ㇿ]/.test(text)) return 'jp'
-  if (/[一-龯]/.test(text)) return 'zh'
-  if (/[a-zA-Z]/.test(text)) return 'en'
-  return 'en'
+function readStoredChoice(): DirectionChoice {
+  if (typeof window === 'undefined') return 'auto'
+  const stored = window.localStorage.getItem(DIRECTION_KEY)
+  return stored === 'auto' || DIRECTIONS.some((direction) => direction === stored)
+    ? (stored as DirectionChoice)
+    : 'auto'
 }
 
 export function WordSearchPage() {
@@ -69,18 +68,22 @@ export function WordSearchPage() {
   // Deliberately empty even when the URL already carries a `?q=` — the box is
   // for the *next* search; the current one is what the results below show.
   const [keyword, setKeyword] = useState('')
-  const [sourceOverride, setSourceOverride] = useState<SourceOverride>('auto')
-  const [chineseTarget, setChineseTarget] = useState<'en' | 'jp'>(() =>
-    readStoredChineseTarget(),
-  )
+  const [choice, setChoice] = useState<DirectionChoice>(readStoredChoice)
+  // 「自动」当前落在哪个方向。纯汉字输入字符层面判不出来（中日共用），这时保持
+  // 不动，等这次查询的词典结果回来再定 —— 所以它是 state，不是纯派生。
+  const [autoDirection, setAutoDirection] = useState<SearchDirection>('zh-ja')
   const [isSearchingAi, setIsSearchingAi] = useState(false)
   const [aiProgress, setAiProgress] = useState(0)
   const aiLookupTokenRef = useRef(0)
   const [isSavingWord, setIsSavingWord] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // 词典区块 AI 小节的内容。两个来源：entries 里带回的缓存行（重搜秒出），
-  // 或 fill-word 刚生成的响应 —— 两边都收敛成同一个平铺形状。
-  const [aiView, setAiView] = useState<AiDictView | null>(null)
+  // fill-word 刚生成出来的 AI 释义。另一个来源（entries 里带回的缓存行）是从
+  // dictEntries 直接派生的，不进 state —— 两边都收敛成同一个平铺形状。
+  // 连方向一起记：换了方向这份内容就不是当前这次查询的答案了。
+  const [generated, setGenerated] = useState<{
+    direction: SearchDirection
+    view: AiDictView
+  } | null>(null)
   const [localMatches, setLocalMatches] = useState<Word[]>([])
   const [dictEntries, setDictEntries] = useState<DictEntry[]>([])
   // A `?q=` already in the URL on mount means the effect below is about to run,
@@ -103,42 +106,46 @@ export function WordSearchPage() {
     if (isActive) searchRef.current?.focus()
   }, [isActive])
 
-  // Persist last chosen target language so the next zh search defaults to it.
+  // 下拉选的方向记住，下次进页面还是它。
   useEffect(() => {
     if (typeof window === 'undefined') return
-    window.localStorage.setItem(CHINESE_TARGET_KEY, chineseTarget)
-  }, [chineseTarget])
+    window.localStorage.setItem(DIRECTION_KEY, choice)
+  }, [choice])
 
   // What the page is currently about: whatever is being typed, falling back to
   // the query the result on screen came from once the box has been cleared.
   const activeTerm = keyword.trim() || q.trim()
-  const detectedSource = detectFromChars(activeTerm)
-  const effectiveSource: 'zh' | 'jp' | 'en' =
-    sourceOverride === 'auto' ? detectedSource : sourceOverride
-  // The language the *saved* word ends up in:
-  //   - zh source → translate target (jp/en)
-  //   - jp/en source → same as source (definition mode)
-  const targetLanguage: 'en' | 'jp' =
-    effectiveSource === 'zh' ? chineseTarget : effectiveSource
+
+  // 字符层面能定方向的输入（假名 / 拉丁字母）当场就定，纯汉字返回 null ——
+  // 那时保持上一次的方向不动，等 q 的词典结果回来用词库判（见下面的 effect）。
+  // 放在渲染期同步而不是 effect 里：effect 改 state 要多跑一帧，索引栏会先按
+  // 旧方向渲染一次再跳。初值是空串而不是 activeTerm，好让带着 `?q=` 直接进
+  // 页面（刷新、分享链接）的第一帧也走一遍判定。
+  const [syncedTerm, setSyncedTerm] = useState('')
+  if (syncedTerm !== activeTerm) {
+    setSyncedTerm(activeTerm)
+    const detected = detectDirection(activeTerm)
+    if (detected && detected !== autoDirection) setAutoDirection(detected)
+  }
+
+  const direction: SearchDirection = choice === 'auto' ? autoDirection : choice
+  const meta = DIRECTION_META[direction]
 
   useEffect(() => {
     void useAppStore.getState().fetchFolders()
   }, [])
 
   // The text to look up is always passed in, never read from `keyword`: the
-  // box is empty on page entry, and the q-change effect below calls this
-  // before its own `setKeyword` has committed.
+  // box is empty on page entry.
   const runAiLookup = async (rawText: string, refresh = false) => {
     const text = rawText.trim()
     if (!text) {
       setError(t('wordSearch.enterKeyword'))
       return
     }
-    // Detect off that same text rather than off `effectiveSource`, for the
-    // same reason — it is derived from state the caller can be ahead of.
-    const source: 'zh' | 'jp' | 'en' =
-      sourceOverride === 'auto' ? detectFromChars(text) : sourceOverride
-    const target: 'en' | 'jp' = source === 'zh' ? chineseTarget : source
+    // 方向就用屏幕上这一次查询已经定下来的那个：调用点全是用户在当前这一帧
+    // 按下的按钮，不存在比 state 更新的输入。
+    const { source, target } = meta
     // Cancellation token: when two AI lookups race (slow first, fast second),
     // the late-resolving stale call would otherwise overwrite the newer result.
     // We bump the ref and ignore results whose token no longer matches.
@@ -161,7 +168,10 @@ export function WordSearchPage() {
         refresh,
       })
       if (token !== aiLookupTokenRef.current) return
-      setAiView(fillResultToAiView({ ...word, language: word.language ?? target }))
+      setGenerated({
+        direction,
+        view: fillResultToAiView({ ...word, language: word.language ?? target }),
+      })
     } catch (searchError) {
       if (token !== aiLookupTokenRef.current) return
       setError(getErrorMessage(searchError, t('wordSearch.lookupFailed')))
@@ -182,7 +192,7 @@ export function WordSearchPage() {
   if (appliedQuery !== q) {
     setAppliedQuery(q)
     setKeyword(q)
-    setAiView(null)
+    setGenerated(null)
     setLocalMatches([])
     setDictEntries([])
     setIsSearchingLocal(q.trim().length > 0)
@@ -194,15 +204,10 @@ export function WordSearchPage() {
     let cancelled = false
     void (async () => {
       try {
-        // 语种从 trimmed 现算，不读 effectiveSource —— 后者派生自 keyword，
-        // 而这个 effect 是被 URL 的 q 触发的，两者可以差一帧。runAiLookup
-        // 里也是同样的理由。
-        const source = sourceOverride === 'auto' ? detectFromChars(trimmed) : sourceOverride
-        const target = source === 'zh' ? chineseTarget : source
-
         // 词典（本地来源 + AI 缓存行同表同查询）和「我的单词库」一起发，
         // 两个都是本地查询，串行没有意义。任一失败都不该让另一边的结果消失。
-        // 英语查词也发 —— 'en-zh' 方向只有 AI 缓存行，正是要它。
+        // 词典不带 direction 全方向取回来，按方向的筛选在下面派生 —— 换方向
+        // 就不必重新发请求，纯汉字的方向判定也正好吃这份结果。
         const [dict, mine] = await Promise.all([
           fetchDictEntries(trimmed).catch(() => [] as DictEntry[]),
           getWords({ q: trimmed }).catch(() => [] as Word[]),
@@ -210,14 +215,11 @@ export function WordSearchPage() {
         if (cancelled) return
         setDictEntries(dict)
         setLocalMatches(mine ?? [])
-        // entries 里带回的 AI 缓存行直接喂给 AI 小节 —— 重搜已生成过的词
-        // 零 token 秒出。两个方向都有缓存时按目标语言优先。
-        const aiEntries = dict.filter((entry) => entry.source === AI_SOURCE)
-        const preferred =
-          aiEntries.find((entry) => languageForDirection(entry.direction) === target) ??
-          aiEntries[0] ??
-          null
-        setAiView(preferred ? entryToAiView(preferred) : null)
+        // 纯汉字 + 自动：到这一步才判得了方向 —— 日语词库收了这个词头就按
+        // 日语词看，没收就当中文词翻成日语。用户显式选过方向就不插手。
+        if (choice === 'auto' && detectDirection(trimmed) === null) {
+          setAutoDirection(resolveByDict(trimmed, dict))
+        }
       } finally {
         if (!cancelled) setIsSearchingLocal(false)
       }
@@ -225,7 +227,8 @@ export function WordSearchPage() {
     return () => {
       cancelled = true
     }
-    // Re-fire on q change only; same-q re-search is handled in submitKeyword.
+    // q 变才重查（同 q 重搜由 submitKeyword 处理）；方向变只影响下面的派生筛选，
+    // 手上这份 dictEntries 已经是全方向的了，不必再发一次。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q])
 
@@ -257,11 +260,17 @@ export function WordSearchPage() {
     })
     if (!ok) return
     const cleared = aiView
+    const clearedDirection = directionForLanguage(cleared.language)
     try {
-      await clearAiDictEntry(cleared.word, directionForLanguage(cleared.language))
-      setAiView(null)
+      await clearAiDictEntry(cleared.word, clearedDirection)
+      setGenerated(null)
       // dictEntries 里那份缓存行也一并掉，别让后续派生又把它捡回来。
-      setDictEntries((prev) => prev.filter((entry) => entry.source !== AI_SOURCE))
+      setDictEntries((prev) =>
+        prev.filter(
+          (entry) =>
+            !(entry.source === AI_SOURCE && entry.direction === clearedDirection),
+        ),
+      )
     } catch (clearError) {
       void alertDialog.error({
         title: t('wordSearch.aiClearFailed'),
@@ -271,49 +280,39 @@ export function WordSearchPage() {
   }
 
   /**
-   * 从右侧索引点词：回填输入框并按该方向取词条。
+   * 从右侧索引点词：回填输入框并按当前方向查这个词。
    *
-   * 走 setSearchParams 和回车是同一条路，所以 URL 里始终留着当前查的词，
-   * 刷新和分享链接都还原得回来。索引里的词一定在词库里，不会触发 AI。
+   * 顺手把方向从「自动」定死成索引当前翻的这一本 —— 索引里这一行属于哪个方向
+   * 是确定的，再交给自动判定重猜一遍，「保護」这种中日共有的词就会跑到另一个
+   * 方向去。走 setSearchParams 和回车是同一条路，所以 URL 里始终留着当前查的
+   * 词，刷新和分享链接都还原得回来。
    */
-  const handlePickFromIndex = (row: { word: string }) => {
+  const handlePickFromIndex = (row: IndexRow) => {
+    setChoice(direction)
     setKeyword(row.word)
     setError(null)
     if (row.word !== q) setSearchParams({ q: row.word })
   }
 
+  // 只看当前方向的词条：中日共用的词头（「保護」）在库里两个方向各有一条，
+  // 不筛就会把另一边的读音和释义混进来。
+  const directionEntries = useMemo(
+    () => (meta.entry ? dictEntries.filter((entry) => entry.direction === meta.entry) : []),
+    [dictEntries, meta.entry],
+  )
   // 词典区块的本地来源分块（AI 行单独渲染，不进 DictEntryResults）。
   const localEntries = useMemo(
-    () => dictEntries.filter((entry) => entry.source !== AI_SOURCE),
-    [dictEntries],
+    () => directionEntries.filter((entry) => entry.source !== AI_SOURCE),
+    [directionEntries],
   )
-  // 没有 AI 内容时的加词兜底：仅限日语词且本地词库有这个词头 —— word/reading
-  // 取词典行，内容字段留空（词典内容只读，永不复制进 Word，词卡上可再 AI 补全）。
-  const jaLocalEntry = useMemo(() => {
-    const term = q.trim()
-    if (!term) return null
-    return (
-      localEntries.find(
-        (entry) => entry.direction === 'ja-zh' && entry.word === term,
-      ) ?? null
-    )
-  }, [localEntries, q])
-
-  // 「加入单词库」播种源：优先 AI 内容，其次本地词库的词头（内容留空）。
-  const addSeed: AiDictView | null =
-    aiView ??
-    (targetLanguage === 'jp' && jaLocalEntry
-      ? {
-          word: jaLocalEntry.word,
-          language: 'jp',
-          reading: jaLocalEntry.reading,
-          partOfSpeech: '',
-          meaning: '',
-          example: '',
-          note: '',
-        }
-      : null)
-
+  // AI 小节：刚生成的优先，否则用 entries 带回的缓存行 —— 重搜已生成过的词
+  // 零 token 秒出。两者都跟着方向走，换方向自然换内容。
+  const cachedAiView = useMemo(() => {
+    const row = directionEntries.find((entry) => entry.source === AI_SOURCE)
+    return row ? entryToAiView(row) : null
+  }, [directionEntries])
+  const aiView =
+    (generated?.direction === direction ? generated.view : null) ?? cachedAiView
   // 这个词头在单词库里对应的那条 Word：词单标签、加词/移除都围绕它。
   // localMatches 来自 q-effect 的同一次查询，不用多发请求；AI 归一化词形
   // 和输入不一致的漏网场景仍由服务端 409 兜底。
@@ -340,24 +339,39 @@ export function WordSearchPage() {
   const headWord = aiView?.word ?? existingWord?.word ?? exactLocalEntry?.word ?? q.trim()
   const headReading =
     aiView?.reading ?? existingWord?.reading ?? exactLocalEntry?.reading ?? ''
-  // 发音只在词头语言明确时给：中文查询在 AI 出结果前词头还是中文，不该念。
+  // 发音只在词头语言明确时给：中→日 / 中→英 在 AI 出结果前词头还是中文，不该念。
   const speakLang: 'en' | 'jp' | null =
     aiView?.language ??
     (existingWord
       ? existingWord.language === 'jp'
         ? 'jp'
         : 'en'
-      : exactLocalEntry?.direction === 'ja-zh'
-        ? 'jp'
-        : effectiveSource !== 'zh'
-          ? effectiveSource
-          : null)
+      : meta.source === 'zh'
+        ? null
+        : meta.source)
+
+  // 没有 AI 内容时的加词兜底：只有 日→中 的词头本身就是要入库的日语词
+  //（中→日 的词头是中文，英→中 没有本地词条）。word/reading 取词典行，内容
+  // 字段留空 —— 词典内容只读，永不复制进 Word，词卡上可再 AI 补全。
+  const addSeed: AiDictView | null =
+    aiView ??
+    (direction === 'ja-zh' && exactLocalEntry
+      ? {
+          word: exactLocalEntry.word,
+          language: 'jp',
+          reading: exactLocalEntry.reading,
+          partOfSpeech: '',
+          meaning: '',
+          example: '',
+          note: '',
+        }
+      : null)
 
   // 词单标签行的数据。语言口径：已入库的词跟它自己，否则跟播种内容/目标语言。
   const wordLanguage: 'en' | 'jp' =
     existingWord?.language === 'jp' || existingWord?.language === 'en'
       ? existingWord.language
-      : (addSeed?.language ?? targetLanguage)
+      : (addSeed?.language ?? meta.target)
   const currentFolders = useMemo(() => {
     if (!existingWord) return []
     const byId = new Map(wordFolders.map((folder) => [folder.id, folder]))
@@ -489,9 +503,24 @@ export function WordSearchPage() {
   }
 
   const hasQuery = q.trim().length > 0
-  // 本地来源分块的显隐：设置开关 + 英语查词时本地词库帮不上忙（'en-zh' 只有
-  // AI 行）。AI 小节不受这个开关影响，恒在。
-  const showLocalBlock = localDictEnabled && targetLanguage !== 'en'
+  // 本地来源分块的显隐：设置开关 + 这个方向本地词库有没有收（英语那两个方向
+  // 只有 AI 行）。AI 小节不受这个开关影响，恒在。
+  const showLocalBlock = localDictEnabled && meta.hasLocalDict
+
+  // 方向下拉。「自动」把当前判出来的方向写在标签里，省得用户去猜它选了哪边。
+  const directionOptions = useMemo(
+    () => [
+      {
+        value: 'auto' as DirectionChoice,
+        label: t('wordSearch.dirAuto', { dir: t(DIRECTION_LABEL[autoDirection]) }),
+      },
+      ...DIRECTIONS.map((each) => ({
+        value: each as DirectionChoice,
+        label: t(DIRECTION_LABEL[each]),
+      })),
+    ],
+    [t, autoDirection],
+  )
 
   return (
     <section className="page">
@@ -519,37 +548,13 @@ export function WordSearchPage() {
                 inputClassName="w-full rounded-xl border border-border bg-surface px-3.5 py-3 text-[15px] text-foreground focus:border-accent focus:ring-3 focus:ring-accent/15 focus:outline-none"
                 className="min-w-[200px] flex-[1_1_240px] max-[720px]:basis-full"
               />
-              <label className="lang-picker" title="覆盖自动检测的输入语言">
-                <span className="muted">输入</span>
-                <SelectField
-                  value={sourceOverride}
-                  onChange={(v) => setSourceOverride(v)}
-                  className="min-w-[140px]"
-                  options={[
-                    {
-                      value: 'auto',
-                      label: `自动 (${detectedSource === 'zh' ? '中文' : detectedSource === 'jp' ? '日语' : '英语'})`,
-                    },
-                    { value: 'zh', label: '中文' },
-                    { value: 'jp', label: '日语' },
-                    { value: 'en', label: '英语' },
-                  ]}
-                />
-              </label>
-              {effectiveSource === 'zh' ? (
-                <label className="lang-picker" title="把这个中文词翻译成…">
-                  <span className="muted">查</span>
-                  <SelectField
-                    value={chineseTarget}
-                    onChange={(v) => setChineseTarget(v)}
-                    className="min-w-[90px]"
-                    options={[
-                      { value: 'jp', label: '日语' },
-                      { value: 'en', label: '英语' },
-                    ]}
-                  />
-                </label>
-              ) : null}
+              <SelectField
+                aria-label={t('wordSearch.directionLabel')}
+                value={choice}
+                onChange={setChoice}
+                className="min-w-[160px] shrink-0"
+                options={directionOptions}
+              />
               <Button type="button" onPress={() => submitKeyword()}>
                 {t('wordSearch.search')}
               </Button>
@@ -790,11 +795,14 @@ export function WordSearchPage() {
 
         </div>
 
-        <DictIndexPanel
-          query={activeTerm}
-          language={targetLanguage}
-          onPick={handlePickFromIndex}
-        />
+        {/* 中→英 没有中英词头表可翻，整条侧栏就不占地方了。 */}
+        {meta.index ? (
+          <DictIndexPanel
+            kind={meta.index}
+            query={activeTerm}
+            onPick={handlePickFromIndex}
+          />
+        ) : null}
       </div>
     </section>
   )

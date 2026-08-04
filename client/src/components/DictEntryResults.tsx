@@ -29,10 +29,9 @@ type Props = {
 }
 
 /**
- * 本地词库的查词结果。
- *
- * 同一个词头在两个方向、多个词性下会有多条记录，这里按「来源词典」分组，
- * 组内一条记录一张小卡 —— 和纸质辞书里同一词条下并列多个词典的排版一致。
+ * 本地词库的查词结果。传进来的词条已经按当前查词方向筛过，这里只管排版：
+ * 同一个词头在多个词性下会有多条记录，按「来源词典」分组，组内一条记录一张
+ * 小卡 —— 和纸质辞书里同一词条下并列多个词典的排版一致。
  */
 export function DictEntryResults({ entries }: Props) {
   const { t } = useI18n()
@@ -49,7 +48,7 @@ export function DictEntryResults({ entries }: Props) {
     <div className="grid gap-4">
       {[...groups].map(([source, items]) => (
         <section key={source} className="grid gap-2">
-          <div className="flex items-center gap-2">
+          <div>
             {SOURCE_LINK[source] ? (
               <a
                 className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-bold text-accent hover:underline"
@@ -65,11 +64,6 @@ export function DictEntryResults({ entries }: Props) {
                 {t(SOURCE_LABEL[source] ?? source)}
               </span>
             )}
-            <span className="muted text-[12px]">
-              {items[0].direction === 'ja-zh'
-                ? t('wordSearch.dirJaZh')
-                : t('wordSearch.dirZhJa')}
-            </span>
           </div>
 
           {items.map((entry) => (
