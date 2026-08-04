@@ -108,17 +108,29 @@ It will ask whether to create a new project — answer **yes**. After upload it 
 
 ## Day-2 deploys
 
-**Backend code change**:
+**代码改动：push 就够了，不要手工 deploy。**
+
 ```bash
-cd server && npm run wrangler:deploy
+git push github main
 ```
 
-**Frontend code change**:
-```bash
-cd client && npm run pages:deploy
-```
+前后端都由 Cloudflare 侧连着这个 GitHub 仓库自动构建：
 
-**Schema change**:
+| | 机制 | 触发 |
+|---|---|---|
+| 前端 | Pages Git 集成（项目 `word-sprint-client`） | push `main` |
+| 后端 | Workers Builds（Worker `word-sprint-server`，root directory `server`） | push `main` |
+
+构建记录在各自的 Deployments 页面看。
+
+因此**协作者只要有本仓库的 write 权限就能发布全栈，不需要 Cloudflare 账号**。
+
+两个陷阱：
+
+- `client` 的 `pages:deploy` 脚本推到的是 `word-sprint-client.pages.dev`，自定义域名不指向那里 —— 跑它不会更新生产。同理 `server` 的 `wrangler:deploy` 只在你想绕过 CI 手动发一版时才用。
+- Workers Builds 从 root directory（也就是 `server/`）里读 `.nvmrc` 决定 Node 版本，仓库根那份读不到。所以 `server/.nvmrc` 必须留着 —— 删了会回落到旧 Node，`prisma generate` 会以 `ERR_REQUIRE_ESM` 崩掉。
+
+**Schema change**（这一步仍然手工，故意不自动化）:
 1. Edit `server/prisma/schema.prisma`
 2. `npx prisma migrate dev --name your_change` (creates a new local migration + updates `dev.db`)
 3. `cd server && npm run d1:migrations:apply:remote` (applies same migration to cloud D1)
