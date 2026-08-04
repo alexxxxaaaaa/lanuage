@@ -22,6 +22,7 @@
     "import:dict": "node --import tsx scripts/importDict.ts",
     "export:qbank-d1-sql": "node --import tsx scripts/exportQbankD1Sql.ts",
     "upload:qbank-media": "bash scripts/uploadQbankMedia.sh",
+    "cors:r2": "wrangler r2 bucket cors set jlpt --file scripts/r2-cors.json --force",
     "extract:n1-pdf": "python3 scripts/extractN1Pdf.py",
     "wrangler:dev": "wrangler dev",
     "wrangler:deploy": "wrangler deploy",

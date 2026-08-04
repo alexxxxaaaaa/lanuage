@@ -146,6 +146,7 @@ cd server && npx wrangler secret put NAME_HERE
 ## Troubleshooting
 
 - **CORS errors in browser**: Worker already enables `cors()` for all origins. If you see CORS blocks, it's usually a misconfigured `VITE_API_BASE_URL` (trailing slash, wrong protocol).
+- **`Failed to fetch` on R2 objects (transcripts) while audio plays fine**: the `jlpt` bucket has no CORS rules. Audio goes through an `<audio>` tag (no CORS), transcripts go through `fetch()` (CORS required). Fix by applying [server/scripts/r2-cors.json](server/scripts/r2-cors.json): `cd server && npm run cors:r2` (takes ~10s to propagate; check with `npx wrangler r2 bucket cors list jlpt`). Add any new front-end origin to that file — the rules cover the whole bucket, not just transcripts.
 - **`process.env.X is undefined` in Worker logs**: Check that the secret is set (`wrangler secret list`) and that you're reading via `getEnv()`, not direct `process.env`.
 - **D1 query fails locally with `wrangler dev`**: Run `npm run d1:migrations:apply:local` first to set up the local D1 simulator.
 - **Local `npm run dev` (Node) and Workers behave differently**: Both share the same `app.ts`/routes/services. Differences are only in the entry (`index.ts` vs `worker.ts`), prisma adapter, and env source. If something works in Node but not Workers, it's almost always one of those three.

@@ -1,0 +1,16 @@
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": [
+          "https://lgstudy.com",
+          "https://www.lgstudy.com",
+          "http://localhost:5173",
+          "http://localhost:4173"
+        ],
+        "methods": ["GET", "HEAD"]
+      },
+      "maxAgeSeconds": 3600
+    }
+  ]
+}
