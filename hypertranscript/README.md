@@ -156,8 +156,21 @@ output/2025.07/
 
 ```bash
 npm run export:r2      # output/*.json → dist-r2/transcript/，1043 条共 3.5 MB
-npm run upload:r2      # 传到 R2（需要先 wrangler login）
+npm run upload:r2      # 传到 R2（需要先 npx wrangler login）
 ```
+
+**换一台机器传**：`dist-r2/` 没进 git（能从 `output/` 重新生成），所以要先导出一次：
+
+```bash
+git pull
+npm install            # 在仓库根跑，wrangler 和 tsx 都装在这
+npx wrangler login     # 一次性授权；注意是 npx —— wrangler 没有全局安装
+cd hypertranscript
+npm run export:r2      # 重新生成 dist-r2/
+npm run upload:r2
+```
+
+这条路不需要 `config.json` —— 导出和上传都不碰 OpenAI API，配置缺失时会直接用默认值。
 
 对象名跟着 `QbankQuestion.audioKey` 的规矩走，去掉「聴解」保持纯 ASCII：
 

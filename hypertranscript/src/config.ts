@@ -134,6 +134,10 @@ export function loadConfig(configPath?: string, options?: { requireApiKey?: bool
   const file = configPath ? resolvePath(configPath) : resolve(TOOL_ROOT, 'config.json')
 
   if (!existsSync(file)) {
+    // 不碰 API 的命令（export:r2、--render-only、--dry-run）拿默认值就能跑。
+    // 换台机器只想导出/上传时，不该被逼着先 cp 一份配置。
+    if (options?.requireApiKey === false) return structuredClone(DEFAULTS)
+
     throw new Error(
       `找不到配置文件 ${file}\n先复制一份模板：cp config.example.json config.json`,
     )
