@@ -9,6 +9,11 @@ export type AiFillWordPayload = {
   extended?: boolean
   /** 已有 AI 缓存时强制重新生成（「重新生成」按钮）。 */
   refresh?: boolean
+  /**
+   * 划词加词时选中文本所在的整句。传了它服务端切到语境模式：还原原形、
+   * 按句中义项给释义、翻译整句，且不再生成自造例句。
+   */
+  context?: string
 }
 
 export type AiFillWordResult = {
@@ -21,6 +26,13 @@ export type AiFillWordResult = {
   note: string
   /** true = 命中服务端 DictEntry 缓存，没烧 token。 */
   cached: boolean
+  /**
+   * 辞書形/原形，只有语境模式带值（「食べました」→「食べる」）。此时 word
+   * 已经等于它，留着这个字段是为了让 UI 能提示「已还原为原形」。
+   */
+  baseForm?: string
+  /** 语境句的中文翻译，只有语境模式带值。 */
+  sentenceZh?: string
 }
 
 /**

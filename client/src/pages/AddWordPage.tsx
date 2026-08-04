@@ -8,6 +8,7 @@ import { fillWordByAi } from '../api/ai'
 import { getErrorMessage, isDuplicateWordError } from '../api/error'
 import { useI18n } from '../i18n'
 import { getNotes } from '../api/notes'
+import { loadLastFolder, saveLastFolder } from '../lib/lastFolder'
 import { useAppStore } from '../store/useAppStore'
 
 const initialForm = {
@@ -34,28 +35,8 @@ function pickFolderByLanguage(
   return sameLanguage[0].id
 }
 
-// localStorage key for "last folder I saved a word into". Restored on next
-// AddWordPage mount so users don't have to re-pick every session. URL
-// `?folderId=` and prefill precedence still win over this.
-const LAST_FOLDER_KEY = 'add-word:last-folder-id'
-
-function loadLastFolder(): string {
-  if (typeof window === 'undefined') return ''
-  try {
-    return window.localStorage.getItem(LAST_FOLDER_KEY) ?? ''
-  } catch {
-    return ''
-  }
-}
-function saveLastFolder(id: string) {
-  if (typeof window === 'undefined') return
-  try {
-    if (id) window.localStorage.setItem(LAST_FOLDER_KEY, id)
-  } catch {
-    /* quota / privacy mode — ignore */
-  }
-}
-
+// "last folder I saved a word into" —— 见 lib/lastFolder。这里 URL 的
+// `?folderId=` 和 prefill 优先级仍然高于它。
 export function AddWordPage() {
   const { t } = useI18n()
   const navigate = useNavigate()

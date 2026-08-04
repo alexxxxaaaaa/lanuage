@@ -13,13 +13,14 @@ import { getUserId, type AppEnv } from '../middleware/requireAuth'
 export const aiRouter = new Hono<AppEnv>()
 
 aiRouter.post('/fill-word', async (c) => {
-  const { word, sourceLanguage, targetLanguage, extended, refresh } =
+  const { word, sourceLanguage, targetLanguage, extended, refresh, context } =
     await c.req.json<{
       word?: string
       sourceLanguage?: 'en' | 'jp' | 'zh'
       targetLanguage?: 'en' | 'jp'
       extended?: boolean
       refresh?: boolean
+      context?: string
     }>()
   if (
     sourceLanguage !== 'zh' &&
@@ -28,12 +29,16 @@ aiRouter.post('/fill-word', async (c) => {
   ) {
     throw new AppError('sourceLanguage must be en, jp, or zh', 400)
   }
+  // 整句进 prompt，所以要拦长度：字幕行正常几十字，超长的多半是前端选错了
+  // 节点（比如把整段 transcript 传上来），截断比让它烧 token 好。
+  const trimmedContext = (context ?? '').trim().slice(0, 300)
   const result = await fillWordByAi({
     word: word ?? '',
     sourceLanguage,
     targetLanguage,
     extended: !!extended,
     refresh: !!refresh,
+    ...(trimmedContext ? { context: trimmedContext } : {}),
     userId: getUserId(c),
   })
   return c.json(result)

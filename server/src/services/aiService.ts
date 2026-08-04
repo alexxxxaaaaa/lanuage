@@ -23,6 +23,13 @@ type FillWordInput = {
   extended?: boolean;
   /** Force regeneration even when a cached AI dict row exists. */
   refresh?: boolean;
+  /**
+   * 划词加词时，选中文本所在的那整句。传了它就切到「按语境查词」模式：
+   * AI 额外还原原形（baseForm）、按句中的实际义项给释义、并翻译整句
+   * （sentenceZh），同时不再生成自造例句 —— 例句用原句本身。
+   * 不传则行为与从前完全一致（加词页手输那条路）。
+   */
+  context?: string;
   userId: string;
 };
 
@@ -34,6 +41,14 @@ type FillWordResult = {
   meaning: string;
   example: string;
   note: string;
+  /**
+   * 辞書形/原形。只有语境模式（input.context）会带值：字幕里划到的是
+   * 「食べました」，这里给「食べる」，reading/meaning/partOfSpeech 都描述它。
+   * 非语境模式恒为 undefined，加词页不读这个字段。
+   */
+  baseForm?: string;
+  /** input.context 那句话的简体中文翻译。只有语境模式有值。 */
+  sentenceZh?: string;
 };
 
 type ExpressionCasualInput = {
@@ -66,6 +81,8 @@ export function getDefaultModel() {
 }
 const MAX_OUTPUT_TOKENS = 180;
 const MAX_OUTPUT_TOKENS_EXTENDED = 400;
+/** 语境模式：比常规略宽（多一个整句翻译），但省掉了两行自造例句。 */
+const MAX_OUTPUT_TOKENS_CONTEXT = 260;
 const MAX_EXPRESSION_OUTPUT_TOKENS = 200;
 
 const DAILY_TOKEN_BUDGET_DEFAULT = 50000;
@@ -238,6 +255,42 @@ function buildPrompt(word: string, language: SupportedLanguage) {
   ].join("\n");
 }
 
+/**
+ * 语境模式的 prompt —— 播客/字幕里划词加词走这条。
+ *
+ * 和 buildPrompt 的三点不同：
+ * 1. 要 baseForm。字幕里出现的是活用形（食べました / 寒かった / running），
+ *    但词单里该记原形，否则同一个词会以各种变形存成好几条。
+ * 2. 释义按句中义项取。有整句在手，`かける` 这类多义词不该给一长串义项。
+ * 3. 不要自造例句 —— 例句用字幕原句，AI 例句会被丢掉，生成它纯属浪费 token。
+ *    换成 sentenceZh（整句的中文翻译），例句最终存成「原句｜译文」。
+ */
+function buildContextPrompt(
+  word: string,
+  language: SupportedLanguage,
+  context: string,
+) {
+  const languageHint =
+    language === "jp" ? "jp + kana reading" : "en + IPA reading";
+  const baseFormHint =
+    language === "jp"
+      ? "baseForm: 若 selected 是动词/形容词的活用形，或带着附着的助词/接续（に/を/は/て/ながら…），给出剥离后的辞書形（食べました→食べる、寒かった→寒い、行かなければ→行く、復旧に→復旧）；本身已是辞書形或其它词性则与之相同。"
+      : "baseForm: if `selected` is an inflected form, give the dictionary form (running→run, better→good, mice→mouse); otherwise repeat it unchanged.";
+  return [
+    "Return JSON only: word,language,baseForm,reading,partOfSpeech,meaning,note,sentenceZh.",
+    `language="${language}", ${languageHint}.`,
+    baseFormHint,
+    "word: 与 baseForm 相同。reading/partOfSpeech/meaning/note 全部描述 baseForm，不描述 selected 的变形。",
+    "meaning: 简体中文，只给该词在 sentence 里的实际义项（多义词不要罗列全部），按词性分行(如 v./n.)。",
+    "note: 简短中文用法提示；日语动词标自他/一段五段，英语标不规则变化。没有就给空串。",
+    "sentenceZh: sentence 的简体中文翻译，口语化、别逐字硬译。",
+    "Do NOT invent example sentences — there is no example key in the output.",
+    "Keep concise: meaning<=140 chars, note<=60 chars, sentenceZh<=120 chars.",
+    `selected: ${word}`,
+    `sentence: ${context}`,
+  ].join("\n");
+}
+
 function buildTranslatePrompt(chineseWord: string, target: SupportedLanguage) {
   // Translation mode: the user typed Chinese; we need the equivalent word in
   // `target`. The returned `word` is the target-language word, `language` is
@@ -363,6 +416,10 @@ function safeParseJson(content: string, fallbackWord: string): FillWordResult {
       sanitize(parsed.ipa) ||
       sanitize(parsed.kana) ||
       normalizedWord;
+    // baseForm/sentenceZh 只有语境模式的 prompt 会要求，别的模式解析出
+    // undefined 就对了 —— 下游用 `?? word` 兜底，不影响老路径。
+    const baseForm = sanitize(parsed.baseForm);
+    const sentenceZh = sanitize(parsed.sentenceZh);
     const result: FillWordResult = {
       word: normalizedWord,
       language: parsed.language === "jp" ? "jp" : "en",
@@ -371,6 +428,8 @@ function safeParseJson(content: string, fallbackWord: string): FillWordResult {
       meaning: sanitize(parsed.meaning),
       example: sanitize(parsed.example),
       note: sanitize(parsed.note),
+      ...(baseForm ? { baseForm } : {}),
+      ...(sentenceZh ? { sentenceZh } : {}),
     };
     if (!result.word || !result.reading) {
       throw new AppError("AI returned invalid result", 502);
@@ -433,6 +492,17 @@ export async function fillWordByAi(
   }
   if (source !== "zh" && !SUPPORTED_LANGUAGES.includes(source)) {
     throw new AppError("sourceLanguage must be en, jp, or zh", 400);
+  }
+
+  // 语境模式单独走一条，不共用下面的缓存 + 二次补全链路。理由见
+  // fillWordInContext 的注释。
+  if (input.context && !isTranslateMode) {
+    return await fillWordInContext({
+      word,
+      language: target,
+      context: input.context,
+      userId: input.userId,
+    });
   }
 
   // Cache-first：非翻译模式先查 DictEntry 的 ai 行，命中零 token 直接返回。
@@ -516,6 +586,53 @@ export async function fillWordByAi(
   };
   await writeAiDictCache(merged);
   return { ...merged, cached: false };
+}
+
+/**
+ * 语境模式：划词加词。返回原形 + 该义项的释义 + 整句中文。
+ *
+ * 有意**不碰 DictEntry 缓存**，读写都不碰：
+ * - 读不了：缓存按词头存，而原形要等 AI 回来才知道，划到的「食べました」当
+ *   键查不中；拿选中原文去查还会把活用形当成词头污染。
+ * - 不该写：这里的 meaning 是「该词在这句话里的义项」，窄于词典义；而且没有
+ *   example（例句用字幕原句）。把这种行写进全局缓存，加词页以后查同一个词会
+ *   命中一条义项不全、例句为空的行 —— 比没有缓存更糟。
+ *
+ * 代价是同一个词划两次就付两次 token。整句翻译本来就没法跨句缓存，这条路
+ * 每次至少一个请求，所以省不下来；日预算按 260 token/次 算够划一百多个词。
+ */
+async function fillWordInContext(params: {
+  word: string;
+  language: SupportedLanguage;
+  context: string;
+  userId: string;
+}): Promise<FillWordResult & { cached: boolean }> {
+  const { word, language, context, userId } = params;
+  await assertWithinDailyBudget(userId);
+
+  const content = await completeJsonOrThrow({
+    system:
+      "You are a concise vocabulary assistant. Always return strict JSON object with requested keys.",
+    user: buildContextPrompt(word, language, context),
+    maxOutputTokens: MAX_OUTPUT_TOKENS_CONTEXT,
+    log: { word, language, feature: "word_fill_context", userId },
+  });
+
+  const parsed = safeParseJson(content, word);
+  // 原形取值顺序：AI 的 baseForm → AI 回的 word → 选中原文。三层兜底是因为
+  // 词头一旦为空，前端那个弹框就没东西可存了。
+  const baseForm = parsed.baseForm || parsed.word || word;
+  const result: FillWordResult = {
+    ...parsed,
+    word: baseForm,
+    language,
+    baseForm,
+    reading: parsed.reading || baseForm,
+    // prompt 里就没要 example —— 例句由前端用字幕原句拼「原句｜译文」。
+    example: "",
+  };
+  result.note = normalizeEnglishAdjectiveNote(result);
+  return { ...result, cached: false };
 }
 
 /**
