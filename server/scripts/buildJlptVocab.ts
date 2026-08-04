@@ -7,7 +7,7 @@
  *   A. 日本語能力試験出題基準語彙表（旧试验 1〜4 級，最后一份官方词表）
  *      https://www7a.biglobe.ne.jp/nifongo/data/noryoku.html
  *      取同页提供的 TSV 下载（UTF-16LE + CRLF），比解析 1.6 MB 的 HTML 表格稳。
- *      級別数字直译成 N1〜N4；0 表示基准表未收录，跳过。
+ *      級別按官方的旧新对照折算（见 KIJUN_TO_JLPT）；0 表示基准表未收录，跳过。
  *      词形取「漢字・原文」列 —— 没有汉字的词那一列本来就重复了假名写法，所以它
  *      同时覆盖汉字词和纯假名词。只有片假名外来语例外：那一列放的是原文
  *      （アイスクリーム → icecream），这时改取「語」列。
@@ -20,8 +20,8 @@
  *
  * 产物每行 `词形 \t 级别数字串`，按词形排序；`#` 开头是署名，客户端解析时
  * 因为没有制表符自然跳过：
- *   勉強	45      ← 两源分别判 N4 / N5，都留
- *   東	15        ← ひがし 是 N5、あずま 是 N1，同形不同读音，也都留
+ *   勉強	5       ← 两源折算到同一把尺子后一致，只留一个
+ *   東	15        ← ひがし 是 N5、あずま 是 N1，同形不同读音，两个都留
  *
  * 用法：
  *   npm run build:jlpt                 # 缺源文件时自动下载到 .dictcache/
@@ -48,6 +48,16 @@ const ATTRIBUTION = [
   '# JLPT Resources by Jonathan Waller (CC BY) http://www.tanos.co.uk/jlpt/',
   '#   词形经 https://github.com/stephenmk/yomitan-jlpt-vocab 按 JMdict 校正',
 ]
+
+/**
+ * 出題基準的旧級别 → 现行 N 级别，用官方改版时给的对照：
+ * 1級≈N1、2級≈N2、3級≈N4、4級≈N5。N3 是改版新设的档，夹在旧 2 級和 3 級之间，
+ * 旧试验没有对应级别 —— 所以 N3 只会来自 Waller 那份（他把旧 2 級拆成了 N2/N3）。
+ *
+ * 两份表折算到同一把尺子上，剩下的分歧才是真分歧：勉強 两边都是 N5 只留一个，
+ * 而 後（ご）出題基準判 2 級、Waller 判 N3，那是真的判得不一样，两个都留。
+ */
+const KIJUN_TO_JLPT: Record<number, number> = { 1: 1, 2: 2, 3: 4, 4: 5 }
 
 /** 假名或汉字。用来分辨「漢字・原文」列到底是日语写法还是外来语原文。 */
 const HAS_JAPANESE = /[぀-ヿ㐀-鿿]/
@@ -140,8 +150,8 @@ function collectKijun(gzipped: Buffer, tag: Tag): number {
     if (columns.length < 4) continue
     const [kana, rawLevel, , original] = columns
 
-    const level = Number(rawLevel)
-    if (!Number.isInteger(level) || level < 1 || level > 4) continue
+    const level = KIJUN_TO_JLPT[Number(rawLevel)]
+    if (!level) continue
     rows++
 
     const isLoanword = !HAS_JAPANESE.test(stripContext(original))
