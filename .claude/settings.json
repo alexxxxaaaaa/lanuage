@@ -59,7 +59,20 @@
       "Bash(curl -sf https://lanuage-brhb.onrender.com/*)",
       "Bash(curl -sS https://lanuage-brhb.onrender.com/*)",
       "Bash(npx prisma *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -m pip install --quiet pypdf python-docx)",
+      "Bash(pdftotext \"/Users/zhuyandi/Downloads/2010年07月N1答案解析+听力原文.pdf\" -)",
+      "Bash(python3 -m pip install --quiet pymupdf)",
+      "Bash(brew install *)",
+      "Bash(tesseract --list-langs)",
+      "Bash(mkdir -p /private/tmp/claude-501/-Users-zhuyandi-Desktop-language/704c272e-16b1-4327-b59c-fce756ae5973/scratchpad/n1pdf)",
+      "Bash(pdftoppm -r 300 \"/Users/zhuyandi/Downloads/2010年07月N1答案解析+听力原文.pdf\" p -png)",
+      "Bash(cp \"/Users/zhuyandi/Downloads/2011年07月N1听力音频.mp3\" /Users/zhuyandi/Desktop/language/client/public/exam-media/n1-2011-07.mp3)",
+      "Bash(cp \"/Users/zhuyandi/Downloads/2011年07月N1听力音频.srt\" /Users/zhuyandi/Desktop/language/client/public/exam-media/n1-2011-07.srt)",
+      "Bash(python3 /private/tmp/claude-501/-Users-zhuyandi-Desktop-language/704c272e-16b1-4327-b59c-fce756ae5973/scratchpad/build_exam.py)",
+      "Bash(git check-ignore *)",
+      "Bash(git reset *)"
     ],
     "deny": [
       "Bash(git push --force*)",
