@@ -1,0 +1,33 @@
+{
+  "openai": {
+    "apiKey": "env:OPENAI_API_KEY",
+    "baseURL": "https://api.openai.com/v1",
+    "textModel": "gpt-transcribe",
+    "timingModel": "whisper-1",
+    "language": "ja",
+    "prompt": "日本語能力試験N1の聴解問題の音声です。",
+    "timeoutMs": 180000
+  },
+  "input": {
+    "audioDir": "../n1-qbank/audio",
+    "includePattern": "^聴解\\d+-\\d+$",
+    "excludePattern": "^(材料\\d+|full)$",
+    "exams": []
+  },
+  "output": {
+    "dir": "./output",
+    "writeJson": true,
+    "writeHtml": true,
+    "writePreview": false,
+    "mediaSrcPrefix": "/exam-media"
+  },
+  "run": {
+    "concurrency": 4,
+    "maxRetries": 4,
+    "skipExisting": true,
+    "maxFileMB": 24,
+    "matchRateWarn": 0.6,
+    "rescueBelow": 0.6,
+    "rescueChunks": 3
+  }
+}

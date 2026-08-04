@@ -1,0 +1,24 @@
+{
+  "name": "hypertranscript",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "把 n1-qbank 听力音频转成 Hyperaudio Lite 词级 hypertranscript",
+  "scripts": {
+    "start": "node --import tsx src/index.ts",
+    "dry-run": "node --import tsx src/index.ts --dry-run",
+    "export:r2": "node --import tsx src/exportR2.ts",
+    "upload:r2": "bash scripts/uploadTranscripts.sh",
+    "test": "node --import tsx --test src/pipeline.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "openai": "^7.3.0"
+  },
+  "devDependencies": {
+    "@sglkc/kuromoji": "^1.1.0",
+    "@types/node": "^26.1.2",
+    "tsx": "^4.21.0",
+    "typescript": "^7.0.2"
+  }
+}

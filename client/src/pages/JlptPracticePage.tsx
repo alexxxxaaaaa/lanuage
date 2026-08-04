@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, ButtonGroup, Card, Chip, ProgressCircle, Spinner, toast } from '@heroui/react'
 import { confirm } from '../components/ui/dialog'
 import { Link, useSearchParams } from 'react-router'
-import { ChevronLeft, ChevronRight, Eye, EyeOff, Sparkles, Star } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Eye, EyeOff, FileText, Sparkles, Star } from 'lucide-react'
 import {
   clearQbankAttempts,
   generateQbankAiExplain,
@@ -16,6 +16,8 @@ import {
   type QbankSetItem,
 } from '../api/qbank'
 import { getErrorMessage } from '../api/error'
+import { getTranscript, TranscriptMissingError, transcriptUrlOf } from '../api/transcript'
+import { HyperTranscript, type Transcript } from '../components/HyperTranscript'
 import { QbankText } from '../components/QbankText'
 import { usePageActive, usePageTitle } from '../components/layout/pageContext'
 import {
@@ -110,6 +112,16 @@ export function JlptPracticePage() {
   // 取正文失败的 id。放 state 不放 ref：预取 effect 要靠它跳过，
   // 渲染要靠它显示重试按钮，两边必须看到同一份。
   const [failed, setFailed] = useState<ReadonlySet<string>>(new Set())
+  // 文字稿模式：只放音频和逐词同步的原文，题目和选项都收起来，用来精听。
+  // 跟着人走而不是跟着题走 —— 在这个模式下翻页应该继续看下一题的文字稿。
+  const [isTranscriptMode, setIsTranscriptMode] = useState(false)
+  // 连着 url 一起存：翻页时不用先把它清空（那是 effect 里的同步 setState，
+  // 会多跑一轮渲染），渲染时比对 url 就知道手上这份属不属于当前题。
+  const [loaded, setLoaded] = useState<{
+    url: string
+    data: Transcript | null
+    error: string | null
+  } | null>(null)
 
   const title = setTitleOf(filter)
   usePageTitle('/jlpt/practice', title)
@@ -180,6 +192,34 @@ export function JlptPracticePage() {
 
   const current = items[index]
   const question = current ? details[current.id] : undefined
+
+  // 这一题有没有文字稿可看。R2 上的对象名由 audioUrl 推出来，所以只认听力题。
+  const transcriptUrl = question?.audioUrl ? transcriptUrlOf(question.audioUrl) : null
+
+  // 进了文字稿模式才拉，翻页时跟着当前题换。
+  const audioUrl = question?.audioUrl
+  useEffect(() => {
+    if (!isTranscriptMode || !transcriptUrl || !audioUrl) return
+
+    const controller = new AbortController()
+    getTranscript(audioUrl, controller.signal)
+      .then((data) => setLoaded({ url: transcriptUrl, data, error: null }))
+      .catch((e) => {
+        if (controller.signal.aborted) return
+        setLoaded({
+          url: transcriptUrl,
+          data: null,
+          error:
+            e instanceof TranscriptMissingError ? e.message : getErrorMessage(e, '文字稿加载失败'),
+        })
+      })
+
+    return () => controller.abort()
+  }, [isTranscriptMode, transcriptUrl, audioUrl])
+
+  // 只认属于当前题的那一份，翻页后旧数据自动失效，不用手动清。
+  const transcript = loaded?.url === transcriptUrl ? loaded.data : null
+  const transcriptError = loaded?.url === transcriptUrl ? loaded.error : null
 
   const stats = useMemo(() => {
     let correct = 0
@@ -350,6 +390,9 @@ export function JlptPracticePage() {
   // 听力题的「原文」既可能在 explain（纳豆卷），也可能在 passage（2025 两套），
   // 两者都是答案的一部分，作答前不能露。
   const showPassage = question?.passage && (!isListening || showAnswer)
+  // 翻到没有文字稿的题（笔试题、音频缺失的听力题）时自动退回常规视图，
+  // 模式本身不关 —— 再翻回有文字稿的题还是文字稿。
+  const showTranscript = isTranscriptMode && !!transcriptUrl
   const meta = current ? mondaiMeta(current.category, current.mondaiNo) : null
 
   const answerCard = (
@@ -432,6 +475,30 @@ export function JlptPracticePage() {
     </Card>
   )
 
+  // 文字稿模式的整块内容：播放器 + 逐词同步原文。题目和选项都不出现 ——
+  // 这个模式是拿来精听的，看得见选项就变成做题了。
+  const transcriptPanel = (
+    <Card className="gap-3" render={(props) => <article {...props} />}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="m-0 text-xs font-semibold text-accent">文字稿</p>
+        {question ? (
+          <p className="muted m-0 text-xs">
+            {paperLabel(question.year, question.month)} · {question.seq}
+          </p>
+        ) : null}
+      </div>
+      {transcriptError ? (
+        <p className="muted m-0 text-sm">{transcriptError}</p>
+      ) : !transcript ? (
+        <div className={LOADING}>
+          <Spinner />
+        </div>
+      ) : (
+        <HyperTranscript audioSrc={question?.audioUrl ?? ''} transcript={transcript} />
+      )}
+    </Card>
+  )
+
   return (
     <section className="page">
       <header className="flex items-start justify-between gap-4">
@@ -471,7 +538,9 @@ export function JlptPracticePage() {
             )
           ) : (
             <>
-              {showPassage && question.passage ? (
+              {showTranscript ? transcriptPanel : null}
+
+              {!showTranscript && showPassage && question.passage ? (
                 <div className={`${PASSAGE_BOX} max-h-[46vh] overflow-y-auto max-[900px]:max-h-[38vh]`}>
                   <p className="mt-0 mb-1.5 text-xs font-semibold text-accent">
                     {isListening ? '聴解原文' : question.passage.type || '本文'}
@@ -483,7 +552,8 @@ export function JlptPracticePage() {
                 </div>
               ) : null}
 
-              {isListening ? (
+              {/* 文字稿模式自带播放器，别在上面再挂一个抢着放同一段音频。 */}
+              {!showTranscript && isListening ? (
                 question.audioUrl ? (
                   <audio className="h-10 w-full" controls preload="none" src={question.audioUrl} />
                 ) : (
@@ -493,143 +563,145 @@ export function JlptPracticePage() {
                 )
               ) : null}
 
-              <Card render={(props) => <article {...props} />}>
-                <div className="flex items-start gap-2.5">
-                  <span className="shrink-0 leading-[1.7] font-bold text-foreground">
-                    {index + 1}.
-                  </span>
-                  <div className="multiline-text min-w-0 flex-1 text-base/[1.8] text-foreground">
-                    <p className="muted mt-0 mb-1 text-xs whitespace-normal">
-                      {paperLabel(question.year, question.month)} · {question.seq}
-                    </p>
-                    <QbankText text={question.stemJp} />
+              {showTranscript ? null : (
+                <Card render={(props) => <article {...props} />}>
+                  <div className="flex items-start gap-2.5">
+                    <span className="shrink-0 leading-[1.7] font-bold text-foreground">
+                      {index + 1}.
+                    </span>
+                    <div className="multiline-text min-w-0 flex-1 text-base/[1.8] text-foreground">
+                      <p className="muted mt-0 mb-1 text-xs whitespace-normal">
+                        {paperLabel(question.year, question.month)} · {question.seq}
+                      </p>
+                      <QbankText text={question.stemJp} />
+                    </div>
+                    {/* 作答前就挂出来：这题的答案本身有争议，值得先知道。 */}
+                    {question.altAnswer > 0 ? <DisputeChip /> : null}
                   </div>
-                  {/* 作答前就挂出来：这题的答案本身有争议，值得先知道。 */}
-                  {question.altAnswer > 0 ? <DisputeChip /> : null}
-                </div>
 
-                <ol className="m-0 grid list-none gap-2 p-0">
-                  {question.options.map((option, i) => {
-                    const num = i + 1
-                    const role = showAnswer
-                      ? optionRole(num, {
-                          answer: question.answer,
-                          altAnswer: question.altAnswer,
-                          selected: question.selected,
-                        })
-                      : null
-                    return (
-                      <li key={i}>
-                        <Button
-                          variant="outline"
-                          className={`${OPTION} ${role ? OPTION_TONE[role] : OPTION_TONE.idle}`}
-                          isDisabled={revealed}
-                          onPress={() => void pick(num)}
-                        >
-                          <span className={OPTION_NUM}>{num}</span>
-                          {hasPlaceholderOptions(question.options) ? (
-                            <span className="muted">（选项由音频念出）</span>
-                          ) : (
-                            <QbankText
-                              className="min-w-0 flex-1 [overflow-wrap:anywhere]"
-                              text={option}
-                            />
-                          )}
-                          {role ? (
-                            <Chip
-                              className={OPTION_TAG}
-                              color={OPTION_ROLE_COLOR[role]}
-                              variant="soft"
-                            >
-                              {OPTION_ROLE_LABEL[role]}
-                            </Chip>
-                          ) : null}
-                        </Button>
-                      </li>
-                    )
-                  })}
-                </ol>
-
-                {showAnswer ? (
-                  <div className="grid gap-2.5 border-t border-separator pt-3.5">
-                    {revealed ? (
-                      <div className="flex items-center gap-3">
-                        <Chip
-                          color={question.status === 'correct' ? 'success' : 'danger'}
-                          variant="soft"
-                        >
-                          {question.status === 'correct' ? '✓ 答对了' : '✗ 答错了'}
-                        </Chip>
-                        <Button size="sm" variant="ghost" onPress={retry}>
-                          再做一次
-                        </Button>
-                      </div>
-                    ) : (
-                      <Chip color="warning" variant="soft">
-                        已显示答案 · 不计入成绩
-                      </Chip>
-                    )}
-                    {question.stemZh ? (
-                      <div className={EXPLAIN_BLOCK}>
-                        <p className={EXPLAIN_LABEL}>{isListening ? '設問' : '译文'}</p>
-                        <QbankText text={question.stemZh} />
-                      </div>
-                    ) : null}
-                    {question.explain ? (
-                      <div className={EXPLAIN_BLOCK}>
-                        <p className={EXPLAIN_LABEL}>{isListening ? '原文 / 译文' : '解析'}</p>
-                        <QbankText text={question.explain} />
-                      </div>
-                    ) : null}
-                    {question.aiExplain || isAiPending ? (
-                      <div className={EXPLAIN_BLOCK}>
-                        <div className="mb-0.5 flex items-center gap-2">
-                          <p className={`${EXPLAIN_LABEL} mb-0`}>AI 解析</p>
-                          {question.aiExplain && !isAiPending ? (
-                            <Button
-                              className="h-auto px-1.5 py-0 text-xs font-normal"
-                              size="sm"
-                              variant="ghost"
-                              onPress={() => void runAiExplain(true)}
-                            >
-                              重新生成
-                            </Button>
-                          ) : null}
-                        </div>
-                        {isAiPending ? (
-                          <p className="muted m-0 flex items-center gap-2 text-sm">
-                            <Spinner size="sm" />
-                            正在生成…
-                          </p>
-                        ) : (
-                          <>
-                            {question.aiExplain?.summary ? (
-                              <p className="m-0">{question.aiExplain.summary}</p>
+                  <ol className="m-0 grid list-none gap-2 p-0">
+                    {question.options.map((option, i) => {
+                      const num = i + 1
+                      const role = showAnswer
+                        ? optionRole(num, {
+                            answer: question.answer,
+                            altAnswer: question.altAnswer,
+                            selected: question.selected,
+                          })
+                        : null
+                      return (
+                        <li key={i}>
+                          <Button
+                            variant="outline"
+                            className={`${OPTION} ${role ? OPTION_TONE[role] : OPTION_TONE.idle}`}
+                            isDisabled={revealed}
+                            onPress={() => void pick(num)}
+                          >
+                            <span className={OPTION_NUM}>{num}</span>
+                            {hasPlaceholderOptions(question.options) ? (
+                              <span className="muted">（选项由音频念出）</span>
+                            ) : (
+                              <QbankText
+                                className="min-w-0 flex-1 [overflow-wrap:anywhere]"
+                                text={option}
+                              />
+                            )}
+                            {role ? (
+                              <Chip
+                                className={OPTION_TAG}
+                                color={OPTION_ROLE_COLOR[role]}
+                                variant="soft"
+                              >
+                                {OPTION_ROLE_LABEL[role]}
+                              </Chip>
                             ) : null}
-                            <ol className="m-0 mt-1 grid list-none gap-1 p-0">
-                              {question.aiExplain?.options.map((text, i) =>
-                                text ? (
-                                  <li key={i} className="flex gap-2">
-                                    <span className={OPTION_NUM}>{i + 1}</span>
-                                    <span className="min-w-0 flex-1">{text}</span>
-                                  </li>
-                                ) : null,
-                              )}
-                            </ol>
-                          </>
-                        )}
-                      </div>
-                    ) : null}
-                    {question.altAnswer > 0 ? (
-                      <DisputeNotice
-                        answer={question.answer}
-                        altAnswer={question.altAnswer}
-                        note={question.disputeNote}
-                      />
-                    ) : null}
-                  </div>
-                ) : null}
-              </Card>
+                          </Button>
+                        </li>
+                      )
+                    })}
+                  </ol>
+
+                  {showAnswer ? (
+                    <div className="grid gap-2.5 border-t border-separator pt-3.5">
+                      {revealed ? (
+                        <div className="flex items-center gap-3">
+                          <Chip
+                            color={question.status === 'correct' ? 'success' : 'danger'}
+                            variant="soft"
+                          >
+                            {question.status === 'correct' ? '✓ 答对了' : '✗ 答错了'}
+                          </Chip>
+                          <Button size="sm" variant="ghost" onPress={retry}>
+                            再做一次
+                          </Button>
+                        </div>
+                      ) : (
+                        <Chip color="warning" variant="soft">
+                          已显示答案 · 不计入成绩
+                        </Chip>
+                      )}
+                      {question.stemZh ? (
+                        <div className={EXPLAIN_BLOCK}>
+                          <p className={EXPLAIN_LABEL}>{isListening ? '設問' : '译文'}</p>
+                          <QbankText text={question.stemZh} />
+                        </div>
+                      ) : null}
+                      {question.explain ? (
+                        <div className={EXPLAIN_BLOCK}>
+                          <p className={EXPLAIN_LABEL}>{isListening ? '原文 / 译文' : '解析'}</p>
+                          <QbankText text={question.explain} />
+                        </div>
+                      ) : null}
+                      {question.aiExplain || isAiPending ? (
+                        <div className={EXPLAIN_BLOCK}>
+                          <div className="mb-0.5 flex items-center gap-2">
+                            <p className={`${EXPLAIN_LABEL} mb-0`}>AI 解析</p>
+                            {question.aiExplain && !isAiPending ? (
+                              <Button
+                                className="h-auto px-1.5 py-0 text-xs font-normal"
+                                size="sm"
+                                variant="ghost"
+                                onPress={() => void runAiExplain(true)}
+                              >
+                                重新生成
+                              </Button>
+                            ) : null}
+                          </div>
+                          {isAiPending ? (
+                            <p className="muted m-0 flex items-center gap-2 text-sm">
+                              <Spinner size="sm" />
+                              正在生成…
+                            </p>
+                          ) : (
+                            <>
+                              {question.aiExplain?.summary ? (
+                                <p className="m-0">{question.aiExplain.summary}</p>
+                              ) : null}
+                              <ol className="m-0 mt-1 grid list-none gap-1 p-0">
+                                {question.aiExplain?.options.map((text, i) =>
+                                  text ? (
+                                    <li key={i} className="flex gap-2">
+                                      <span className={OPTION_NUM}>{i + 1}</span>
+                                      <span className="min-w-0 flex-1">{text}</span>
+                                    </li>
+                                  ) : null,
+                                )}
+                              </ol>
+                            </>
+                          )}
+                        </div>
+                      ) : null}
+                      {question.altAnswer > 0 ? (
+                        <DisputeNotice
+                          answer={question.answer}
+                          altAnswer={question.altAnswer}
+                          note={question.disputeNote}
+                        />
+                      ) : null}
+                    </div>
+                  ) : null}
+                </Card>
+              )}
 
               <div className="flex flex-wrap items-center justify-between gap-2.5">
                 <ButtonGroup size="sm" variant="outline">
@@ -648,6 +720,17 @@ export function JlptPracticePage() {
                     {isPeeking ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
                     {isPeeking ? '收起答案' : '答案'}
                   </Button>
+                  {/* 只有听力题才有文字稿，笔试题不给入口。 */}
+                  {transcriptUrl ? (
+                    <Button
+                      className={showTranscript ? 'bg-accent-soft text-accent' : ''}
+                      onPress={() => setIsTranscriptMode((v) => !v)}
+                    >
+                      <ButtonGroup.Separator />
+                      <FileText aria-hidden />
+                      {showTranscript ? '收起文字稿' : '文字稿'}
+                    </Button>
+                  ) : null}
                   {/* 听力题不生成：题干在音频里，文字侧只有設問，AI 看不到该看的。 */}
                   {canAiExplain ? (
                     <Button

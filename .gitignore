@@ -55,3 +55,11 @@ N1/**/.DS_Store
 # 生产数据是 D1 的 QbankQuestion.audio + R2 对象，md 里的 `- audio:` 路径照旧。
 # 本地要重新抓可以跑 server/scripts/nadou/fetch_audio.py，抓下来别再提交。
 n1-qbank/audio/
+
+# hypertranscript 工具：config.json 含 OpenAI key；output/ 是 1043 条转写产物
+# （json + html 合计上百 MB），需要的话按考期挑着提交，别整目录塞进来。
+hypertranscript/config.json
+hypertranscript/output/
+# npm run export:r2 的产物（1043 条 / 3.5 MB），随时能从 output/ 重新生成
+hypertranscript/dist-r2/
+hypertranscript/.transcript-upload.log
