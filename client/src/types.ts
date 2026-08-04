@@ -149,6 +149,15 @@ export type CreateWordPayload = {
   folderIds: string[]
 }
 
+/// 蓝宝书导入的条目会带上结构化例句：每句自带中译、真题出处和一段朗读。
+/// 手工建的条目没有这些，渲染时回落到 example / exampleZh 那份纯文本。
+export type GrammarExample = {
+  jp: string
+  zh: string
+  tag: string
+  audio: string
+}
+
 export type Grammar = {
   id: string
   pattern: string
@@ -156,8 +165,14 @@ export type Grammar = {
   meaning: string
   example: string
   exampleZh: string
-  note: string
+  /// 列表接口摘掉了 note / examples / images 三个大字段，只有详情页拿得到。
+  note?: string
   level: string
+  source?: string
+  orderNo?: number
+  examples?: GrammarExample[] | string
+  images?: string[] | string
+  audioKey?: string
   isPinned?: boolean
   pinnedAt?: string | null
   isLearned?: boolean

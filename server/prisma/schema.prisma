@@ -181,15 +181,36 @@ model ExpressionFolder {
   @@index([userId])
 }
 
+/// 一条语法点。跟人走 —— 每个用户一份自己的，复习进度和练习题都挂在这上面。
+///
+/// 内容有两个来源：用户自己建（`source = 'user'`），或者从「日语文法蓝宝书
+/// N1-N5」导入（`source = 'bluebook'`，见 scripts/convertBluebookApkg.py）。
+/// 唯一键带 level 是因为书里「～たところで」这类句型 N1 和 N2 各收一条、讲
+/// 不同用法，共 12 个句型是这种情况。
 model Grammar {
   id         String            @id @default(uuid())
   pattern    String
   connection String            @default("")
   meaning    String            @default("")
+  /// 例句的纯文本版，一行一句，和 exampleZh 按行号配对。搜索查的是这一份，
+  /// 手工新建的条目也只有这一份。渲染优先走 examples，空了才回落到这里。
   example    String            @default("")
   exampleZh  String            @default("")
   note       String            @default("")
   level      String            @default("N1")
+  /// 'user' | 'bluebook'
+  source     String            @default("user")
+  /// 蓝宝书条目在原书数据里的 UUID，重新导入时用它认人。
+  sourceId   String            @default("")
+  /// 书内顺序。手工建的条目是 0，学习队列里排在导入内容前面。
+  orderNo    Int               @default(0)
+  /// JSON: [{ jp, zh, tag, audio, origin }]。jp 带 Anki 注音语法和 <b> 高亮，
+  /// tag 是「【2010年12月真题】」这类出处标注。空数组 = 用 example 那一份。
+  examples   String            @default("[]")
+  /// JSON: 文件名数组，N5 的活用表图片。相对 GRAMMAR_MEDIA_BASE。
+  images     String            @default("[]")
+  /// 句型朗读音频文件名，同样相对 GRAMMAR_MEDIA_BASE。
+  audioKey   String            @default("")
   isPinned   Boolean           @default(false)
   pinnedAt   DateTime?
   isLearned  Boolean           @default(false)
@@ -200,10 +221,11 @@ model Grammar {
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
 
-  @@unique([userId, pattern])
+  @@unique([userId, pattern, level])
   @@index([userId])
   @@index([level])
   @@index([userId, pinnedAt])
+  @@index([userId, level, orderNo])
 }
 
 // N1-style four-choice questions attached to a Grammar row. Options are

@@ -24,3 +24,6 @@ SUBTITLE_PROXY_URL = ""
 # JLPT 精练题库的媒体根（R2 公共桶 jlpt 的 qbank/ 前缀）。听力 mp3 和
 # 情報検索图片都挂在这下面，上传见 server/scripts/uploadQbankMedia.sh。
 QBANK_MEDIA_BASE = "https://pub-942012cb760d44d7a0c78abce8d4d0c5.r2.dev/qbank/"
+# 蓝宝书语法的句型/例句朗读和 N5 活用表图片，同一个桶的 grammar/ 前缀。
+# 上传见 server/scripts/uploadBluebookMedia.sh。
+GRAMMAR_MEDIA_BASE = "https://pub-942012cb760d44d7a0c78abce8d4d0c5.r2.dev/grammar/"

@@ -9,6 +9,8 @@ import {
   type GrammarQuestion,
 } from '../api/grammarQuestions'
 import { GrammarQuestionCard } from '../components/GrammarQuestionCard'
+import { JpText } from '../components/JpText'
+import { resolveExamples } from '../utils/grammarText'
 import type { GrammarReviewItem, ReviewRating } from '../types'
 import { Button } from '@heroui/react'
 
@@ -196,18 +198,25 @@ export function ReviewGrammarPage() {
             <span className="card-label">背面</span>
             {grammar.connection ? (
               <small className="multiline-text">
-                <strong>接续:</strong> {grammar.connection}
+                <strong>接续:</strong> <JpText text={grammar.connection} />
               </small>
             ) : null}
             {grammar.meaning ? (
               <strong className="multiline-text">{grammar.meaning}</strong>
             ) : null}
-            {grammar.example ? (
-              <small className="multiline-text">{grammar.example}</small>
-            ) : null}
-            {grammar.exampleZh ? (
-              <small className="muted multiline-text">{grammar.exampleZh}</small>
-            ) : null}
+            {/* 卡片背面塞不下书里那 25 条例句，翻卡只要够想起用法的量 —— 前两条。 */}
+            {resolveExamples(grammar)
+              .slice(0, 2)
+              .map((ex, i) => (
+                <span key={i} className="contents">
+                  <small className="multiline-text">
+                    <JpText text={ex.jp} />
+                  </small>
+                  {ex.zh ? (
+                    <small className="muted multiline-text">{ex.zh}</small>
+                  ) : null}
+                </span>
+              ))}
             {grammar.note ? (
               <small className="muted multiline-text">
                 <strong>备注:</strong> {grammar.note}

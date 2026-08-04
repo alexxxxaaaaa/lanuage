@@ -14,6 +14,7 @@ export type WorkerBindings = {
   SUBTITLE_PROXY_URL?: string
   SUBTITLE_PROXY_TOKEN?: string
   QBANK_MEDIA_BASE?: string
+  GRAMMAR_MEDIA_BASE?: string
 }
 
 // Cloudflare D1 returns COUNT()/aggregate results as BigInt. JSON.stringify
@@ -45,6 +46,7 @@ export default {
       SUBTITLE_PROXY_URL: env.SUBTITLE_PROXY_URL,
       SUBTITLE_PROXY_TOKEN: env.SUBTITLE_PROXY_TOKEN,
       QBANK_MEDIA_BASE: env.QBANK_MEDIA_BASE,
+      GRAMMAR_MEDIA_BASE: env.GRAMMAR_MEDIA_BASE,
     }
 
     try {

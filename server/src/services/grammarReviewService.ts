@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma'
 import { AppError } from '../errors/AppError'
+import { withMediaUrls } from './grammarService'
 
 // Grammar review schedule — full FSRS-style spaced repetition, mirrors
 // reviewService.ts but operates on Grammar instead of Word. The two are kept
@@ -106,7 +107,7 @@ function parseRecentRatings(value?: string | null): GrammarReviewRating[] {
 
 export async function getTodayGrammarReviews(userId: string) {
   const todayEnd = endOfDay(new Date())
-  return prisma.grammarReview.findMany({
+  const rows = await prisma.grammarReview.findMany({
     where: {
       lastReviewedAt: { not: null },
       nextReviewDate: { lte: todayEnd },
@@ -115,6 +116,7 @@ export async function getTodayGrammarReviews(userId: string) {
     orderBy: { nextReviewDate: 'asc' },
     include: { grammar: true },
   })
+  return rows.map((row) => ({ ...row, grammar: withMediaUrls(row.grammar) }))
 }
 
 export async function submitGrammarReview(
@@ -252,23 +254,30 @@ export async function initGrammarReview(
   return review
 }
 
-export async function getUnlearnedGrammars(userId: string) {
+export async function getUnlearnedGrammars(userId: string, level?: string) {
   // "Unlearned" means BOTH:
   //   - user hasn't manually marked isLearned = true, AND
   //   - no FSRS review has been submitted (no Review row, or lastReviewedAt null)
   // The isLearned flag was previously ignored, so manually-marked grammars
   // kept showing up in the Learn queue.
-  return prisma.grammar.findMany({
+  //
+  // 装进整本蓝宝书之后这个队列有 800 多条，一路学下去会从 N5 的助数词开始 ——
+  // 所以带上 level 参数，让人挑着级别学。不传就是全部，和以前一样。
+  const rows = await prisma.grammar.findMany({
     where: {
       userId,
       isLearned: false,
+      ...(level ? { level } : {}),
       OR: [
         { review: { is: null } },
         { review: { is: { lastReviewedAt: null } } },
       ],
     },
-    orderBy: { createdAt: 'asc' },
+    // orderNo 是书里的条目顺序，导入的内容按它走；手工建的条目 orderNo 是 0，
+    // 排在最前面，组内再按 createdAt —— 也就是这一列加进来之前的原顺序。
+    orderBy: [{ orderNo: 'asc' }, { createdAt: 'asc' }],
   })
+  return rows.map(withMediaUrls)
 }
 
 export async function getGrammarReviewCounts(userId: string) {

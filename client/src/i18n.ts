@@ -386,7 +386,7 @@ export const messages: Record<UiLanguage, DictNode> = {
     },
     grammar: {
       title: '语法',
-      summary: 'N1 句型表 · 当前 {total} 条 · 今日到期 {due} · 新语法 {unlearned}',
+      summary: '句型表 · 当前 {total} 条 · 今日到期 {due} · 新语法 {unlearned}',
       learnCountLabel: '每次学',
       learnCountAll: '全部',
       learnNewBtn: '学习新语法',
@@ -408,6 +408,7 @@ export const messages: Record<UiLanguage, DictNode> = {
       emptyList: '没有匹配的语法条目',
       labelConnection: '接续',
       labelMeaning: '意思',
+      showMore: '还有 {rest} 条,显示更多',
     },
     addWord: {
       title: '添加单词',
@@ -919,7 +920,7 @@ export const messages: Record<UiLanguage, DictNode> = {
     },
     grammar: {
       title: 'Grammar',
-      summary: 'N1 patterns · {total} total · {due} due today · {unlearned} new',
+      summary: 'Patterns · {total} total · {due} due today · {unlearned} new',
       learnCountLabel: 'Per session',
       learnCountAll: 'All',
       learnNewBtn: 'Learn new',
@@ -941,6 +942,7 @@ export const messages: Record<UiLanguage, DictNode> = {
       emptyList: 'No matching grammar',
       labelConnection: 'Use',
       labelMeaning: 'Meaning',
+      showMore: '{rest} more — show them',
     },
     addWord: {
       title: 'Add Word',
@@ -1453,7 +1455,7 @@ export const messages: Record<UiLanguage, DictNode> = {
     },
     grammar: {
       title: '文法',
-      summary: 'N1 文型 · 全 {total} 件 · 今日 {due} 件 · 未学習 {unlearned} 件',
+      summary: '文型 · 全 {total} 件 · 今日 {due} 件 · 未学習 {unlearned} 件',
       learnCountLabel: '1 回の学習',
       learnCountAll: 'すべて',
       learnNewBtn: '新規学習',
@@ -1475,6 +1477,7 @@ export const messages: Record<UiLanguage, DictNode> = {
       emptyList: '該当する文法がありません',
       labelConnection: '接続',
       labelMeaning: '意味',
+      showMore: '残り {rest} 件を表示',
     },
     addWord: {
       title: '単語追加',

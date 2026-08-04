@@ -16,7 +16,11 @@ grammarReviewRouter.get('/today', async (c) => {
 })
 
 grammarReviewRouter.get('/unlearned', async (c) => {
-  const items = await getUnlearnedGrammars(getUserId(c))
+  const level = c.req.query('level')
+  const items = await getUnlearnedGrammars(
+    getUserId(c),
+    /^N[1-5]$/.test(level ?? '') ? level : undefined,
+  )
   return c.json({ count: items.length, items })
 })
 
