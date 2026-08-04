@@ -10,6 +10,7 @@ import { fillWordByAi } from '../api/ai'
 import { getErrorMessage, isDuplicateWordError } from '../api/error'
 import { useI18n } from '../i18n'
 import { getNotes } from '../api/notes'
+import { JlptChips } from '../components/JlptChips'
 import { SpeakButton } from '../components/SpeakButton'
 import { usePageTitle } from '../components/layout/pageContext'
 import { VoicePicker } from '../components/VoicePicker'
@@ -18,6 +19,7 @@ import { updateWord as updateWordApi } from '../api/words'
 import { useAppStore } from '../store/useAppStore'
 import type { FolderDetail } from '../types'
 import type { Word } from '../types'
+import { useJlptLevels } from '../lib/jlptVocab'
 import { scrollAppToTop } from '../lib/scroll'
 import {
   getMasteryColor,
@@ -116,6 +118,8 @@ export function FolderDetailPage() {
   // state means each FolderDetailPage instance keeps its own copy.
   const [folder, setFolder] = useState<FolderDetail | null>(null)
   const [isLoadingFolder, setIsLoadingFolder] = useState(false)
+  // 出題基準只收日语词，英语词单不必为此下载那张表。
+  const jlptLevels = useJlptLevels(folder?.language === 'jp')
   // Tracks the word id currently being pinned, so we can disable the button
   // and reject duplicate clicks. Pre-fix, spamming 置顶 fired N parallel
   // updateWord calls — each one (via the store) refetched the whole folder,
@@ -752,11 +756,14 @@ export function FolderDetailPage() {
                     />
                     <span className="muted word-reading">{word.reading}</span>
                   </div>
-                  <div className="mt-2">
+                  {/* 标签行：掌握度 → 难词 → JLPT 级别，从「我学得怎么样」
+                      到「这个词本身多难」。 */}
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <Chip color={getMasteryColor(getMasteryStatus(word.review))}>
                       {getMasteryLabel(getMasteryStatus(word.review))}
                     </Chip>
                     {isTrickyWord(word.review) ? <Chip color="danger">{t('folderDetail.tricky')}</Chip> : null}
+                    <JlptChips levels={jlptLevels(word.word)} size="md" />
                   </div>
                 </div>
                 <div className="folder-card-actions">

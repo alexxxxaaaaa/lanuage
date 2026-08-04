@@ -17,6 +17,7 @@
     "import:words": "node --import tsx scripts/importWordsToCloud.ts",
     "import:qbank": "node --import tsx scripts/importQbank.ts",
     "build:dict": "node --import tsx scripts/buildDict.ts",
+    "build:jlpt": "node --import tsx scripts/buildJlptVocab.ts",
     "merge:dict": "node --import tsx scripts/mergeDict.ts",
     "test:dict": "node --import tsx --test scripts/dictEnrichment.test.ts",
     "import:dict": "node --import tsx scripts/importDict.ts",

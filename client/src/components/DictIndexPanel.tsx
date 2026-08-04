@@ -8,6 +8,8 @@ import {
   type IndexKind,
   type IndexRow,
 } from '../lib/dictIndex'
+import { useJlptLevels } from '../lib/jlptVocab'
+import { JlptChips } from './JlptChips'
 import { useI18n } from '../i18n'
 import { useSettings } from '../store/useSettings'
 import { useWordIndex } from '../store/useWordIndex'
@@ -121,6 +123,8 @@ export function DictIndexPanel({ kind, query, onPick }: Props) {
   const { t } = useI18n()
   const localDictEnabled = useSettings((state) => state.settings.localDictEnabled)
   const revision = useWordIndex((state) => state.revision)
+  // 出題基準只有日语词表，另外两本词头表用不上它，也就不必下载。
+  const jlptLevels = useJlptLevels(kind === 'ja-zh')
   const [index, setIndex] = useState<DictIndex | null>(null)
   const [failed, setFailed] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -274,7 +278,10 @@ export function DictIndexPanel({ kind, query, onPick }: Props) {
                       <span className="muted truncate text-[12px]">{row.reading}</span>
                     ) : null}
                   </span>
-                  {/* 入过词单的词（非纯本地行）在行尾亮一颗星。 */}
+                  {/* 行尾靠右是这个词自身的属性：JLPT 级别，以及入过词单
+                      （非纯本地行）时亮的那颗星。和词头旁边的来源标签分开放，
+                      免得「本地 / AI」和「N2」看起来像同一类东西。 */}
+                  <JlptChips levels={jlptLevels(row.word)} />
                   {row.source !== 'local' ? (
                     <Star className="size-3.5 shrink-0 fill-gold text-gold" aria-hidden />
                   ) : null}

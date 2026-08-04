@@ -29,6 +29,7 @@ import {
   type AiDictView,
 } from '../lib/aiDictEntry'
 import type { IndexRow } from '../lib/dictIndex'
+import { useJlptLevels } from '../lib/jlptVocab'
 import {
   DIRECTION_LABEL,
   DIRECTION_META,
@@ -40,6 +41,7 @@ import {
 } from '../lib/searchDirection'
 import { DictEntryResults } from '../components/DictEntryResults'
 import { DictIndexPanel } from '../components/DictIndexPanel'
+import { JlptChips } from '../components/JlptChips'
 import { SearchSuggest, type SearchSuggestHandle } from '../components/SearchSuggest'
 import { SpeakButton } from '../components/SpeakButton'
 import { usePageActive } from '../components/layout/pageContext'
@@ -349,6 +351,8 @@ export function WordSearchPage() {
       : meta.source === 'zh'
         ? null
         : meta.source)
+  // 出題基準只收日语词，词头还没落到日语上（中→日 在 AI 出结果前）就不必查。
+  const headLevels = useJlptLevels(speakLang === 'jp')(headWord)
 
   // 没有 AI 内容时的加词兜底：只有 日→中 的词头本身就是要入库的日语词
   //（中→日 的词头是中文，英→中 没有本地词条）。word/reading 取词典行，内容
@@ -506,6 +510,9 @@ export function WordSearchPage() {
   // 本地来源分块的显隐：设置开关 + 这个方向本地词库有没有收（英语那两个方向
   // 只有 AI 行）。AI 小节不受这个开关影响，恒在。
   const showLocalBlock = localDictEnabled && meta.hasLocalDict
+  // 词单标签行右侧的来源标记：这个词有哪几种释义。JLPT 级别是词本身的属性，
+  // 不是一回事，所以分成两组、隔开一段距离摆。
+  const hasSourceTags = showLocalBlock && (localEntries.length > 0 || Boolean(aiView))
 
   // 方向下拉。「自动」把当前判出来的方向写在标签里，省得用户去猜它选了哪边。
   const directionOptions = useMemo(
@@ -597,7 +604,8 @@ export function WordSearchPage() {
               </div>
 
               {/* 词单标签行：已在的词单可点叉移除，末尾是「+ 添加到词单」；
-                  本地词库开启时右侧标出本地 / AI 哪边有内容（和右侧索引同款）。 */}
+                  右侧先标出本地 / AI 哪边有内容（和右侧索引同款），再隔开一段
+                  距离挂这个词的 JLPT 级别。 */}
               <div className="flex flex-wrap items-center gap-1.5">
                 {currentFolders.length > 0 ? (
                   <TagGroup
@@ -673,18 +681,23 @@ export function WordSearchPage() {
                     </Popover.Content>
                   </Popover>
                 ) : null}
-                {showLocalBlock && (localEntries.length > 0 || aiView) ? (
-                  <span className="ml-auto flex items-center gap-1.5">
-                    {localEntries.length > 0 ? (
-                      <Chip size="sm" variant="soft">
-                        <Chip.Label>{t('wordSearch.tagLocal')}</Chip.Label>
-                      </Chip>
+                {hasSourceTags || headLevels.length > 0 ? (
+                  <span className="ml-auto flex items-center gap-4">
+                    {hasSourceTags ? (
+                      <span className="flex items-center gap-1.5">
+                        {localEntries.length > 0 ? (
+                          <Chip size="sm" variant="soft">
+                            <Chip.Label>{t('wordSearch.tagLocal')}</Chip.Label>
+                          </Chip>
+                        ) : null}
+                        {aiView ? (
+                          <Chip size="sm" color="accent" variant="soft">
+                            <Chip.Label>{t('wordSearch.tagAi')}</Chip.Label>
+                          </Chip>
+                        ) : null}
+                      </span>
                     ) : null}
-                    {aiView ? (
-                      <Chip size="sm" color="accent" variant="soft">
-                        <Chip.Label>{t('wordSearch.tagAi')}</Chip.Label>
-                      </Chip>
-                    ) : null}
+                    <JlptChips levels={headLevels} />
                   </span>
                 ) : null}
               </div>
