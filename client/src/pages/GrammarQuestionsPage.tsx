@@ -77,6 +77,8 @@ export function GrammarQuestionsPage() {
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <SegmentedControl
+            fitContent
+            aria-label="筛选题目"
             value={mode}
             onChange={(v) => setMode(v as Mode)}
             options={[

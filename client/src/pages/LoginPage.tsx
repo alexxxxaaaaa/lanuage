@@ -101,7 +101,11 @@ export function LoginPage() {
               >
                 <Label className="text-sm font-medium">{t('auth.username')}</Label>
                 <InputGroup fullWidth>
-                  <InputGroup.Prefix>
+                  {/* `.input-group__prefix` 自带一条 inline-end 边框当图标与输入区的
+                      分隔线。登录页要的是「图标贴着输入框」的干净外观，用 border-e-0
+                      抹掉——HeroUI 的组件样式在 components 层，工具类在 utilities 层，
+                      层级更高，不需要 `!` 强制覆盖。 */}
+                  <InputGroup.Prefix className="border-e-0">
                     <User className="size-4 text-muted" aria-hidden />
                   </InputGroup.Prefix>
                   <InputGroup.Input
@@ -122,7 +126,7 @@ export function LoginPage() {
               >
                 <Label className="text-sm font-medium">{t('auth.password')}</Label>
                 <InputGroup fullWidth>
-                  <InputGroup.Prefix>
+                  <InputGroup.Prefix className="border-e-0">
                     <Lock className="size-4 text-muted" aria-hidden />
                   </InputGroup.Prefix>
                   <InputGroup.Input
