@@ -11,6 +11,7 @@ import {
 import { GrammarQuestionCard } from '../components/GrammarQuestionCard'
 import { getErrorMessage } from '../api/error'
 import { AudioButton } from '../components/AudioButton'
+import { GrammarImages } from '../components/GrammarImages'
 import { JpText } from '../components/JpText'
 import { parseImages, resolveExamples } from '../utils/grammarText'
 import type { Grammar, UpdateGrammarPayload } from '../types'
@@ -267,9 +268,14 @@ export function GrammarDetailPage() {
               <p style={{ whiteSpace: 'pre-line' }}>
                 <JpText text={grammar.connection} />
               </p>
-            ) : (
+            ) : null}
+            {/* 书里凡是要用大括号把几种词性并成一条的接续，都排成了图 —— 带图
+                的 149 条里有 136 条文字接续是空的，图就是这一栏的正文，不能
+                丢到页面最底下。N5 的助数词表、活用表也走这里。 */}
+            {images.length > 0 ? <GrammarImages images={images} pattern={grammar.pattern} /> : null}
+            {!grammar.connection && images.length === 0 ? (
               <p className="muted">(空)</p>
-            )}
+            ) : null}
           </div>
 
           <div className="card">
@@ -304,24 +310,6 @@ export function GrammarDetailPage() {
               <p style={{ whiteSpace: 'pre-line' }}>
                 <JpText text={grammar.note} />
               </p>
-            </div>
-          ) : null}
-
-          {/* N5 那部分的活用表、助数词表在书里是图，抄不成文字。 */}
-          {images.length > 0 ? (
-            <div className="card">
-              <h3 style={{ marginTop: 0 }}>图表</h3>
-              <div className="flex flex-col gap-3">
-                {images.map((src) => (
-                  <img
-                    key={src}
-                    src={src}
-                    alt={`${grammar.pattern} 图表`}
-                    loading="lazy"
-                    className="max-w-full rounded-lg"
-                  />
-                ))}
-              </div>
             </div>
           ) : null}
 

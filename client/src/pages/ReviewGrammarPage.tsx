@@ -9,8 +9,9 @@ import {
   type GrammarQuestion,
 } from '../api/grammarQuestions'
 import { GrammarQuestionCard } from '../components/GrammarQuestionCard'
+import { GrammarImages } from '../components/GrammarImages'
 import { JpText } from '../components/JpText'
-import { resolveExamples } from '../utils/grammarText'
+import { parseImages, resolveExamples } from '../utils/grammarText'
 import type { GrammarReviewItem, ReviewRating } from '../types'
 import { Button } from '@heroui/react'
 
@@ -201,6 +202,13 @@ export function ReviewGrammarPage() {
                 <strong>接续:</strong> <JpText text={grammar.connection} />
               </small>
             ) : null}
+            {/* 卡片背面地方小，高度封到 120px，认得出是哪条接续就够了；
+                要细看去详情页。 */}
+            <GrammarImages
+              images={parseImages(grammar.images)}
+              pattern={grammar.pattern}
+              maxHeight={120}
+            />
             {grammar.meaning ? (
               <strong className="multiline-text">{grammar.meaning}</strong>
             ) : null}

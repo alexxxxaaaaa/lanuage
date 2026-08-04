@@ -7,8 +7,9 @@ import {
 } from '../api/grammarQuestions'
 import { GrammarQuestionCard } from '../components/GrammarQuestionCard'
 import { AudioButton } from '../components/AudioButton'
+import { GrammarImages } from '../components/GrammarImages'
 import { JpText } from '../components/JpText'
-import { resolveExamples } from '../utils/grammarText'
+import { parseImages, resolveExamples } from '../utils/grammarText'
 import type { Grammar, ReviewRating } from '../types'
 import { Button } from '@heroui/react'
 
@@ -190,6 +191,7 @@ export function LearnGrammarPage() {
   // 书里的条目最多带 25 条例句，一屏铺不下也读不完 —— 学习阶段先给前 3 条，
   // 详情页才是看全的地方。手工建的条目本来就只有一两句，取不满就是全部。
   const studyExamples = resolveExamples(currentItem).slice(0, 3)
+  const studyImages = parseImages(currentItem.images)
   const overallTotal = allGrammars.length
   const overallProgress = Math.round((sessionCount / overallTotal) * 100)
   const phaseLabel = phase === 'study' ? '阅读理解' : '自评打分'
@@ -234,6 +236,18 @@ export function LearnGrammarPage() {
             <p className={STUDY_LINE}>
               <strong>接续:</strong> <JpText text={currentItem.connection} />
             </p>
+          ) : null}
+          {/* 接续常常只以图的形式存在（书里用大括号并排几种词性）。学新语法时
+              没有接续等于没学，所以这里必须跟着出，不能只留给详情页。 */}
+          {studyImages.length > 0 ? (
+            <div className={STUDY_LINE}>
+              {currentItem.connection ? null : <strong>接续:</strong>}
+              <GrammarImages
+                images={studyImages}
+                pattern={currentItem.pattern}
+                className="mt-1"
+              />
+            </div>
           ) : null}
           {currentItem.meaning ? (
             <p className={STUDY_LINE}>
