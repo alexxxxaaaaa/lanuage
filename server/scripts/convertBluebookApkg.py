@@ -326,29 +326,73 @@ A_DRILL_RE = re.compile(r"[\d０-９一二三四五六七八九十]+[，、,]\s*
 # 同一句型两版写法有出入时（A 有 OCR 噪声：「じやないか」实为「じゃないか」；
 # 结尾「だ」的有无也各写各的），按相似度判重，B 的写法为准。
 #
-# 只对带「～」的句型做模糊判重。「动词「た形」」和「动词「て形」」字面上差一个
-# 假名、相似度 0.90，却是两个完全不同的语法点 —— 这类结构说明条目只认
-# norm_key 的精确相等。
-A_DUP_RATIO = 0.85
+# 光看标题不够：「～てたまらない」和「～て（は）たまらない」形似 0.84，卡在
+# 阈值下面，可释义一模一样，是同一条。所以标题相似度放宽到 0.75，同时要求
+# 释义也高度重合 —— 两个都像才算重复，比单看标题稳。
+A_DUP_RATIO = 0.75
+A_DUP_MEANING_RATIO = 0.85
+
+# 判重前把片假名折成平假名：A 版把「べからず」印成了「ベからず」（U+30D9 片
+# 假名ベ），标题差这一个字就永远对不上 B 版的正字版本。只用于比对，不动存储。
+def kana_fold(s: str) -> str:
+    return "".join(
+        chr(ord(c) - 0x60) if 0x30A1 <= ord(c) <= 0x30F6 else c for c in s
+    )
 
 
-def reject_a_pattern(pattern: str, level: str, entries: dict) -> tuple[str, str] | None:
+def reject_a_pattern(
+    pattern: str, level: str, entries: dict, meaning: str = ""
+) -> tuple[str, str] | None:
     """A 独有句型的准入检查。返回 None 表示收，否则返回 (统计键, 人读原因)。"""
     if A_VOCAB_PREFIX_RE.match(pattern):
         return ("vocab", "动词活用/词汇卡，非语法句型")
     if A_DRILL_RE.search(pattern):
         return ("drill", "书里的数字读法练习行")
-    if "～" not in pattern:
-        return None
-    bare = re.sub(r"[～~〜\s]", "", pattern)
+    # 「人[にん]/人[じん]/人[ひと]」这种条目，区别全在读音上 —— 标题去掉注音就
+    # 塌成「人/人/人」，看着像坏数据，实际信息也已经没了。B 版对这几条都收了
+    # 更完整的（「～人」带三条例句），直接让给它。
+    segs = [s for s in re.split(r"[/／]", pattern.replace("～", "")) if s.strip()]
+    if len(segs) > 1 and len(set(segs)) < len(segs):
+        return ("collapsed", "标题靠读音区分，去注音后塌陷成重复")
+    def forms(p: str) -> set:
+        """一条标题里列出的所有写法，「～A/B/C」→ {A, B, C}。"""
+        return {
+            kana_fold(re.sub(r"[～~〜\s]", "", x))
+            for x in re.split(r"[/／]", p)
+            if re.sub(r"[～~〜\s]", "", x)
+        }
+
+    mine = forms(pattern)
+    bare = kana_fold(re.sub(r"[～~〜\s]", "", pattern))
     for (_, lv), other in entries.items():
-        if lv != level or "～" not in other.pattern:
+        if lv != level:
             continue
+        # 一方列的写法被另一方全包含，就是同一条 —— 两本书只是列举的详略不同。
+        # 这一条走在释义验证前面：两边可能各挑了一个用法侧面来解释（一个写
+        # 「表示反问」一个写「表示发现」），释义对不上，形式却是同一组。
+        theirs = forms(other.pattern)
+        if len(mine) > 1 or len(theirs) > 1:
+            if mine <= theirs or theirs <= mine:
+                return ("dup", f"与「{other.pattern}」的写法互相包含")
         ratio = difflib.SequenceMatcher(
-            None, bare, re.sub(r"[～~〜\s]", "", other.pattern)
+            None, bare, kana_fold(re.sub(r"[～~〜\s]", "", other.pattern))
         ).ratio()
-        if ratio >= A_DUP_RATIO:
-            return ("dup", f"与「{other.pattern}」重复（相似度 {ratio:.2f}）")
+        if ratio < A_DUP_RATIO:
+            continue
+        # 标题像还不够。「动词「た形」」和「动词「て形」」差一个假名却是两条
+        # 完全不同的语法 —— 释义对不上就不算重复。
+        other_meaning = other.explains[0] if other.explains else ""
+        msim = difflib.SequenceMatcher(None, meaning, other_meaning).ratio()
+        if meaning and other_meaning and msim < A_DUP_MEANING_RATIO:
+            continue
+        if not meaning or not other_meaning:
+            # 缺释义没法交叉验证，退回只看标题，阈值收紧到原来的水平。
+            if ratio < 0.85:
+                continue
+        return (
+            "dup",
+            f"与「{other.pattern}」重复（标题 {ratio:.2f} / 释义 {msim:.2f}）",
+        )
     return None
 
 
@@ -386,7 +430,10 @@ def load_a(deck: Deck, entries: dict, stats: dict, skipped: list) -> None:
             if any(k[0] == key[0] for k in entries):
                 stats["a_level_only_diff"] += 1
                 continue
-            reason = reject_a_pattern(pattern, level, entries)
+            expl_probe = re.sub(
+                r"^\s*(説明|解释)[:：]\s*", "", plain(get(parts, "说明"))
+            ).strip()
+            reason = reject_a_pattern(pattern, level, entries, expl_probe)
             if reason:
                 stats[f"a_skipped_{reason[0]}"] += 1
                 skipped.append({"pattern": pattern, "level": level, "why": reason[1]})
