@@ -1,0 +1,431 @@
+{
+  "exam": "2018.12",
+  "question": "聴解4-12",
+  "audioPath": "n1-qbank/audio/2018.12/聴解4-12.mp3",
+  "mediaSrc": "/exam-media/2018.12/聴解4-12.mp3",
+  "duration": 31.109333,
+  "text": "12番。ねえ、午後4時の時点での今日の売り上げ、集計出てる？ 1。えっと、今日の売り上げ目標ですね。 2。えっと、4時から今までの集計ですね。 3。えっと、4時までの売り上げですね。",
+  "models": {
+    "text": "gpt-transcribe",
+    "timing": "whisper-1"
+  },
+  "matchRate": 1,
+  "tokens": [
+    {
+      "text": "12",
+      "surface": "12",
+      "pos": "名詞",
+      "m": 4940,
+      "d": 440,
+      "endsSentence": false
+    },
+    {
+      "text": "番。",
+      "surface": "番",
+      "reading": "バン",
+      "pos": "名詞",
+      "m": 5380,
+      "d": 440,
+      "endsSentence": true
+    },
+    {
+      "text": "ねえ、",
+      "surface": "ねえ",
+      "reading": "ネエ",
+      "pos": "感動詞",
+      "m": 5820,
+      "d": 1720,
+      "endsSentence": false
+    },
+    {
+      "text": "午後",
+      "surface": "午後",
+      "reading": "ゴゴ",
+      "pos": "名詞",
+      "m": 7540,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "4",
+      "surface": "4",
+      "pos": "名詞",
+      "m": 7740,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "時",
+      "surface": "時",
+      "reading": "ジ",
+      "pos": "名詞",
+      "m": 7960,
+      "d": 60,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 8020,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "時点",
+      "surface": "時点",
+      "reading": "ジテン",
+      "pos": "名詞",
+      "m": 8340,
+      "d": 100,
+      "endsSentence": false
+    },
+    {
+      "text": "で",
+      "surface": "で",
+      "reading": "デ",
+      "pos": "助詞",
+      "m": 8440,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 8640,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "今日",
+      "surface": "今日",
+      "reading": "キョウ",
+      "pos": "名詞",
+      "m": 8780,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 8980,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "売り上げ、",
+      "surface": "売り上げ",
+      "reading": "ウリアゲ",
+      "pos": "名詞",
+      "m": 9160,
+      "d": 660,
+      "endsSentence": false
+    },
+    {
+      "text": "集計",
+      "surface": "集計",
+      "reading": "シュウケイ",
+      "pos": "名詞",
+      "m": 9820,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "出",
+      "surface": "出",
+      "reading": "デ",
+      "pos": "動詞",
+      "m": 10140,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "てる？ ",
+      "surface": "てる",
+      "reading": "テル",
+      "pos": "動詞",
+      "m": 10380,
+      "d": 680,
+      "endsSentence": true
+    },
+    {
+      "text": "1。",
+      "surface": "1",
+      "pos": "名詞",
+      "m": 11060,
+      "d": 2020,
+      "endsSentence": true
+    },
+    {
+      "text": "えっ",
+      "surface": "えっ",
+      "reading": "エッ",
+      "pos": "感動詞",
+      "m": 14020,
+      "d": 440,
+      "endsSentence": false
+    },
+    {
+      "text": "と、",
+      "surface": "と",
+      "reading": "ト",
+      "pos": "助詞",
+      "m": 14460,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "今日",
+      "surface": "今日",
+      "reading": "キョウ",
+      "pos": "名詞",
+      "m": 14460,
+      "d": 780,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 15240,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "売り上げ",
+      "surface": "売り上げ",
+      "reading": "ウリアゲ",
+      "pos": "名詞",
+      "m": 15540,
+      "d": 480,
+      "endsSentence": false
+    },
+    {
+      "text": "目標",
+      "surface": "目標",
+      "reading": "モクヒョウ",
+      "pos": "名詞",
+      "m": 16020,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "です",
+      "surface": "です",
+      "reading": "デス",
+      "pos": "助動詞",
+      "m": 16240,
+      "d": 960,
+      "endsSentence": false
+    },
+    {
+      "text": "ね。 ",
+      "surface": "ね",
+      "reading": "ネ",
+      "pos": "助詞",
+      "m": 17200,
+      "d": 480,
+      "endsSentence": true
+    },
+    {
+      "text": "2。",
+      "surface": "2",
+      "pos": "名詞",
+      "m": 20000,
+      "d": 440,
+      "endsSentence": true
+    },
+    {
+      "text": "えっ",
+      "surface": "えっ",
+      "reading": "エッ",
+      "pos": "感動詞",
+      "m": 20440,
+      "d": 520,
+      "endsSentence": false
+    },
+    {
+      "text": "と、",
+      "surface": "と",
+      "reading": "ト",
+      "pos": "助詞",
+      "m": 20960,
+      "d": 80,
+      "endsSentence": false
+    },
+    {
+      "text": "4",
+      "surface": "4",
+      "pos": "名詞",
+      "m": 21040,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "時",
+      "surface": "時",
+      "reading": "ジ",
+      "pos": "名詞",
+      "m": 21280,
+      "d": 120,
+      "endsSentence": false
+    },
+    {
+      "text": "から",
+      "surface": "から",
+      "reading": "カラ",
+      "pos": "助詞",
+      "m": 21400,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "今",
+      "surface": "今",
+      "reading": "イマ",
+      "pos": "名詞",
+      "m": 21600,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "まで",
+      "surface": "まで",
+      "reading": "マデ",
+      "pos": "助詞",
+      "m": 21880,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 22060,
+      "d": 360,
+      "endsSentence": false
+    },
+    {
+      "text": "集計",
+      "surface": "集計",
+      "reading": "シュウケイ",
+      "pos": "名詞",
+      "m": 22420,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "です",
+      "surface": "です",
+      "reading": "デス",
+      "pos": "助動詞",
+      "m": 22720,
+      "d": 453,
+      "endsSentence": false
+    },
+    {
+      "text": "ね。 ",
+      "surface": "ね",
+      "reading": "ネ",
+      "pos": "助詞",
+      "m": 23173,
+      "d": 227,
+      "endsSentence": true
+    },
+    {
+      "text": "3。",
+      "surface": "3",
+      "pos": "名詞",
+      "m": 25760,
+      "d": 680,
+      "endsSentence": true
+    },
+    {
+      "text": "えっ",
+      "surface": "えっ",
+      "reading": "エッ",
+      "pos": "感動詞",
+      "m": 26440,
+      "d": 880,
+      "endsSentence": false
+    },
+    {
+      "text": "と、",
+      "surface": "と",
+      "reading": "ト",
+      "pos": "助詞",
+      "m": 27320,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "4",
+      "surface": "4",
+      "pos": "名詞",
+      "m": 27520,
+      "d": 420,
+      "endsSentence": false
+    },
+    {
+      "text": "時",
+      "surface": "時",
+      "reading": "ジ",
+      "pos": "名詞",
+      "m": 27940,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "まで",
+      "surface": "まで",
+      "reading": "マデ",
+      "pos": "助詞",
+      "m": 28080,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 28240,
+      "d": 440,
+      "endsSentence": false
+    },
+    {
+      "text": "売り上げ",
+      "surface": "売り上げ",
+      "reading": "ウリアゲ",
+      "pos": "名詞",
+      "m": 28680,
+      "d": 420,
+      "endsSentence": false
+    },
+    {
+      "text": "です",
+      "surface": "です",
+      "reading": "デス",
+      "pos": "助動詞",
+      "m": 29100,
+      "d": 227,
+      "endsSentence": false
+    },
+    {
+      "text": "ね。",
+      "surface": "ね",
+      "reading": "ネ",
+      "pos": "助詞",
+      "m": 29327,
+      "d": 113,
+      "endsSentence": true
+    }
+  ]
+}

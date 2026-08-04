@@ -1,0 +1,461 @@
+{
+  "exam": "2017.12",
+  "question": "聴解4-11",
+  "audioPath": "n1-qbank/audio/2017.12/聴解4-11.mp3",
+  "mediaSrc": "/exam-media/2017.12/聴解4-11.mp3",
+  "duration": 30.353333,
+  "text": "11番。お客様、お食事中すみません。こちらのテーブル、相席をお願いしてもよろしいでしょうか。1。あとでもう一人来るんですけど。2。あ、席でお金を払うんですね。3。えっと、どのテーブルに移るんですか?",
+  "models": {
+    "text": "gpt-transcribe",
+    "timing": "whisper-1"
+  },
+  "matchRate": 0.9767441860465116,
+  "tokens": [
+    {
+      "text": "11",
+      "surface": "11",
+      "pos": "名詞",
+      "m": 4940,
+      "d": 480,
+      "endsSentence": false
+    },
+    {
+      "text": "番。",
+      "surface": "番",
+      "reading": "バン",
+      "pos": "名詞",
+      "m": 5420,
+      "d": 480,
+      "endsSentence": true
+    },
+    {
+      "text": "お客様、",
+      "surface": "お客様",
+      "reading": "オキャクサマ",
+      "pos": "名詞",
+      "m": 5900,
+      "d": 1120,
+      "endsSentence": false
+    },
+    {
+      "text": "お",
+      "surface": "お",
+      "reading": "オ",
+      "pos": "接頭詞",
+      "m": 7020,
+      "d": 580,
+      "endsSentence": false
+    },
+    {
+      "text": "食事",
+      "surface": "食事",
+      "reading": "ショクジ",
+      "pos": "名詞",
+      "m": 7600,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "中",
+      "surface": "中",
+      "reading": "チュウ",
+      "pos": "名詞",
+      "m": 7760,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "すみません。",
+      "surface": "すみません",
+      "reading": "スミマセン",
+      "pos": "感動詞",
+      "m": 8020,
+      "d": 920,
+      "endsSentence": true
+    },
+    {
+      "text": "こちら",
+      "surface": "こちら",
+      "reading": "コチラ",
+      "pos": "名詞",
+      "m": 8940,
+      "d": 580,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 9520,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "テーブル、",
+      "surface": "テーブル",
+      "reading": "テーブル",
+      "pos": "名詞",
+      "m": 9760,
+      "d": 840,
+      "endsSentence": false
+    },
+    {
+      "text": "相席",
+      "surface": "相席",
+      "reading": "アイセキ",
+      "pos": "名詞",
+      "m": 10600,
+      "d": 400,
+      "endsSentence": false
+    },
+    {
+      "text": "を",
+      "surface": "を",
+      "reading": "ヲ",
+      "pos": "助詞",
+      "m": 11000,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "お願い",
+      "surface": "お願い",
+      "reading": "オネガイ",
+      "pos": "名詞",
+      "m": 11320,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "し",
+      "surface": "し",
+      "reading": "シ",
+      "pos": "動詞",
+      "m": 11600,
+      "d": 90,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 11690,
+      "d": 90,
+      "endsSentence": false
+    },
+    {
+      "text": "も",
+      "surface": "も",
+      "reading": "モ",
+      "pos": "助詞",
+      "m": 11780,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "よろしい",
+      "surface": "よろしい",
+      "reading": "ヨロシイ",
+      "pos": "形容詞",
+      "m": 12020,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "でしょ",
+      "surface": "でしょ",
+      "reading": "デショ",
+      "pos": "助動詞",
+      "m": 12320,
+      "d": 225,
+      "endsSentence": false
+    },
+    {
+      "text": "う",
+      "surface": "う",
+      "reading": "ウ",
+      "pos": "助動詞",
+      "m": 12545,
+      "d": 75,
+      "endsSentence": false
+    },
+    {
+      "text": "か。",
+      "surface": "か",
+      "reading": "カ",
+      "pos": "助詞",
+      "m": 12620,
+      "d": 1660,
+      "endsSentence": true
+    },
+    {
+      "text": "1。",
+      "surface": "1",
+      "pos": "名詞",
+      "m": 15360,
+      "d": 480,
+      "endsSentence": true
+    },
+    {
+      "text": "あと",
+      "surface": "あと",
+      "reading": "アト",
+      "pos": "名詞",
+      "m": 15840,
+      "d": 540,
+      "endsSentence": false
+    },
+    {
+      "text": "で",
+      "surface": "で",
+      "reading": "デ",
+      "pos": "助詞",
+      "m": 16380,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "もう",
+      "surface": "もう",
+      "reading": "モウ",
+      "pos": "副詞",
+      "m": 16600,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "一",
+      "surface": "一",
+      "reading": "イチ",
+      "pos": "名詞",
+      "m": 16800,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "人",
+      "surface": "人",
+      "reading": "ニン",
+      "pos": "名詞",
+      "m": 16980,
+      "d": 100,
+      "endsSentence": false
+    },
+    {
+      "text": "来る",
+      "surface": "来る",
+      "reading": "クル",
+      "pos": "動詞",
+      "m": 17080,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "ん",
+      "surface": "ん",
+      "reading": "ン",
+      "pos": "名詞",
+      "m": 17400,
+      "d": 80,
+      "endsSentence": false
+    },
+    {
+      "text": "です",
+      "surface": "です",
+      "reading": "デス",
+      "pos": "助動詞",
+      "m": 17480,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "けど。",
+      "surface": "けど",
+      "reading": "ケド",
+      "pos": "助詞",
+      "m": 17640,
+      "d": 920,
+      "endsSentence": true
+    },
+    {
+      "text": "2。",
+      "surface": "2",
+      "pos": "名詞",
+      "m": 18560,
+      "d": 2920,
+      "endsSentence": true
+    },
+    {
+      "text": "あ、",
+      "surface": "あ",
+      "reading": "ア",
+      "pos": "感動詞",
+      "m": 21480,
+      "d": 480,
+      "endsSentence": false
+    },
+    {
+      "text": "席",
+      "surface": "席",
+      "reading": "セキ",
+      "pos": "名詞",
+      "m": 21960,
+      "d": 360,
+      "endsSentence": false
+    },
+    {
+      "text": "で",
+      "surface": "で",
+      "reading": "デ",
+      "pos": "助詞",
+      "m": 22320,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "お金",
+      "surface": "お金",
+      "reading": "オカネ",
+      "pos": "名詞",
+      "m": 22540,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "を",
+      "surface": "を",
+      "reading": "ヲ",
+      "pos": "助詞",
+      "m": 22820,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "払う",
+      "surface": "払う",
+      "reading": "ハラウ",
+      "pos": "動詞",
+      "m": 23060,
+      "d": 190,
+      "endsSentence": false
+    },
+    {
+      "text": "ん",
+      "surface": "ん",
+      "reading": "ン",
+      "pos": "名詞",
+      "m": 23250,
+      "d": 90,
+      "endsSentence": false
+    },
+    {
+      "text": "です",
+      "surface": "です",
+      "reading": "デス",
+      "pos": "助動詞",
+      "m": 23340,
+      "d": 507,
+      "endsSentence": false
+    },
+    {
+      "text": "ね。",
+      "surface": "ね",
+      "reading": "ネ",
+      "pos": "助詞",
+      "m": 23847,
+      "d": 253,
+      "endsSentence": true
+    },
+    {
+      "text": "3。",
+      "surface": "3",
+      "pos": "名詞",
+      "m": 26480,
+      "d": 420,
+      "endsSentence": true
+    },
+    {
+      "text": "えっ",
+      "surface": "えっ",
+      "reading": "エッ",
+      "pos": "感動詞",
+      "m": 26900,
+      "d": 530,
+      "endsSentence": false
+    },
+    {
+      "text": "と、",
+      "surface": "と",
+      "reading": "ト",
+      "pos": "助詞",
+      "m": 27430,
+      "d": 110,
+      "endsSentence": false
+    },
+    {
+      "text": "どの",
+      "surface": "どの",
+      "reading": "ドノ",
+      "pos": "連体詞",
+      "m": 27540,
+      "d": 480,
+      "endsSentence": false
+    },
+    {
+      "text": "テーブル",
+      "surface": "テーブル",
+      "reading": "テーブル",
+      "pos": "名詞",
+      "m": 28020,
+      "d": 380,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 28400,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "移る",
+      "surface": "移る",
+      "reading": "ウツル",
+      "pos": "動詞",
+      "m": 28600,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "ん",
+      "surface": "ん",
+      "reading": "ン",
+      "pos": "名詞",
+      "m": 28860,
+      "d": 67,
+      "endsSentence": false
+    },
+    {
+      "text": "です",
+      "surface": "です",
+      "reading": "デス",
+      "pos": "助動詞",
+      "m": 28927,
+      "d": 133,
+      "endsSentence": false
+    },
+    {
+      "text": "か?",
+      "surface": "か",
+      "reading": "カ",
+      "pos": "助詞",
+      "m": 29060,
+      "d": 260,
+      "endsSentence": true
+    }
+  ]
+}

@@ -1,0 +1,1754 @@
+{
+  "exam": "2024.12",
+  "question": "聴解3-4",
+  "audioPath": "n1-qbank/audio/2024.12/聴解3-4.mp3",
+  "mediaSrc": "/exam-media/2024.12/聴解3-4.mp3",
+  "duration": 90.435875,
+  "text": "4番。ラジオで、ある島の医師が話しています。私は都会の大学病院で10年勤務し、3年前に小さな島の診療所に赴任しました。ここではさまざまな病気や怪我に対応する必要があり、医師としての総合的な技術が高められると感じています。島は患者さんとの距離が近く、診療所以外でも患者さんによく会います。薬や治療の効果について直接聞けたり、患者さんと一緒に病気に向き合っているという実感があって、手応えが感じられます。また、生活習慣について島の人たちに積極的にアドバイスして、地域の予防医療に貢献できることにも魅力を感じています。この島の医師は何について話していますか。1。この島の医師になったきっかけ。2。この島の医師としてのやりがい。3。この島の医療の困難な点。4。この島の生活習慣と病気の関係。",
+  "models": {
+    "text": "gpt-transcribe",
+    "timing": "whisper-1"
+  },
+  "matchRate": 0.9747634069400631,
+  "tokens": [
+    {
+      "text": "4",
+      "surface": "4",
+      "pos": "名詞",
+      "m": 4040,
+      "d": 480,
+      "endsSentence": false
+    },
+    {
+      "text": "番。",
+      "surface": "番",
+      "reading": "バン",
+      "pos": "名詞",
+      "m": 4520,
+      "d": 480,
+      "endsSentence": true
+    },
+    {
+      "text": "ラジオ",
+      "surface": "ラジオ",
+      "reading": "ラジオ",
+      "pos": "名詞",
+      "m": 5840,
+      "d": 380,
+      "endsSentence": false
+    },
+    {
+      "text": "で、",
+      "surface": "で",
+      "reading": "デ",
+      "pos": "助詞",
+      "m": 6220,
+      "d": 660,
+      "endsSentence": false
+    },
+    {
+      "text": "ある",
+      "surface": "ある",
+      "reading": "アル",
+      "pos": "連体詞",
+      "m": 6880,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "島",
+      "surface": "島",
+      "reading": "シマ",
+      "pos": "名詞",
+      "m": 7140,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 7400,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "医師",
+      "surface": "医師",
+      "reading": "イシ",
+      "pos": "名詞",
+      "m": 7620,
+      "d": 100,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 7720,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "話し",
+      "surface": "話し",
+      "reading": "ハナシ",
+      "pos": "動詞",
+      "m": 7920,
+      "d": 380,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 8300,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "い",
+      "surface": "い",
+      "reading": "イ",
+      "pos": "動詞",
+      "m": 8440,
+      "d": 247,
+      "endsSentence": false
+    },
+    {
+      "text": "ます。",
+      "surface": "ます",
+      "reading": "マス",
+      "pos": "助動詞",
+      "m": 8687,
+      "d": 493,
+      "endsSentence": true
+    },
+    {
+      "text": "私",
+      "surface": "私",
+      "reading": "ワタシ",
+      "pos": "名詞",
+      "m": 10660,
+      "d": 480,
+      "endsSentence": false
+    },
+    {
+      "text": "は",
+      "surface": "は",
+      "reading": "ハ",
+      "pos": "助詞",
+      "m": 11140,
+      "d": 360,
+      "endsSentence": false
+    },
+    {
+      "text": "都会",
+      "surface": "都会",
+      "reading": "トカイ",
+      "pos": "名詞",
+      "m": 11500,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 11780,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "大学",
+      "surface": "大学",
+      "reading": "ダイガク",
+      "pos": "名詞",
+      "m": 11980,
+      "d": 380,
+      "endsSentence": false
+    },
+    {
+      "text": "病院",
+      "surface": "病院",
+      "reading": "ビョウイン",
+      "pos": "名詞",
+      "m": 12360,
+      "d": 380,
+      "endsSentence": false
+    },
+    {
+      "text": "で",
+      "surface": "で",
+      "reading": "デ",
+      "pos": "助詞",
+      "m": 12740,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "10",
+      "surface": "10",
+      "pos": "名詞",
+      "m": 13040,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "年",
+      "surface": "年",
+      "reading": "ネン",
+      "pos": "名詞",
+      "m": 13300,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "勤務",
+      "surface": "勤務",
+      "reading": "キンム",
+      "pos": "名詞",
+      "m": 13560,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "し、",
+      "surface": "し",
+      "reading": "シ",
+      "pos": "動詞",
+      "m": 13840,
+      "d": 640,
+      "endsSentence": false
+    },
+    {
+      "text": "3",
+      "surface": "3",
+      "pos": "名詞",
+      "m": 14480,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "年",
+      "surface": "年",
+      "reading": "ネン",
+      "pos": "名詞",
+      "m": 14800,
+      "d": 170,
+      "endsSentence": false
+    },
+    {
+      "text": "前",
+      "surface": "前",
+      "reading": "マエ",
+      "pos": "名詞",
+      "m": 14970,
+      "d": 170,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 15140,
+      "d": 360,
+      "endsSentence": false
+    },
+    {
+      "text": "小さな",
+      "surface": "小さな",
+      "reading": "チイサナ",
+      "pos": "連体詞",
+      "m": 15500,
+      "d": 500,
+      "endsSentence": false
+    },
+    {
+      "text": "島",
+      "surface": "島",
+      "reading": "シマ",
+      "pos": "名詞",
+      "m": 16000,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 16220,
+      "d": 420,
+      "endsSentence": false
+    },
+    {
+      "text": "診療",
+      "surface": "診療",
+      "reading": "シンリョウ",
+      "pos": "名詞",
+      "m": 16640,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "所",
+      "surface": "所",
+      "reading": "ショ",
+      "pos": "名詞",
+      "m": 16840,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 17000,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "赴任",
+      "surface": "赴任",
+      "reading": "フニン",
+      "pos": "名詞",
+      "m": 17200,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "し",
+      "surface": "し",
+      "reading": "シ",
+      "pos": "動詞",
+      "m": 17440,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "まし",
+      "surface": "まし",
+      "reading": "マシ",
+      "pos": "助動詞",
+      "m": 17680,
+      "d": 480,
+      "endsSentence": false
+    },
+    {
+      "text": "た。",
+      "surface": "た",
+      "reading": "タ",
+      "pos": "助動詞",
+      "m": 18160,
+      "d": 240,
+      "endsSentence": true
+    },
+    {
+      "text": "ここ",
+      "surface": "ここ",
+      "reading": "ココ",
+      "pos": "名詞",
+      "m": 18400,
+      "d": 800,
+      "endsSentence": false
+    },
+    {
+      "text": "で",
+      "surface": "で",
+      "reading": "デ",
+      "pos": "助詞",
+      "m": 19200,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "は",
+      "surface": "は",
+      "reading": "ハ",
+      "pos": "助詞",
+      "m": 19360,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "さまざま",
+      "surface": "さまざま",
+      "reading": "サマザマ",
+      "pos": "名詞",
+      "m": 19520,
+      "d": 440,
+      "endsSentence": false
+    },
+    {
+      "text": "な",
+      "surface": "な",
+      "reading": "ナ",
+      "pos": "助動詞",
+      "m": 19960,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "病気",
+      "surface": "病気",
+      "reading": "ビョウキ",
+      "pos": "名詞",
+      "m": 20260,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "や",
+      "surface": "や",
+      "reading": "ヤ",
+      "pos": "助詞",
+      "m": 20520,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "怪我",
+      "surface": "怪我",
+      "reading": "ケガ",
+      "pos": "名詞",
+      "m": 20780,
+      "d": 120,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 20900,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "対応",
+      "surface": "対応",
+      "reading": "タイオウ",
+      "pos": "名詞",
+      "m": 21180,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "する",
+      "surface": "する",
+      "reading": "スル",
+      "pos": "動詞",
+      "m": 21480,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "必要",
+      "surface": "必要",
+      "reading": "ヒツヨウ",
+      "pos": "名詞",
+      "m": 21720,
+      "d": 340,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 22060,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "あり、",
+      "surface": "あり",
+      "reading": "アリ",
+      "pos": "動詞",
+      "m": 22340,
+      "d": 420,
+      "endsSentence": false
+    },
+    {
+      "text": "医師",
+      "surface": "医師",
+      "reading": "イシ",
+      "pos": "名詞",
+      "m": 22760,
+      "d": 420,
+      "endsSentence": false
+    },
+    {
+      "text": "として",
+      "surface": "として",
+      "reading": "トシテ",
+      "pos": "助詞",
+      "m": 23180,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 23500,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "総合",
+      "surface": "総合",
+      "reading": "ソウゴウ",
+      "pos": "名詞",
+      "m": 23820,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "的",
+      "surface": "的",
+      "reading": "テキ",
+      "pos": "名詞",
+      "m": 24140,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "な",
+      "surface": "な",
+      "reading": "ナ",
+      "pos": "助動詞",
+      "m": 24420,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "技術",
+      "surface": "技術",
+      "reading": "ギジュツ",
+      "pos": "名詞",
+      "m": 24720,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 24920,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "高め",
+      "surface": "高め",
+      "reading": "タカメ",
+      "pos": "動詞",
+      "m": 25160,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "られる",
+      "surface": "られる",
+      "reading": "ラレル",
+      "pos": "動詞",
+      "m": 25460,
+      "d": 380,
+      "endsSentence": false
+    },
+    {
+      "text": "と",
+      "surface": "と",
+      "reading": "ト",
+      "pos": "助詞",
+      "m": 25840,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "感じ",
+      "surface": "感じ",
+      "reading": "カンジ",
+      "pos": "動詞",
+      "m": 26100,
+      "d": 60,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 26160,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "い",
+      "surface": "い",
+      "reading": "イ",
+      "pos": "動詞",
+      "m": 26440,
+      "d": 100,
+      "endsSentence": false
+    },
+    {
+      "text": "ます。",
+      "surface": "ます",
+      "reading": "マス",
+      "pos": "助動詞",
+      "m": 26540,
+      "d": 200,
+      "endsSentence": true
+    },
+    {
+      "text": "島",
+      "surface": "島",
+      "reading": "シマ",
+      "pos": "名詞",
+      "m": 27740,
+      "d": 60,
+      "endsSentence": false
+    },
+    {
+      "text": "は",
+      "surface": "は",
+      "reading": "ハ",
+      "pos": "助詞",
+      "m": 27800,
+      "d": 340,
+      "endsSentence": false
+    },
+    {
+      "text": "患者",
+      "surface": "患者",
+      "reading": "カンジャ",
+      "pos": "名詞",
+      "m": 28140,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "さん",
+      "surface": "さん",
+      "reading": "サン",
+      "pos": "名詞",
+      "m": 28400,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "と",
+      "surface": "と",
+      "reading": "ト",
+      "pos": "助詞",
+      "m": 28620,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 28800,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "距離",
+      "surface": "距離",
+      "reading": "キョリ",
+      "pos": "名詞",
+      "m": 29040,
+      "d": 40,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 29080,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "近く、",
+      "surface": "近く",
+      "reading": "チカク",
+      "pos": "形容詞",
+      "m": 29380,
+      "d": 800,
+      "endsSentence": false
+    },
+    {
+      "text": "診療",
+      "surface": "診療",
+      "reading": "シンリョウ",
+      "pos": "名詞",
+      "m": 30180,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "所",
+      "surface": "所",
+      "reading": "ショ",
+      "pos": "名詞",
+      "m": 30480,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "以外",
+      "surface": "以外",
+      "reading": "イガイ",
+      "pos": "名詞",
+      "m": 30660,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "でも",
+      "surface": "でも",
+      "reading": "デモ",
+      "pos": "助詞",
+      "m": 30900,
+      "d": 440,
+      "endsSentence": false
+    },
+    {
+      "text": "患者",
+      "surface": "患者",
+      "reading": "カンジャ",
+      "pos": "名詞",
+      "m": 31340,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "さん",
+      "surface": "さん",
+      "reading": "サン",
+      "pos": "名詞",
+      "m": 31660,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 31900,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "よく",
+      "surface": "よく",
+      "reading": "ヨク",
+      "pos": "副詞",
+      "m": 32120,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "会い",
+      "surface": "会い",
+      "reading": "アイ",
+      "pos": "動詞",
+      "m": 32320,
+      "d": 333,
+      "endsSentence": false
+    },
+    {
+      "text": "ます。",
+      "surface": "ます",
+      "reading": "マス",
+      "pos": "助動詞",
+      "m": 32653,
+      "d": 347,
+      "endsSentence": true
+    },
+    {
+      "text": "薬",
+      "surface": "薬",
+      "reading": "クスリ",
+      "pos": "名詞",
+      "m": 33640,
+      "d": 440,
+      "endsSentence": false
+    },
+    {
+      "text": "や",
+      "surface": "や",
+      "reading": "ヤ",
+      "pos": "助詞",
+      "m": 34080,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "治療",
+      "surface": "治療",
+      "reading": "チリョウ",
+      "pos": "名詞",
+      "m": 34360,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 34640,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "効果",
+      "surface": "効果",
+      "reading": "コウカ",
+      "pos": "名詞",
+      "m": 34900,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "について",
+      "surface": "について",
+      "reading": "ニツイテ",
+      "pos": "助詞",
+      "m": 35140,
+      "d": 520,
+      "endsSentence": false
+    },
+    {
+      "text": "直接",
+      "surface": "直接",
+      "reading": "チョクセツ",
+      "pos": "名詞",
+      "m": 35660,
+      "d": 540,
+      "endsSentence": false
+    },
+    {
+      "text": "聞け",
+      "surface": "聞け",
+      "reading": "キケ",
+      "pos": "動詞",
+      "m": 36200,
+      "d": 340,
+      "endsSentence": false
+    },
+    {
+      "text": "たり、",
+      "surface": "たり",
+      "reading": "タリ",
+      "pos": "助詞",
+      "m": 36540,
+      "d": 620,
+      "endsSentence": false
+    },
+    {
+      "text": "患者",
+      "surface": "患者",
+      "reading": "カンジャ",
+      "pos": "名詞",
+      "m": 37160,
+      "d": 400,
+      "endsSentence": false
+    },
+    {
+      "text": "さん",
+      "surface": "さん",
+      "reading": "サン",
+      "pos": "名詞",
+      "m": 37560,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "と",
+      "surface": "と",
+      "reading": "ト",
+      "pos": "助詞",
+      "m": 37740,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "一緒",
+      "surface": "一緒",
+      "reading": "イッショ",
+      "pos": "名詞",
+      "m": 37960,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 38140,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "病気",
+      "surface": "病気",
+      "reading": "ビョウキ",
+      "pos": "名詞",
+      "m": 38380,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 38640,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "向き合っ",
+      "surface": "向き合っ",
+      "reading": "ムキアッ",
+      "pos": "動詞",
+      "m": 38840,
+      "d": 400,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 39240,
+      "d": 80,
+      "endsSentence": false
+    },
+    {
+      "text": "いる",
+      "surface": "いる",
+      "reading": "イル",
+      "pos": "動詞",
+      "m": 39320,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "という",
+      "surface": "という",
+      "reading": "トイウ",
+      "pos": "助詞",
+      "m": 39480,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "実感",
+      "surface": "実感",
+      "reading": "ジッカン",
+      "pos": "名詞",
+      "m": 39800,
+      "d": 360,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 40160,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "あっ",
+      "surface": "あっ",
+      "reading": "アッ",
+      "pos": "動詞",
+      "m": 40420,
+      "d": 290,
+      "endsSentence": false
+    },
+    {
+      "text": "て、",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 40710,
+      "d": 210,
+      "endsSentence": false
+    },
+    {
+      "text": "手応え",
+      "surface": "手応え",
+      "reading": "テゴタエ",
+      "pos": "名詞",
+      "m": 40920,
+      "d": 500,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 41420,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "感じ",
+      "surface": "感じ",
+      "reading": "カンジ",
+      "pos": "動詞",
+      "m": 41680,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "られ",
+      "surface": "られ",
+      "reading": "ラレ",
+      "pos": "動詞",
+      "m": 41820,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "ます。",
+      "surface": "ます",
+      "reading": "マス",
+      "pos": "助動詞",
+      "m": 42100,
+      "d": 1100,
+      "endsSentence": true
+    },
+    {
+      "text": "また、",
+      "surface": "また",
+      "reading": "マタ",
+      "pos": "接続詞",
+      "m": 43580,
+      "d": 440,
+      "endsSentence": false
+    },
+    {
+      "text": "生活",
+      "surface": "生活",
+      "reading": "セイカツ",
+      "pos": "名詞",
+      "m": 44020,
+      "d": 440,
+      "endsSentence": false
+    },
+    {
+      "text": "習慣",
+      "surface": "習慣",
+      "reading": "シュウカン",
+      "pos": "名詞",
+      "m": 44460,
+      "d": 360,
+      "endsSentence": false
+    },
+    {
+      "text": "について",
+      "surface": "について",
+      "reading": "ニツイテ",
+      "pos": "助詞",
+      "m": 44820,
+      "d": 680,
+      "endsSentence": false
+    },
+    {
+      "text": "島",
+      "surface": "島",
+      "reading": "シマ",
+      "pos": "名詞",
+      "m": 45500,
+      "d": 360,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 45860,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "人",
+      "surface": "人",
+      "reading": "ヒト",
+      "pos": "名詞",
+      "m": 46040,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "たち",
+      "surface": "たち",
+      "reading": "タチ",
+      "pos": "名詞",
+      "m": 46260,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 46420,
+      "d": 360,
+      "endsSentence": false
+    },
+    {
+      "text": "積極",
+      "surface": "積極",
+      "reading": "セッキョク",
+      "pos": "名詞",
+      "m": 46780,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "的",
+      "surface": "的",
+      "reading": "テキ",
+      "pos": "名詞",
+      "m": 46960,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 47220,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "アドバイス",
+      "surface": "アドバイス",
+      "reading": "アドバイス",
+      "pos": "名詞",
+      "m": 47460,
+      "d": 420,
+      "endsSentence": false
+    },
+    {
+      "text": "し",
+      "surface": "し",
+      "reading": "シ",
+      "pos": "動詞",
+      "m": 47880,
+      "d": 150,
+      "endsSentence": false
+    },
+    {
+      "text": "て、",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 48030,
+      "d": 150,
+      "endsSentence": false
+    },
+    {
+      "text": "地域",
+      "surface": "地域",
+      "reading": "チイキ",
+      "pos": "名詞",
+      "m": 48180,
+      "d": 720,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 48900,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "予防",
+      "surface": "予防",
+      "reading": "ヨボウ",
+      "pos": "名詞",
+      "m": 49180,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "医療",
+      "surface": "医療",
+      "reading": "イリョウ",
+      "pos": "名詞",
+      "m": 49480,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 49760,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "貢献",
+      "surface": "貢献",
+      "reading": "コウケン",
+      "pos": "名詞",
+      "m": 50060,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "できる",
+      "surface": "できる",
+      "reading": "デキル",
+      "pos": "動詞",
+      "m": 50320,
+      "d": 440,
+      "endsSentence": false
+    },
+    {
+      "text": "こと",
+      "surface": "こと",
+      "reading": "コト",
+      "pos": "名詞",
+      "m": 50760,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 50940,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "も",
+      "surface": "も",
+      "reading": "モ",
+      "pos": "助詞",
+      "m": 51120,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "魅力",
+      "surface": "魅力",
+      "reading": "ミリョク",
+      "pos": "名詞",
+      "m": 51400,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "を",
+      "surface": "を",
+      "reading": "ヲ",
+      "pos": "助詞",
+      "m": 51600,
+      "d": 400,
+      "endsSentence": false
+    },
+    {
+      "text": "感じ",
+      "surface": "感じ",
+      "reading": "カンジ",
+      "pos": "動詞",
+      "m": 52000,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 52000,
+      "d": 340,
+      "endsSentence": false
+    },
+    {
+      "text": "い",
+      "surface": "い",
+      "reading": "イ",
+      "pos": "動詞",
+      "m": 52340,
+      "d": 40,
+      "endsSentence": false
+    },
+    {
+      "text": "ます。",
+      "surface": "ます",
+      "reading": "マス",
+      "pos": "助動詞",
+      "m": 52380,
+      "d": 80,
+      "endsSentence": true
+    },
+    {
+      "text": "この",
+      "surface": "この",
+      "reading": "コノ",
+      "pos": "連体詞",
+      "m": 57700,
+      "d": 480,
+      "endsSentence": false
+    },
+    {
+      "text": "島",
+      "surface": "島",
+      "reading": "シマ",
+      "pos": "名詞",
+      "m": 58180,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 58440,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "医師",
+      "surface": "医師",
+      "reading": "イシ",
+      "pos": "名詞",
+      "m": 58700,
+      "d": 100,
+      "endsSentence": false
+    },
+    {
+      "text": "は",
+      "surface": "は",
+      "reading": "ハ",
+      "pos": "助詞",
+      "m": 58800,
+      "d": 580,
+      "endsSentence": false
+    },
+    {
+      "text": "何",
+      "surface": "何",
+      "reading": "ナニ",
+      "pos": "名詞",
+      "m": 59380,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "について",
+      "surface": "について",
+      "reading": "ニツイテ",
+      "pos": "助詞",
+      "m": 59620,
+      "d": 460,
+      "endsSentence": false
+    },
+    {
+      "text": "話し",
+      "surface": "話し",
+      "reading": "ハナシ",
+      "pos": "動詞",
+      "m": 60080,
+      "d": 400,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 60480,
+      "d": 120,
+      "endsSentence": false
+    },
+    {
+      "text": "い",
+      "surface": "い",
+      "reading": "イ",
+      "pos": "動詞",
+      "m": 60600,
+      "d": 87,
+      "endsSentence": false
+    },
+    {
+      "text": "ます",
+      "surface": "ます",
+      "reading": "マス",
+      "pos": "助動詞",
+      "m": 60687,
+      "d": 173,
+      "endsSentence": false
+    },
+    {
+      "text": "か。",
+      "surface": "か",
+      "reading": "カ",
+      "pos": "助詞",
+      "m": 60860,
+      "d": 1380,
+      "endsSentence": true
+    },
+    {
+      "text": "1。",
+      "surface": "1",
+      "pos": "名詞",
+      "m": 64040,
+      "d": 480,
+      "endsSentence": true
+    },
+    {
+      "text": "この",
+      "surface": "この",
+      "reading": "コノ",
+      "pos": "連体詞",
+      "m": 64520,
+      "d": 480,
+      "endsSentence": false
+    },
+    {
+      "text": "島",
+      "surface": "島",
+      "reading": "シマ",
+      "pos": "名詞",
+      "m": 65000,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 65240,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "医師",
+      "surface": "医師",
+      "reading": "イシ",
+      "pos": "名詞",
+      "m": 65540,
+      "d": 80,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 65620,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "なっ",
+      "surface": "なっ",
+      "reading": "ナッ",
+      "pos": "動詞",
+      "m": 65800,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "た",
+      "surface": "た",
+      "reading": "タ",
+      "pos": "助動詞",
+      "m": 66060,
+      "d": 80,
+      "endsSentence": false
+    },
+    {
+      "text": "きっかけ。",
+      "surface": "きっかけ",
+      "reading": "キッカケ",
+      "pos": "名詞",
+      "m": 66140,
+      "d": 1180,
+      "endsSentence": true
+    },
+    {
+      "text": "2。",
+      "surface": "2",
+      "pos": "名詞",
+      "m": 67320,
+      "d": 3660,
+      "endsSentence": true
+    },
+    {
+      "text": "この",
+      "surface": "この",
+      "reading": "コノ",
+      "pos": "連体詞",
+      "m": 70980,
+      "d": 480,
+      "endsSentence": false
+    },
+    {
+      "text": "島",
+      "surface": "島",
+      "reading": "シマ",
+      "pos": "名詞",
+      "m": 71460,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 71720,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "医師",
+      "surface": "医師",
+      "reading": "イシ",
+      "pos": "名詞",
+      "m": 71960,
+      "d": 100,
+      "endsSentence": false
+    },
+    {
+      "text": "として",
+      "surface": "として",
+      "reading": "トシテ",
+      "pos": "助詞",
+      "m": 72060,
+      "d": 360,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 72420,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "やりがい。",
+      "surface": "やりがい",
+      "reading": "ヤリガイ",
+      "pos": "名詞",
+      "m": 72620,
+      "d": 1600,
+      "endsSentence": true
+    },
+    {
+      "text": "3。",
+      "surface": "3",
+      "pos": "名詞",
+      "m": 76960,
+      "d": 480,
+      "endsSentence": true
+    },
+    {
+      "text": "この",
+      "surface": "この",
+      "reading": "コノ",
+      "pos": "連体詞",
+      "m": 77440,
+      "d": 480,
+      "endsSentence": false
+    },
+    {
+      "text": "島",
+      "surface": "島",
+      "reading": "シマ",
+      "pos": "名詞",
+      "m": 77920,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 78160,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "医療",
+      "surface": "医療",
+      "reading": "イリョウ",
+      "pos": "名詞",
+      "m": 78400,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 78560,
+      "d": 480,
+      "endsSentence": false
+    },
+    {
+      "text": "困難",
+      "surface": "困難",
+      "reading": "コンナン",
+      "pos": "名詞",
+      "m": 79040,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "な",
+      "surface": "な",
+      "reading": "ナ",
+      "pos": "助動詞",
+      "m": 79220,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "点。",
+      "surface": "点",
+      "reading": "テン",
+      "pos": "名詞",
+      "m": 79520,
+      "d": 620,
+      "endsSentence": true
+    },
+    {
+      "text": "4。",
+      "surface": "4",
+      "pos": "名詞",
+      "m": 83380,
+      "d": 560,
+      "endsSentence": true
+    },
+    {
+      "text": "この",
+      "surface": "この",
+      "reading": "コノ",
+      "pos": "連体詞",
+      "m": 83940,
+      "d": 560,
+      "endsSentence": false
+    },
+    {
+      "text": "島",
+      "surface": "島",
+      "reading": "シマ",
+      "pos": "名詞",
+      "m": 84500,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 84720,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "生活",
+      "surface": "生活",
+      "reading": "セイカツ",
+      "pos": "名詞",
+      "m": 85000,
+      "d": 380,
+      "endsSentence": false
+    },
+    {
+      "text": "習慣",
+      "surface": "習慣",
+      "reading": "シュウカン",
+      "pos": "名詞",
+      "m": 85380,
+      "d": 420,
+      "endsSentence": false
+    },
+    {
+      "text": "と",
+      "surface": "と",
+      "reading": "ト",
+      "pos": "助詞",
+      "m": 85800,
+      "d": 580,
+      "endsSentence": false
+    },
+    {
+      "text": "病気",
+      "surface": "病気",
+      "reading": "ビョウキ",
+      "pos": "名詞",
+      "m": 86380,
+      "d": 340,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 86720,
+      "d": 500,
+      "endsSentence": false
+    },
+    {
+      "text": "関係。",
+      "surface": "関係",
+      "reading": "カンケイ",
+      "pos": "名詞",
+      "m": 87220,
+      "d": 220,
+      "endsSentence": true
+    }
+  ]
+}

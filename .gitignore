@@ -56,10 +56,14 @@ N1/**/.DS_Store
 # 本地要重新抓可以跑 server/scripts/nadou/fetch_audio.py，抓下来别再提交。
 n1-qbank/audio/
 
-# hypertranscript 工具：config.json 含 OpenAI key；output/ 是 1043 条转写产物
-# （json + html 合计上百 MB），需要的话按考期挑着提交，别整目录塞进来。
+# hypertranscript：config.json 含 OpenAI key，不能进。
 hypertranscript/config.json
-hypertranscript/output/
-# npm run export:r2 的产物（1043 条 / 3.5 MB），随时能从 output/ 重新生成
-hypertranscript/dist-r2/
 hypertranscript/.transcript-upload.log
+
+# 转写产物只入 json 那一份。它是花了约 $16、跑了 25 分钟的 OpenAI 调用换来的，
+# 丢了就得重花一次，而且换台机器入库也要靠它 —— 1043 条压缩后约 3 MB，值。
+# 另外两份都是从它派生的，别再占一遍体积，换机器跑一条命令就能重出：
+#   npm start -- --render-only     重出 html 片段和预览页
+#   npm run export:r2              重出 dist-r2（上传 R2 用的精简格式）
+hypertranscript/output/**/*.html
+hypertranscript/dist-r2/

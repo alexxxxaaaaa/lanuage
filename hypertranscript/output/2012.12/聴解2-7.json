@@ -1,0 +1,2908 @@
+{
+  "exam": "2012.12",
+  "question": "聴解2-7",
+  "audioPath": "n1-qbank/audio/2012.12/聴解2-7.mp3",
+  "mediaSrc": "/exam-media/2012.12/聴解2-7.mp3",
+  "duration": 128.883083,
+  "text": "7番。テレビで女のアナウンサーと音楽評論家が話しています。評論家は、このロックバンドが人気がある一番の理由は何だと言っていますか。A、今日は昨年デビューしたばかりの4人組ロックバンドJについて評論家の田村さんにお話を伺います。Jは特に中高生から絶大な支持を得ています。私も先日彼らのライブを見てきたんですが、いや、歌はもちろんですが、演出が個性的で素晴らしかったですね。その人気の秘密をどのように分析されますか。そうですね。曲のメロディーの良さもさることながら、何といっても歌詞に散りばめられた言葉の使い方が巧みで、他に類を見ないですね。なるほど。今の若い世代のミュージシャンは、小さい頃からライブやテレビなどでさまざまな音楽に触れて育ってきているんですよね。その分、音楽の知識が豊富で、演奏技術も昔よりはるかに高くなっていると思います。ライブの演出なんかも自分で手がける人もいますしね。ええ。でも一方で、最近はこう言っちゃなんですが、どこかで聞いたことがあるような、ありきたりの曲も増えたように思うんです。その点このバンドは、演奏こそまだまだ荒っぽくて磨きようがありますが、自分たちの世界観を歌詞で表現していますよね。それが同世代の心に響いているのではないでしょうか。評論家は、このロックバンドが人気がある一番の理由は何だと言っていますか。",
+  "models": {
+    "text": "gpt-transcribe",
+    "timing": "whisper-1"
+  },
+  "matchRate": 0.7877094972067039,
+  "tokens": [
+    {
+      "text": "7",
+      "surface": "7",
+      "pos": "名詞",
+      "m": 4100,
+      "d": 440,
+      "endsSentence": false
+    },
+    {
+      "text": "番。",
+      "surface": "番",
+      "reading": "バン",
+      "pos": "名詞",
+      "m": 4540,
+      "d": 440,
+      "endsSentence": true
+    },
+    {
+      "text": "テレビ",
+      "surface": "テレビ",
+      "reading": "テレビ",
+      "pos": "名詞",
+      "m": 5440,
+      "d": 440,
+      "endsSentence": false
+    },
+    {
+      "text": "で",
+      "surface": "で",
+      "reading": "デ",
+      "pos": "助詞",
+      "m": 5880,
+      "d": 840,
+      "endsSentence": false
+    },
+    {
+      "text": "女",
+      "surface": "女",
+      "reading": "オンナ",
+      "pos": "名詞",
+      "m": 6720,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 6940,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "アナウンサー",
+      "surface": "アナウンサー",
+      "reading": "アナウンサー",
+      "pos": "名詞",
+      "m": 7140,
+      "d": 580,
+      "endsSentence": false
+    },
+    {
+      "text": "と",
+      "surface": "と",
+      "reading": "ト",
+      "pos": "助詞",
+      "m": 7720,
+      "d": 380,
+      "endsSentence": false
+    },
+    {
+      "text": "音楽",
+      "surface": "音楽",
+      "reading": "オンガク",
+      "pos": "名詞",
+      "m": 8100,
+      "d": 360,
+      "endsSentence": false
+    },
+    {
+      "text": "評論",
+      "surface": "評論",
+      "reading": "ヒョウロン",
+      "pos": "名詞",
+      "m": 8460,
+      "d": 340,
+      "endsSentence": false
+    },
+    {
+      "text": "家",
+      "surface": "家",
+      "reading": "カ",
+      "pos": "名詞",
+      "m": 8800,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 8940,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "話し",
+      "surface": "話し",
+      "reading": "ハナシ",
+      "pos": "動詞",
+      "m": 9120,
+      "d": 360,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 9480,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "い",
+      "surface": "い",
+      "reading": "イ",
+      "pos": "動詞",
+      "m": 9620,
+      "d": 233,
+      "endsSentence": false
+    },
+    {
+      "text": "ます。",
+      "surface": "ます",
+      "reading": "マス",
+      "pos": "助動詞",
+      "m": 9853,
+      "d": 467,
+      "endsSentence": true
+    },
+    {
+      "text": "評論",
+      "surface": "評論",
+      "reading": "ヒョウロン",
+      "pos": "名詞",
+      "m": 11320,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "家",
+      "surface": "家",
+      "reading": "カ",
+      "pos": "名詞",
+      "m": 11320,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "は、",
+      "surface": "は",
+      "reading": "ハ",
+      "pos": "助詞",
+      "m": 11540,
+      "d": 640,
+      "endsSentence": false
+    },
+    {
+      "text": "この",
+      "surface": "この",
+      "reading": "コノ",
+      "pos": "連体詞",
+      "m": 12500,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "ロックバンド",
+      "surface": "ロックバンド",
+      "reading": "ロックバンド",
+      "pos": "名詞",
+      "m": 12500,
+      "d": 520,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 13020,
+      "d": 340,
+      "endsSentence": false
+    },
+    {
+      "text": "人気",
+      "surface": "人気",
+      "reading": "ニンキ",
+      "pos": "名詞",
+      "m": 13360,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 13680,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "ある",
+      "surface": "ある",
+      "reading": "アル",
+      "pos": "動詞",
+      "m": 14000,
+      "d": 80,
+      "endsSentence": false
+    },
+    {
+      "text": "一番",
+      "surface": "一番",
+      "reading": "イチバン",
+      "pos": "名詞",
+      "m": 14080,
+      "d": 700,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 14780,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "理由",
+      "surface": "理由",
+      "reading": "リユウ",
+      "pos": "名詞",
+      "m": 15020,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "は",
+      "surface": "は",
+      "reading": "ハ",
+      "pos": "助詞",
+      "m": 15260,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "何",
+      "surface": "何",
+      "reading": "ナニ",
+      "pos": "名詞",
+      "m": 15560,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "だ",
+      "surface": "だ",
+      "reading": "ダ",
+      "pos": "助動詞",
+      "m": 15700,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "と",
+      "surface": "と",
+      "reading": "ト",
+      "pos": "助詞",
+      "m": 15840,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "言っ",
+      "surface": "言っ",
+      "reading": "イッ",
+      "pos": "動詞",
+      "m": 16040,
+      "d": 110,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 16150,
+      "d": 70,
+      "endsSentence": false
+    },
+    {
+      "text": "い",
+      "surface": "い",
+      "reading": "イ",
+      "pos": "動詞",
+      "m": 16220,
+      "d": 73,
+      "endsSentence": false
+    },
+    {
+      "text": "ます",
+      "surface": "ます",
+      "reading": "マス",
+      "pos": "助動詞",
+      "m": 16293,
+      "d": 147,
+      "endsSentence": false
+    },
+    {
+      "text": "か。",
+      "surface": "か",
+      "reading": "カ",
+      "pos": "助詞",
+      "m": 16440,
+      "d": 360,
+      "endsSentence": true
+    },
+    {
+      "text": "A、",
+      "surface": "A",
+      "pos": "名詞",
+      "m": 16800,
+      "d": 4120,
+      "endsSentence": false
+    },
+    {
+      "text": "今日",
+      "surface": "今日",
+      "reading": "キョウ",
+      "pos": "名詞",
+      "m": 20920,
+      "d": 8240,
+      "endsSentence": false
+    },
+    {
+      "text": "は",
+      "surface": "は",
+      "reading": "ハ",
+      "pos": "助詞",
+      "m": 29160,
+      "d": 4120,
+      "endsSentence": false
+    },
+    {
+      "text": "昨年",
+      "surface": "昨年",
+      "reading": "サクネン",
+      "pos": "名詞",
+      "m": 33280,
+      "d": 8240,
+      "endsSentence": false
+    },
+    {
+      "text": "デビュー",
+      "surface": "デビュー",
+      "reading": "デビュー",
+      "pos": "名詞",
+      "m": 41520,
+      "d": 4169,
+      "endsSentence": false
+    },
+    {
+      "text": "し",
+      "surface": "し",
+      "reading": "シ",
+      "pos": "動詞",
+      "m": 45689,
+      "d": 14,
+      "endsSentence": false
+    },
+    {
+      "text": "た",
+      "surface": "た",
+      "reading": "タ",
+      "pos": "助動詞",
+      "m": 45703,
+      "d": 14,
+      "endsSentence": false
+    },
+    {
+      "text": "ばかり",
+      "surface": "ばかり",
+      "reading": "バカリ",
+      "pos": "助詞",
+      "m": 45717,
+      "d": 43,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 45760,
+      "d": 20,
+      "endsSentence": false
+    },
+    {
+      "text": "4",
+      "surface": "4",
+      "pos": "名詞",
+      "m": 45780,
+      "d": 9,
+      "endsSentence": false
+    },
+    {
+      "text": "人組",
+      "surface": "人組",
+      "reading": "ニングミ",
+      "pos": "名詞",
+      "m": 45789,
+      "d": 17,
+      "endsSentence": false
+    },
+    {
+      "text": "ロックバンド",
+      "surface": "ロックバンド",
+      "reading": "ロックバンド",
+      "pos": "名詞",
+      "m": 45806,
+      "d": 71,
+      "endsSentence": false
+    },
+    {
+      "text": "J",
+      "surface": "J",
+      "pos": "名詞",
+      "m": 45877,
+      "d": 17,
+      "endsSentence": false
+    },
+    {
+      "text": "について",
+      "surface": "について",
+      "reading": "ニツイテ",
+      "pos": "助詞",
+      "m": 45893,
+      "d": 67,
+      "endsSentence": false
+    },
+    {
+      "text": "評論",
+      "surface": "評論",
+      "reading": "ヒョウロン",
+      "pos": "名詞",
+      "m": 45960,
+      "d": 400,
+      "endsSentence": false
+    },
+    {
+      "text": "家",
+      "surface": "家",
+      "reading": "カ",
+      "pos": "名詞",
+      "m": 46360,
+      "d": 100,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 46460,
+      "d": 117,
+      "endsSentence": false
+    },
+    {
+      "text": "田村",
+      "surface": "田村",
+      "reading": "タムラ",
+      "pos": "名詞",
+      "m": 46577,
+      "d": 234,
+      "endsSentence": false
+    },
+    {
+      "text": "さん",
+      "surface": "さん",
+      "reading": "サン",
+      "pos": "名詞",
+      "m": 46811,
+      "d": 234,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 47046,
+      "d": 117,
+      "endsSentence": false
+    },
+    {
+      "text": "お話",
+      "surface": "お話",
+      "reading": "オハナシ",
+      "pos": "名詞",
+      "m": 47163,
+      "d": 337,
+      "endsSentence": false
+    },
+    {
+      "text": "を",
+      "surface": "を",
+      "reading": "ヲ",
+      "pos": "助詞",
+      "m": 47500,
+      "d": 29,
+      "endsSentence": false
+    },
+    {
+      "text": "伺い",
+      "surface": "伺い",
+      "reading": "ウカガイ",
+      "pos": "動詞",
+      "m": 47529,
+      "d": 58,
+      "endsSentence": false
+    },
+    {
+      "text": "ます。",
+      "surface": "ます",
+      "reading": "マス",
+      "pos": "助動詞",
+      "m": 47587,
+      "d": 58,
+      "endsSentence": true
+    },
+    {
+      "text": "J",
+      "surface": "J",
+      "pos": "名詞",
+      "m": 47645,
+      "d": 29,
+      "endsSentence": false
+    },
+    {
+      "text": "は",
+      "surface": "は",
+      "reading": "ハ",
+      "pos": "助詞",
+      "m": 47674,
+      "d": 29,
+      "endsSentence": false
+    },
+    {
+      "text": "特に",
+      "surface": "特に",
+      "reading": "トクニ",
+      "pos": "副詞",
+      "m": 47703,
+      "d": 58,
+      "endsSentence": false
+    },
+    {
+      "text": "中高生",
+      "surface": "中高生",
+      "reading": "チュウコウセイ",
+      "pos": "名詞",
+      "m": 47761,
+      "d": 87,
+      "endsSentence": false
+    },
+    {
+      "text": "から",
+      "surface": "から",
+      "reading": "カラ",
+      "pos": "助詞",
+      "m": 47849,
+      "d": 58,
+      "endsSentence": false
+    },
+    {
+      "text": "絶大",
+      "surface": "絶大",
+      "reading": "ゼツダイ",
+      "pos": "名詞",
+      "m": 47907,
+      "d": 58,
+      "endsSentence": false
+    },
+    {
+      "text": "な",
+      "surface": "な",
+      "reading": "ナ",
+      "pos": "助動詞",
+      "m": 47965,
+      "d": 29,
+      "endsSentence": false
+    },
+    {
+      "text": "支持",
+      "surface": "支持",
+      "reading": "シジ",
+      "pos": "名詞",
+      "m": 47994,
+      "d": 58,
+      "endsSentence": false
+    },
+    {
+      "text": "を",
+      "surface": "を",
+      "reading": "ヲ",
+      "pos": "助詞",
+      "m": 48052,
+      "d": 29,
+      "endsSentence": false
+    },
+    {
+      "text": "得",
+      "surface": "得",
+      "reading": "エ",
+      "pos": "動詞",
+      "m": 48081,
+      "d": 29,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 48110,
+      "d": 610,
+      "endsSentence": false
+    },
+    {
+      "text": "い",
+      "surface": "い",
+      "reading": "イ",
+      "pos": "動詞",
+      "m": 48720,
+      "d": 7,
+      "endsSentence": false
+    },
+    {
+      "text": "ます。",
+      "surface": "ます",
+      "reading": "マス",
+      "pos": "助動詞",
+      "m": 48727,
+      "d": 13,
+      "endsSentence": true
+    },
+    {
+      "text": "私",
+      "surface": "私",
+      "reading": "ワタシ",
+      "pos": "名詞",
+      "m": 48740,
+      "d": 1920,
+      "endsSentence": false
+    },
+    {
+      "text": "も",
+      "surface": "も",
+      "reading": "モ",
+      "pos": "助詞",
+      "m": 50660,
+      "d": 1920,
+      "endsSentence": false
+    },
+    {
+      "text": "先日",
+      "surface": "先日",
+      "reading": "センジツ",
+      "pos": "名詞",
+      "m": 52580,
+      "d": 3840,
+      "endsSentence": false
+    },
+    {
+      "text": "彼ら",
+      "surface": "彼ら",
+      "reading": "カレラ",
+      "pos": "名詞",
+      "m": 56420,
+      "d": 3840,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 60260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "ライブ",
+      "surface": "ライブ",
+      "reading": "ライブ",
+      "pos": "名詞",
+      "m": 60260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "を",
+      "surface": "を",
+      "reading": "ヲ",
+      "pos": "助詞",
+      "m": 60260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "見",
+      "surface": "見",
+      "reading": "ミ",
+      "pos": "動詞",
+      "m": 60260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 60260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "き",
+      "surface": "き",
+      "reading": "キ",
+      "pos": "動詞",
+      "m": 60260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "た",
+      "surface": "た",
+      "reading": "タ",
+      "pos": "助動詞",
+      "m": 60260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "ん",
+      "surface": "ん",
+      "reading": "ン",
+      "pos": "名詞",
+      "m": 60260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "です",
+      "surface": "です",
+      "reading": "デス",
+      "pos": "助動詞",
+      "m": 60260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "が、",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 60260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "いや、",
+      "surface": "いや",
+      "reading": "イヤ",
+      "pos": "接続詞",
+      "m": 60260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "歌",
+      "surface": "歌",
+      "reading": "ウタ",
+      "pos": "名詞",
+      "m": 60260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "は",
+      "surface": "は",
+      "reading": "ハ",
+      "pos": "助詞",
+      "m": 60260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "もちろん",
+      "surface": "もちろん",
+      "reading": "モチロン",
+      "pos": "副詞",
+      "m": 60260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "です",
+      "surface": "です",
+      "reading": "デス",
+      "pos": "助動詞",
+      "m": 60260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "が、",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 60260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "演出",
+      "surface": "演出",
+      "reading": "エンシュツ",
+      "pos": "名詞",
+      "m": 60260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 60260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "個性",
+      "surface": "個性",
+      "reading": "コセイ",
+      "pos": "名詞",
+      "m": 60260,
+      "d": 440,
+      "endsSentence": false
+    },
+    {
+      "text": "的",
+      "surface": "的",
+      "reading": "テキ",
+      "pos": "名詞",
+      "m": 60700,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "で",
+      "surface": "で",
+      "reading": "デ",
+      "pos": "助動詞",
+      "m": 60940,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "素晴らしかっ",
+      "surface": "素晴らしかっ",
+      "reading": "スバラシカッ",
+      "pos": "形容詞",
+      "m": 61160,
+      "d": 487,
+      "endsSentence": false
+    },
+    {
+      "text": "た",
+      "surface": "た",
+      "reading": "タ",
+      "pos": "助動詞",
+      "m": 61647,
+      "d": 73,
+      "endsSentence": false
+    },
+    {
+      "text": "です",
+      "surface": "です",
+      "reading": "デス",
+      "pos": "助動詞",
+      "m": 61720,
+      "d": 187,
+      "endsSentence": false
+    },
+    {
+      "text": "ね。",
+      "surface": "ね",
+      "reading": "ネ",
+      "pos": "助詞",
+      "m": 61907,
+      "d": 93,
+      "endsSentence": true
+    },
+    {
+      "text": "その",
+      "surface": "その",
+      "reading": "ソノ",
+      "pos": "連体詞",
+      "m": 62800,
+      "d": 120,
+      "endsSentence": false
+    },
+    {
+      "text": "人気",
+      "surface": "人気",
+      "reading": "ニンキ",
+      "pos": "名詞",
+      "m": 62920,
+      "d": 400,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 63320,
+      "d": 480,
+      "endsSentence": false
+    },
+    {
+      "text": "秘密",
+      "surface": "秘密",
+      "reading": "ヒミツ",
+      "pos": "名詞",
+      "m": 63800,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "を",
+      "surface": "を",
+      "reading": "ヲ",
+      "pos": "助詞",
+      "m": 63800,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "どの",
+      "surface": "どの",
+      "reading": "ドノ",
+      "pos": "連体詞",
+      "m": 64040,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "よう",
+      "surface": "よう",
+      "reading": "ヨウ",
+      "pos": "名詞",
+      "m": 64280,
+      "d": 147,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 64427,
+      "d": 73,
+      "endsSentence": false
+    },
+    {
+      "text": "分析",
+      "surface": "分析",
+      "reading": "ブンセキ",
+      "pos": "名詞",
+      "m": 64500,
+      "d": 380,
+      "endsSentence": false
+    },
+    {
+      "text": "さ",
+      "surface": "さ",
+      "reading": "サ",
+      "pos": "動詞",
+      "m": 64880,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "れ",
+      "surface": "れ",
+      "reading": "レ",
+      "pos": "動詞",
+      "m": 65140,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "ます",
+      "surface": "ます",
+      "reading": "マス",
+      "pos": "助動詞",
+      "m": 65140,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "か。",
+      "surface": "か",
+      "reading": "カ",
+      "pos": "助詞",
+      "m": 65300,
+      "d": 580,
+      "endsSentence": true
+    },
+    {
+      "text": "そうですね。",
+      "surface": "そうですね",
+      "reading": "ソウデスネ",
+      "pos": "感動詞",
+      "m": 65880,
+      "d": 1180,
+      "endsSentence": true
+    },
+    {
+      "text": "曲",
+      "surface": "曲",
+      "reading": "キョク",
+      "pos": "名詞",
+      "m": 67060,
+      "d": 360,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 67420,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "メロディー",
+      "surface": "メロディー",
+      "reading": "メロディー",
+      "pos": "名詞",
+      "m": 67680,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 68000,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "良",
+      "surface": "良",
+      "reading": "ヨ",
+      "pos": "形容詞",
+      "m": 68260,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "さ",
+      "surface": "さ",
+      "reading": "サ",
+      "pos": "名詞",
+      "m": 68260,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "も",
+      "surface": "も",
+      "reading": "モ",
+      "pos": "助詞",
+      "m": 68400,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "さる",
+      "surface": "さる",
+      "reading": "サル",
+      "pos": "連体詞",
+      "m": 68580,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "こと",
+      "surface": "こと",
+      "reading": "コト",
+      "pos": "名詞",
+      "m": 68760,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "ながら、",
+      "surface": "ながら",
+      "reading": "ナガラ",
+      "pos": "助詞",
+      "m": 68940,
+      "d": 920,
+      "endsSentence": false
+    },
+    {
+      "text": "何",
+      "surface": "何",
+      "reading": "ナニ",
+      "pos": "名詞",
+      "m": 69860,
+      "d": 147,
+      "endsSentence": false
+    },
+    {
+      "text": "と",
+      "surface": "と",
+      "reading": "ト",
+      "pos": "助詞",
+      "m": 70007,
+      "d": 147,
+      "endsSentence": false
+    },
+    {
+      "text": "いっ",
+      "surface": "いっ",
+      "reading": "イッ",
+      "pos": "動詞",
+      "m": 70153,
+      "d": 293,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 70447,
+      "d": 147,
+      "endsSentence": false
+    },
+    {
+      "text": "も",
+      "surface": "も",
+      "reading": "モ",
+      "pos": "助詞",
+      "m": 70593,
+      "d": 147,
+      "endsSentence": false
+    },
+    {
+      "text": "歌詞",
+      "surface": "歌詞",
+      "reading": "カシ",
+      "pos": "名詞",
+      "m": 70740,
+      "d": 460,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 71200,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "散りばめ",
+      "surface": "散りばめ",
+      "reading": "チリバメ",
+      "pos": "動詞",
+      "m": 71440,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "られ",
+      "surface": "られ",
+      "reading": "ラレ",
+      "pos": "動詞",
+      "m": 71740,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "た",
+      "surface": "た",
+      "reading": "タ",
+      "pos": "助動詞",
+      "m": 72000,
+      "d": 80,
+      "endsSentence": false
+    },
+    {
+      "text": "言葉",
+      "surface": "言葉",
+      "reading": "コトバ",
+      "pos": "名詞",
+      "m": 72080,
+      "d": 360,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 72440,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "使い方",
+      "surface": "使い方",
+      "reading": "ツカイカタ",
+      "pos": "名詞",
+      "m": 72640,
+      "d": 380,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 73020,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "巧み",
+      "surface": "巧み",
+      "reading": "タクミ",
+      "pos": "名詞",
+      "m": 73260,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "で、",
+      "surface": "で",
+      "reading": "デ",
+      "pos": "助動詞",
+      "m": 73560,
+      "d": 600,
+      "endsSentence": false
+    },
+    {
+      "text": "他",
+      "surface": "他",
+      "reading": "タ",
+      "pos": "名詞",
+      "m": 74180,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 74380,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "類",
+      "surface": "類",
+      "reading": "ルイ",
+      "pos": "名詞",
+      "m": 74540,
+      "d": 100,
+      "endsSentence": false
+    },
+    {
+      "text": "を",
+      "surface": "を",
+      "reading": "ヲ",
+      "pos": "助詞",
+      "m": 74640,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "見",
+      "surface": "見",
+      "reading": "ミ",
+      "pos": "動詞",
+      "m": 74800,
+      "d": 120,
+      "endsSentence": false
+    },
+    {
+      "text": "ない",
+      "surface": "ない",
+      "reading": "ナイ",
+      "pos": "助動詞",
+      "m": 74920,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "です",
+      "surface": "です",
+      "reading": "デス",
+      "pos": "助動詞",
+      "m": 75060,
+      "d": 453,
+      "endsSentence": false
+    },
+    {
+      "text": "ね。",
+      "surface": "ね",
+      "reading": "ネ",
+      "pos": "助詞",
+      "m": 75513,
+      "d": 227,
+      "endsSentence": true
+    },
+    {
+      "text": "なるほど。",
+      "surface": "なるほど",
+      "reading": "ナルホド",
+      "pos": "感動詞",
+      "m": 75740,
+      "d": 1220,
+      "endsSentence": true
+    },
+    {
+      "text": "今",
+      "surface": "今",
+      "reading": "イマ",
+      "pos": "名詞",
+      "m": 76960,
+      "d": 360,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 77320,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "若い",
+      "surface": "若い",
+      "reading": "ワカイ",
+      "pos": "形容詞",
+      "m": 77580,
+      "d": 400,
+      "endsSentence": false
+    },
+    {
+      "text": "世代",
+      "surface": "世代",
+      "reading": "セダイ",
+      "pos": "名詞",
+      "m": 77980,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 78120,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "ミュージシャン",
+      "surface": "ミュージシャン",
+      "reading": "ミュージシャン",
+      "pos": "名詞",
+      "m": 78400,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "は、",
+      "surface": "は",
+      "reading": "ハ",
+      "pos": "助詞",
+      "m": 78700,
+      "d": 640,
+      "endsSentence": false
+    },
+    {
+      "text": "小さい",
+      "surface": "小さい",
+      "reading": "チイサイ",
+      "pos": "形容詞",
+      "m": 79520,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "頃",
+      "surface": "頃",
+      "reading": "コロ",
+      "pos": "名詞",
+      "m": 79820,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "から",
+      "surface": "から",
+      "reading": "カラ",
+      "pos": "助詞",
+      "m": 79960,
+      "d": 440,
+      "endsSentence": false
+    },
+    {
+      "text": "ライブ",
+      "surface": "ライブ",
+      "reading": "ライブ",
+      "pos": "名詞",
+      "m": 80400,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "や",
+      "surface": "や",
+      "reading": "ヤ",
+      "pos": "助詞",
+      "m": 80660,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "テレビ",
+      "surface": "テレビ",
+      "reading": "テレビ",
+      "pos": "名詞",
+      "m": 80860,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "など",
+      "surface": "など",
+      "reading": "ナド",
+      "pos": "助詞",
+      "m": 81100,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "で",
+      "surface": "で",
+      "reading": "デ",
+      "pos": "助詞",
+      "m": 81380,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "さまざま",
+      "surface": "さまざま",
+      "reading": "サマザマ",
+      "pos": "名詞",
+      "m": 81660,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "な",
+      "surface": "な",
+      "reading": "ナ",
+      "pos": "助動詞",
+      "m": 81960,
+      "d": 100,
+      "endsSentence": false
+    },
+    {
+      "text": "音楽",
+      "surface": "音楽",
+      "reading": "オンガク",
+      "pos": "名詞",
+      "m": 82060,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 82340,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "触れ",
+      "surface": "触れ",
+      "reading": "フレ",
+      "pos": "動詞",
+      "m": 82520,
+      "d": 230,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 82750,
+      "d": 70,
+      "endsSentence": false
+    },
+    {
+      "text": "育っ",
+      "surface": "育っ",
+      "reading": "ソダッ",
+      "pos": "動詞",
+      "m": 82820,
+      "d": 330,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 83150,
+      "d": 130,
+      "endsSentence": false
+    },
+    {
+      "text": "き",
+      "surface": "き",
+      "reading": "キ",
+      "pos": "動詞",
+      "m": 83280,
+      "d": 80,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 83360,
+      "d": 100,
+      "endsSentence": false
+    },
+    {
+      "text": "いる",
+      "surface": "いる",
+      "reading": "イル",
+      "pos": "動詞",
+      "m": 83460,
+      "d": 89,
+      "endsSentence": false
+    },
+    {
+      "text": "ん",
+      "surface": "ん",
+      "reading": "ン",
+      "pos": "名詞",
+      "m": 83549,
+      "d": 22,
+      "endsSentence": false
+    },
+    {
+      "text": "です",
+      "surface": "です",
+      "reading": "デス",
+      "pos": "助動詞",
+      "m": 83571,
+      "d": 89,
+      "endsSentence": false
+    },
+    {
+      "text": "よ",
+      "surface": "よ",
+      "reading": "ヨ",
+      "pos": "助詞",
+      "m": 83660,
+      "d": 530,
+      "endsSentence": false
+    },
+    {
+      "text": "ね。",
+      "surface": "ね",
+      "reading": "ネ",
+      "pos": "助詞",
+      "m": 84190,
+      "d": 530,
+      "endsSentence": true
+    },
+    {
+      "text": "その",
+      "surface": "その",
+      "reading": "ソノ",
+      "pos": "連体詞",
+      "m": 84720,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "分、",
+      "surface": "分",
+      "reading": "ブン",
+      "pos": "名詞",
+      "m": 85040,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "音楽",
+      "surface": "音楽",
+      "reading": "オンガク",
+      "pos": "名詞",
+      "m": 85860,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 86000,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "知識",
+      "surface": "知識",
+      "reading": "チシキ",
+      "pos": "名詞",
+      "m": 86300,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 86480,
+      "d": 480,
+      "endsSentence": false
+    },
+    {
+      "text": "豊富",
+      "surface": "豊富",
+      "reading": "ホウフ",
+      "pos": "名詞",
+      "m": 86960,
+      "d": 120,
+      "endsSentence": false
+    },
+    {
+      "text": "で、",
+      "surface": "で",
+      "reading": "デ",
+      "pos": "助動詞",
+      "m": 87080,
+      "d": 420,
+      "endsSentence": false
+    },
+    {
+      "text": "演奏",
+      "surface": "演奏",
+      "reading": "エンソウ",
+      "pos": "名詞",
+      "m": 87640,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "技術",
+      "surface": "技術",
+      "reading": "ギジュツ",
+      "pos": "名詞",
+      "m": 87800,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "も",
+      "surface": "も",
+      "reading": "モ",
+      "pos": "助詞",
+      "m": 88060,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "昔",
+      "surface": "昔",
+      "reading": "ムカシ",
+      "pos": "名詞",
+      "m": 88300,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "より",
+      "surface": "より",
+      "reading": "ヨリ",
+      "pos": "助詞",
+      "m": 88540,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "はるか",
+      "surface": "はるか",
+      "reading": "ハルカ",
+      "pos": "名詞",
+      "m": 88820,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 89140,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "高く",
+      "surface": "高く",
+      "reading": "タカク",
+      "pos": "形容詞",
+      "m": 89300,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "なっ",
+      "surface": "なっ",
+      "reading": "ナッ",
+      "pos": "動詞",
+      "m": 89560,
+      "d": 190,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 89750,
+      "d": 50,
+      "endsSentence": false
+    },
+    {
+      "text": "いる",
+      "surface": "いる",
+      "reading": "イル",
+      "pos": "動詞",
+      "m": 89800,
+      "d": 120,
+      "endsSentence": false
+    },
+    {
+      "text": "と",
+      "surface": "と",
+      "reading": "ト",
+      "pos": "助詞",
+      "m": 89920,
+      "d": 172,
+      "endsSentence": false
+    },
+    {
+      "text": "思い",
+      "surface": "思い",
+      "reading": "オモイ",
+      "pos": "動詞",
+      "m": 90092,
+      "d": 344,
+      "endsSentence": false
+    },
+    {
+      "text": "ます。",
+      "surface": "ます",
+      "reading": "マス",
+      "pos": "助動詞",
+      "m": 90436,
+      "d": 344,
+      "endsSentence": true
+    },
+    {
+      "text": "ライブ",
+      "surface": "ライブ",
+      "reading": "ライブ",
+      "pos": "名詞",
+      "m": 91680,
+      "d": 60,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 91740,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "演出",
+      "surface": "演出",
+      "reading": "エンシュツ",
+      "pos": "名詞",
+      "m": 92000,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "なんか",
+      "surface": "なんか",
+      "reading": "ナンカ",
+      "pos": "助詞",
+      "m": 92180,
+      "d": 360,
+      "endsSentence": false
+    },
+    {
+      "text": "も",
+      "surface": "も",
+      "reading": "モ",
+      "pos": "助詞",
+      "m": 92540,
+      "d": 440,
+      "endsSentence": false
+    },
+    {
+      "text": "自分",
+      "surface": "自分",
+      "reading": "ジブン",
+      "pos": "名詞",
+      "m": 92980,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "で",
+      "surface": "で",
+      "reading": "デ",
+      "pos": "助詞",
+      "m": 93180,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "手がける",
+      "surface": "手がける",
+      "reading": "テガケル",
+      "pos": "動詞",
+      "m": 93380,
+      "d": 340,
+      "endsSentence": false
+    },
+    {
+      "text": "人",
+      "surface": "人",
+      "reading": "ヒト",
+      "pos": "名詞",
+      "m": 93720,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "も",
+      "surface": "も",
+      "reading": "モ",
+      "pos": "助詞",
+      "m": 93900,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "い",
+      "surface": "い",
+      "reading": "イ",
+      "pos": "動詞",
+      "m": 94140,
+      "d": 47,
+      "endsSentence": false
+    },
+    {
+      "text": "ます",
+      "surface": "ます",
+      "reading": "マス",
+      "pos": "助動詞",
+      "m": 94187,
+      "d": 93,
+      "endsSentence": false
+    },
+    {
+      "text": "し",
+      "surface": "し",
+      "reading": "シ",
+      "pos": "助詞",
+      "m": 94280,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "ね。",
+      "surface": "ね",
+      "reading": "ネ",
+      "pos": "助詞",
+      "m": 94520,
+      "d": 460,
+      "endsSentence": true
+    },
+    {
+      "text": "ええ。",
+      "surface": "ええ",
+      "reading": "エエ",
+      "pos": "感動詞",
+      "m": 94980,
+      "d": 1280,
+      "endsSentence": true
+    },
+    {
+      "text": "でも",
+      "surface": "でも",
+      "reading": "デモ",
+      "pos": "接続詞",
+      "m": 96260,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "一方",
+      "surface": "一方",
+      "reading": "イッポウ",
+      "pos": "名詞",
+      "m": 96480,
+      "d": 400,
+      "endsSentence": false
+    },
+    {
+      "text": "で、",
+      "surface": "で",
+      "reading": "デ",
+      "pos": "助詞",
+      "m": 96880,
+      "d": 820,
+      "endsSentence": false
+    },
+    {
+      "text": "最近",
+      "surface": "最近",
+      "reading": "サイキン",
+      "pos": "名詞",
+      "m": 97780,
+      "d": 100,
+      "endsSentence": false
+    },
+    {
+      "text": "は",
+      "surface": "は",
+      "reading": "ハ",
+      "pos": "助詞",
+      "m": 97880,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "こう",
+      "surface": "こう",
+      "reading": "コウ",
+      "pos": "副詞",
+      "m": 98120,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "言っ",
+      "surface": "言っ",
+      "reading": "イッ",
+      "pos": "動詞",
+      "m": 98320,
+      "d": 60,
+      "endsSentence": false
+    },
+    {
+      "text": "ちゃ",
+      "surface": "ちゃ",
+      "reading": "チャ",
+      "pos": "助詞",
+      "m": 98380,
+      "d": 40,
+      "endsSentence": false
+    },
+    {
+      "text": "なん",
+      "surface": "なん",
+      "reading": "ナン",
+      "pos": "名詞",
+      "m": 98420,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "です",
+      "surface": "です",
+      "reading": "デス",
+      "pos": "助動詞",
+      "m": 98580,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "が、",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 98840,
+      "d": 760,
+      "endsSentence": false
+    },
+    {
+      "text": "どこ",
+      "surface": "どこ",
+      "reading": "ドコ",
+      "pos": "名詞",
+      "m": 99720,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "か",
+      "surface": "か",
+      "reading": "カ",
+      "pos": "助詞",
+      "m": 99880,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "で",
+      "surface": "で",
+      "reading": "デ",
+      "pos": "助詞",
+      "m": 100040,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "聞い",
+      "surface": "聞い",
+      "reading": "キイ",
+      "pos": "動詞",
+      "m": 100340,
+      "d": 60,
+      "endsSentence": false
+    },
+    {
+      "text": "た",
+      "surface": "た",
+      "reading": "タ",
+      "pos": "助動詞",
+      "m": 100400,
+      "d": 60,
+      "endsSentence": false
+    },
+    {
+      "text": "こと",
+      "surface": "こと",
+      "reading": "コト",
+      "pos": "名詞",
+      "m": 100460,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 100700,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "ある",
+      "surface": "ある",
+      "reading": "アル",
+      "pos": "動詞",
+      "m": 100980,
+      "d": 80,
+      "endsSentence": false
+    },
+    {
+      "text": "よう",
+      "surface": "よう",
+      "reading": "ヨウ",
+      "pos": "名詞",
+      "m": 101060,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "な、",
+      "surface": "な",
+      "reading": "ナ",
+      "pos": "助動詞",
+      "m": 101200,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "あり",
+      "surface": "あり",
+      "reading": "アリ",
+      "pos": "動詞",
+      "m": 101520,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "き",
+      "surface": "き",
+      "reading": "キ",
+      "pos": "助動詞",
+      "m": 101720,
+      "d": 80,
+      "endsSentence": false
+    },
+    {
+      "text": "たり",
+      "surface": "たり",
+      "reading": "タリ",
+      "pos": "助詞",
+      "m": 101800,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 101960,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "曲",
+      "surface": "曲",
+      "reading": "キョク",
+      "pos": "名詞",
+      "m": 102160,
+      "d": 120,
+      "endsSentence": false
+    },
+    {
+      "text": "も",
+      "surface": "も",
+      "reading": "モ",
+      "pos": "助詞",
+      "m": 102280,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "増え",
+      "surface": "増え",
+      "reading": "フエ",
+      "pos": "動詞",
+      "m": 102580,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "た",
+      "surface": "た",
+      "reading": "タ",
+      "pos": "助動詞",
+      "m": 102720,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "よう",
+      "surface": "よう",
+      "reading": "ヨウ",
+      "pos": "名詞",
+      "m": 102900,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 103060,
+      "d": 80,
+      "endsSentence": false
+    },
+    {
+      "text": "思う",
+      "surface": "思う",
+      "reading": "オモウ",
+      "pos": "動詞",
+      "m": 103140,
+      "d": 230,
+      "endsSentence": false
+    },
+    {
+      "text": "ん",
+      "surface": "ん",
+      "reading": "ン",
+      "pos": "名詞",
+      "m": 103370,
+      "d": 70,
+      "endsSentence": false
+    },
+    {
+      "text": "です。",
+      "surface": "です",
+      "reading": "デス",
+      "pos": "助動詞",
+      "m": 103440,
+      "d": 180,
+      "endsSentence": true
+    },
+    {
+      "text": "その",
+      "surface": "その",
+      "reading": "ソノ",
+      "pos": "連体詞",
+      "m": 104600,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "点",
+      "surface": "点",
+      "reading": "テン",
+      "pos": "名詞",
+      "m": 104760,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "この",
+      "surface": "この",
+      "reading": "コノ",
+      "pos": "連体詞",
+      "m": 105060,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "バンド",
+      "surface": "バンド",
+      "reading": "バンド",
+      "pos": "名詞",
+      "m": 105240,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "は、",
+      "surface": "は",
+      "reading": "ハ",
+      "pos": "助詞",
+      "m": 105440,
+      "d": 620,
+      "endsSentence": false
+    },
+    {
+      "text": "演奏",
+      "surface": "演奏",
+      "reading": "エンソウ",
+      "pos": "名詞",
+      "m": 106060,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "こそ",
+      "surface": "こそ",
+      "reading": "コソ",
+      "pos": "助詞",
+      "m": 106340,
+      "d": 360,
+      "endsSentence": false
+    },
+    {
+      "text": "まだまだ",
+      "surface": "まだまだ",
+      "reading": "マダマダ",
+      "pos": "副詞",
+      "m": 106700,
+      "d": 480,
+      "endsSentence": false
+    },
+    {
+      "text": "荒っぽく",
+      "surface": "荒っぽく",
+      "reading": "アラッポク",
+      "pos": "形容詞",
+      "m": 107180,
+      "d": 440,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 107620,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "磨き",
+      "surface": "磨き",
+      "reading": "ミガキ",
+      "pos": "名詞",
+      "m": 107860,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "よう",
+      "surface": "よう",
+      "reading": "ヨウ",
+      "pos": "名詞",
+      "m": 108120,
+      "d": 0,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 108120,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "あり",
+      "surface": "あり",
+      "reading": "アリ",
+      "pos": "動詞",
+      "m": 108320,
+      "d": 110,
+      "endsSentence": false
+    },
+    {
+      "text": "ます",
+      "surface": "ます",
+      "reading": "マス",
+      "pos": "助動詞",
+      "m": 108430,
+      "d": 110,
+      "endsSentence": false
+    },
+    {
+      "text": "が、",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 108540,
+      "d": 760,
+      "endsSentence": false
+    },
+    {
+      "text": "自分",
+      "surface": "自分",
+      "reading": "ジブン",
+      "pos": "名詞",
+      "m": 109420,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "たち",
+      "surface": "たち",
+      "reading": "タチ",
+      "pos": "名詞",
+      "m": 109620,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 109840,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "世界",
+      "surface": "世界",
+      "reading": "セカイ",
+      "pos": "名詞",
+      "m": 110040,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "観",
+      "surface": "観",
+      "reading": "カン",
+      "pos": "名詞",
+      "m": 110320,
+      "d": 120,
+      "endsSentence": false
+    },
+    {
+      "text": "を",
+      "surface": "を",
+      "reading": "ヲ",
+      "pos": "助詞",
+      "m": 110440,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "歌詞",
+      "surface": "歌詞",
+      "reading": "カシ",
+      "pos": "名詞",
+      "m": 110760,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "で",
+      "surface": "で",
+      "reading": "デ",
+      "pos": "助詞",
+      "m": 110900,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "表現",
+      "surface": "表現",
+      "reading": "ヒョウゲン",
+      "pos": "名詞",
+      "m": 111200,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "し",
+      "surface": "し",
+      "reading": "シ",
+      "pos": "動詞",
+      "m": 111340,
+      "d": 130,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 111470,
+      "d": 130,
+      "endsSentence": false
+    },
+    {
+      "text": "い",
+      "surface": "い",
+      "reading": "イ",
+      "pos": "動詞",
+      "m": 111600,
+      "d": 53,
+      "endsSentence": false
+    },
+    {
+      "text": "ます",
+      "surface": "ます",
+      "reading": "マス",
+      "pos": "助動詞",
+      "m": 111653,
+      "d": 107,
+      "endsSentence": false
+    },
+    {
+      "text": "よ",
+      "surface": "よ",
+      "reading": "ヨ",
+      "pos": "助詞",
+      "m": 111760,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "ね。",
+      "surface": "ね",
+      "reading": "ネ",
+      "pos": "助詞",
+      "m": 111920,
+      "d": 160,
+      "endsSentence": true
+    },
+    {
+      "text": "それ",
+      "surface": "それ",
+      "reading": "ソレ",
+      "pos": "名詞",
+      "m": 112740,
+      "d": 380,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 113120,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "同",
+      "surface": "同",
+      "reading": "ドウ",
+      "pos": "接頭詞",
+      "m": 113340,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "世代",
+      "surface": "世代",
+      "reading": "セダイ",
+      "pos": "名詞",
+      "m": 113600,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 113760,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "心",
+      "surface": "心",
+      "reading": "ココロ",
+      "pos": "名詞",
+      "m": 114040,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "に",
+      "surface": "に",
+      "reading": "ニ",
+      "pos": "助詞",
+      "m": 114240,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "響い",
+      "surface": "響い",
+      "reading": "ヒビイ",
+      "pos": "動詞",
+      "m": 114560,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 114700,
+      "d": 120,
+      "endsSentence": false
+    },
+    {
+      "text": "いる",
+      "surface": "いる",
+      "reading": "イル",
+      "pos": "動詞",
+      "m": 114820,
+      "d": 160,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "名詞",
+      "m": 114980,
+      "d": 120,
+      "endsSentence": false
+    },
+    {
+      "text": "で",
+      "surface": "で",
+      "reading": "デ",
+      "pos": "助動詞",
+      "m": 115100,
+      "d": 90,
+      "endsSentence": false
+    },
+    {
+      "text": "は",
+      "surface": "は",
+      "reading": "ハ",
+      "pos": "助詞",
+      "m": 115190,
+      "d": 90,
+      "endsSentence": false
+    },
+    {
+      "text": "ない",
+      "surface": "ない",
+      "reading": "ナイ",
+      "pos": "助動詞",
+      "m": 115280,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "でしょ",
+      "surface": "でしょ",
+      "reading": "デショ",
+      "pos": "助動詞",
+      "m": 115460,
+      "d": 195,
+      "endsSentence": false
+    },
+    {
+      "text": "う",
+      "surface": "う",
+      "reading": "ウ",
+      "pos": "助動詞",
+      "m": 115655,
+      "d": 65,
+      "endsSentence": false
+    },
+    {
+      "text": "か。",
+      "surface": "か",
+      "reading": "カ",
+      "pos": "助詞",
+      "m": 115720,
+      "d": 2400,
+      "endsSentence": true
+    },
+    {
+      "text": "評論",
+      "surface": "評論",
+      "reading": "ヒョウロン",
+      "pos": "名詞",
+      "m": 122240,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "家",
+      "surface": "家",
+      "reading": "カ",
+      "pos": "名詞",
+      "m": 122380,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "は、",
+      "surface": "は",
+      "reading": "ハ",
+      "pos": "助詞",
+      "m": 122560,
+      "d": 640,
+      "endsSentence": false
+    },
+    {
+      "text": "この",
+      "surface": "この",
+      "reading": "コノ",
+      "pos": "連体詞",
+      "m": 123460,
+      "d": 20,
+      "endsSentence": false
+    },
+    {
+      "text": "ロックバンド",
+      "surface": "ロックバンド",
+      "reading": "ロックバンド",
+      "pos": "名詞",
+      "m": 123480,
+      "d": 560,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 124040,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "人気",
+      "surface": "人気",
+      "reading": "ニンキ",
+      "pos": "名詞",
+      "m": 124320,
+      "d": 380,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 124700,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "ある",
+      "surface": "ある",
+      "reading": "アル",
+      "pos": "動詞",
+      "m": 125000,
+      "d": 80,
+      "endsSentence": false
+    },
+    {
+      "text": "一番",
+      "surface": "一番",
+      "reading": "イチバン",
+      "pos": "名詞",
+      "m": 125080,
+      "d": 740,
+      "endsSentence": false
+    },
+    {
+      "text": "の",
+      "surface": "の",
+      "reading": "ノ",
+      "pos": "助詞",
+      "m": 125820,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "理由",
+      "surface": "理由",
+      "reading": "リユウ",
+      "pos": "名詞",
+      "m": 126020,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "は",
+      "surface": "は",
+      "reading": "ハ",
+      "pos": "助詞",
+      "m": 126300,
+      "d": 280,
+      "endsSentence": false
+    },
+    {
+      "text": "何",
+      "surface": "何",
+      "reading": "ナニ",
+      "pos": "名詞",
+      "m": 126580,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "だ",
+      "surface": "だ",
+      "reading": "ダ",
+      "pos": "助動詞",
+      "m": 126720,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "と",
+      "surface": "と",
+      "reading": "ト",
+      "pos": "助詞",
+      "m": 126860,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "言っ",
+      "surface": "言っ",
+      "reading": "イッ",
+      "pos": "動詞",
+      "m": 127060,
+      "d": 120,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 127180,
+      "d": 80,
+      "endsSentence": false
+    },
+    {
+      "text": "い",
+      "surface": "い",
+      "reading": "イ",
+      "pos": "動詞",
+      "m": 127260,
+      "d": 73,
+      "endsSentence": false
+    },
+    {
+      "text": "ます",
+      "surface": "ます",
+      "reading": "マス",
+      "pos": "助動詞",
+      "m": 127333,
+      "d": 147,
+      "endsSentence": false
+    },
+    {
+      "text": "か。",
+      "surface": "か",
+      "reading": "カ",
+      "pos": "助詞",
+      "m": 127480,
+      "d": 340,
+      "endsSentence": true
+    }
+  ]
+}

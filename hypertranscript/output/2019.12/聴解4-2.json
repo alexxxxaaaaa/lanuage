@@ -1,0 +1,407 @@
+{
+  "exam": "2019.12",
+  "question": "聴解4-2",
+  "audioPath": "n1-qbank/audio/2019.12/聴解4-2.mp3",
+  "mediaSrc": "/exam-media/2019.12/聴解4-2.mp3",
+  "duration": 36.256,
+  "text": "2番。さっき作ってくれたこの見積書、合計金額が抜けてるよ。1。すみません、計算が間違ってましたか？2。すみません、合計書かない方がよかったんですね。3。すみません、書き入れて出し直します。",
+  "models": {
+    "text": "gpt-transcribe",
+    "timing": "whisper-1"
+  },
+  "matchRate": 1,
+  "tokens": [
+    {
+      "text": "2",
+      "surface": "2",
+      "pos": "名詞",
+      "m": 9980,
+      "d": 400,
+      "endsSentence": false
+    },
+    {
+      "text": "番。",
+      "surface": "番",
+      "reading": "バン",
+      "pos": "名詞",
+      "m": 10380,
+      "d": 400,
+      "endsSentence": true
+    },
+    {
+      "text": "さっき",
+      "surface": "さっき",
+      "reading": "サッキ",
+      "pos": "名詞",
+      "m": 11900,
+      "d": 260,
+      "endsSentence": false
+    },
+    {
+      "text": "作っ",
+      "surface": "作っ",
+      "reading": "ツクッ",
+      "pos": "動詞",
+      "m": 12160,
+      "d": 330,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 12490,
+      "d": 130,
+      "endsSentence": false
+    },
+    {
+      "text": "くれ",
+      "surface": "くれ",
+      "reading": "クレ",
+      "pos": "動詞",
+      "m": 12620,
+      "d": 200,
+      "endsSentence": false
+    },
+    {
+      "text": "た",
+      "surface": "た",
+      "reading": "タ",
+      "pos": "助動詞",
+      "m": 12820,
+      "d": 40,
+      "endsSentence": false
+    },
+    {
+      "text": "この",
+      "surface": "この",
+      "reading": "コノ",
+      "pos": "連体詞",
+      "m": 12860,
+      "d": 400,
+      "endsSentence": false
+    },
+    {
+      "text": "見積",
+      "surface": "見積",
+      "reading": "ミツモリ",
+      "pos": "名詞",
+      "m": 13260,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "書、",
+      "surface": "書",
+      "reading": "ショ",
+      "pos": "名詞",
+      "m": 13480,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "合計",
+      "surface": "合計",
+      "reading": "ゴウケイ",
+      "pos": "名詞",
+      "m": 14580,
+      "d": 100,
+      "endsSentence": false
+    },
+    {
+      "text": "金額",
+      "surface": "金額",
+      "reading": "キンガク",
+      "pos": "名詞",
+      "m": 14680,
+      "d": 400,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 15080,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "抜け",
+      "surface": "抜け",
+      "reading": "ヌケ",
+      "pos": "動詞",
+      "m": 15380,
+      "d": 150,
+      "endsSentence": false
+    },
+    {
+      "text": "てる",
+      "surface": "てる",
+      "reading": "テル",
+      "pos": "動詞",
+      "m": 15530,
+      "d": 230,
+      "endsSentence": false
+    },
+    {
+      "text": "よ。",
+      "surface": "よ",
+      "reading": "ヨ",
+      "pos": "助詞",
+      "m": 15760,
+      "d": 740,
+      "endsSentence": true
+    },
+    {
+      "text": "1。",
+      "surface": "1",
+      "pos": "名詞",
+      "m": 18080,
+      "d": 400,
+      "endsSentence": true
+    },
+    {
+      "text": "すみません、",
+      "surface": "すみません",
+      "reading": "スミマセン",
+      "pos": "感動詞",
+      "m": 19660,
+      "d": 380,
+      "endsSentence": false
+    },
+    {
+      "text": "計算",
+      "surface": "計算",
+      "reading": "ケイサン",
+      "pos": "名詞",
+      "m": 20700,
+      "d": 120,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 20820,
+      "d": 300,
+      "endsSentence": false
+    },
+    {
+      "text": "間違っ",
+      "surface": "間違っ",
+      "reading": "マチガッ",
+      "pos": "動詞",
+      "m": 21120,
+      "d": 320,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 21440,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "まし",
+      "surface": "まし",
+      "reading": "マシ",
+      "pos": "助動詞",
+      "m": 21580,
+      "d": 120,
+      "endsSentence": false
+    },
+    {
+      "text": "た",
+      "surface": "た",
+      "reading": "タ",
+      "pos": "助動詞",
+      "m": 21700,
+      "d": 60,
+      "endsSentence": false
+    },
+    {
+      "text": "か？",
+      "surface": "か",
+      "reading": "カ",
+      "pos": "助詞",
+      "m": 21760,
+      "d": 520,
+      "endsSentence": true
+    },
+    {
+      "text": "2。",
+      "surface": "2",
+      "pos": "名詞",
+      "m": 23920,
+      "d": 400,
+      "endsSentence": true
+    },
+    {
+      "text": "すみません、",
+      "surface": "すみません",
+      "reading": "スミマセン",
+      "pos": "感動詞",
+      "m": 25780,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "合計",
+      "surface": "合計",
+      "reading": "ゴウケイ",
+      "pos": "名詞",
+      "m": 26660,
+      "d": 180,
+      "endsSentence": false
+    },
+    {
+      "text": "書か",
+      "surface": "書か",
+      "reading": "カカ",
+      "pos": "動詞",
+      "m": 26840,
+      "d": 340,
+      "endsSentence": false
+    },
+    {
+      "text": "ない",
+      "surface": "ない",
+      "reading": "ナイ",
+      "pos": "助動詞",
+      "m": 27180,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "方",
+      "surface": "方",
+      "reading": "ホウ",
+      "pos": "名詞",
+      "m": 27320,
+      "d": 60,
+      "endsSentence": false
+    },
+    {
+      "text": "が",
+      "surface": "が",
+      "reading": "ガ",
+      "pos": "助詞",
+      "m": 27380,
+      "d": 220,
+      "endsSentence": false
+    },
+    {
+      "text": "よかっ",
+      "surface": "よかっ",
+      "reading": "ヨカッ",
+      "pos": "形容詞",
+      "m": 27600,
+      "d": 213,
+      "endsSentence": false
+    },
+    {
+      "text": "た",
+      "surface": "た",
+      "reading": "タ",
+      "pos": "助動詞",
+      "m": 27813,
+      "d": 67,
+      "endsSentence": false
+    },
+    {
+      "text": "ん",
+      "surface": "ん",
+      "reading": "ン",
+      "pos": "名詞",
+      "m": 27880,
+      "d": 140,
+      "endsSentence": false
+    },
+    {
+      "text": "です",
+      "surface": "です",
+      "reading": "デス",
+      "pos": "助動詞",
+      "m": 28020,
+      "d": 240,
+      "endsSentence": false
+    },
+    {
+      "text": "ね。",
+      "surface": "ね",
+      "reading": "ネ",
+      "pos": "助詞",
+      "m": 28260,
+      "d": 120,
+      "endsSentence": true
+    },
+    {
+      "text": "3。",
+      "surface": "3",
+      "pos": "名詞",
+      "m": 31240,
+      "d": 360,
+      "endsSentence": true
+    },
+    {
+      "text": "すみません、",
+      "surface": "すみません",
+      "reading": "スミマセン",
+      "pos": "感動詞",
+      "m": 31960,
+      "d": 480,
+      "endsSentence": false
+    },
+    {
+      "text": "書き入れ",
+      "surface": "書き入れ",
+      "reading": "カキイレ",
+      "pos": "動詞",
+      "m": 32980,
+      "d": 330,
+      "endsSentence": false
+    },
+    {
+      "text": "て",
+      "surface": "て",
+      "reading": "テ",
+      "pos": "助詞",
+      "m": 33310,
+      "d": 110,
+      "endsSentence": false
+    },
+    {
+      "text": "出し",
+      "surface": "出し",
+      "reading": "ダシ",
+      "pos": "動詞",
+      "m": 33420,
+      "d": 420,
+      "endsSentence": false
+    },
+    {
+      "text": "直し",
+      "surface": "直し",
+      "reading": "ナオシ",
+      "pos": "動詞",
+      "m": 33840,
+      "d": 150,
+      "endsSentence": false
+    },
+    {
+      "text": "ます。",
+      "surface": "ます",
+      "reading": "マス",
+      "pos": "助動詞",
+      "m": 34080,
+      "d": 180,
+      "endsSentence": true
+    }
+  ]
+}
