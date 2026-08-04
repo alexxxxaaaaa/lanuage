@@ -1,19 +1,19 @@
 /**
  * JLPT 词汇级别表。
  *
- * 数据是「日本語能力試験出題基準語彙表」，由 server/scripts/buildJlptVocab.ts
- * 生成成静态文件 client/public/dict/jlpt.tsv（每行 `词形 \t 级别数字串`），
- * 随前端一起发布。8 千行 / 83 KB，一个会话下载解析一次就够，缓存放模块级：
+ * 数据由 server/scripts/buildJlptVocab.ts 从两份词表合成静态文件
+ * client/public/dict/jlpt.tsv（每行 `词形 \t 级别数字串`，`#` 开头是署名），
+ * 随前端一起发布。8.8 千行 / 96 KB，一个会话下载解析一次就够，缓存放模块级：
  * 右侧索引栏、查词结果、词单卡片三处共用同一份。
  *
  * 只按词形匹配，不看读音 —— 三处的读音口径本来就不一致（索引里片假名词的读音
- * 是平假名，用户自己填的读音还可能是空的），拿它当键只会漏标。同一词形跨级别的
- * 172 个词（「頭」1/2/4 級）级别全收，展示时并排。
+ * 是平假名，用户自己填的读音还可能是空的），拿它当键只会漏标。代价是同形不同
+ * 读音的词会把几个读音的级别都收进来（東 = ひがし N5 / あずま N1），和两份
+ * 词表判得不一样的情况一样，都并排展示，不替谁挑一个。
  */
 import { useCallback, useEffect, useState } from 'react'
 
-/** 出題基準的 1〜4 級，按数字对到现行的 N1〜N4。 */
-export type JlptLevel = 'N1' | 'N2' | 'N3' | 'N4'
+export type JlptLevel = 'N1' | 'N2' | 'N3' | 'N4' | 'N5'
 
 type JlptTable = Map<string, readonly JlptLevel[]>
 

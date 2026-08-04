@@ -1,20 +1,27 @@
 /**
  * 生成 JLPT 词汇级别表 client/public/dict/jlpt.tsv。
  *
- * 数据源：日本語能力試験出題基準語彙表（内山和也 编整，凡人社《出題基準【改訂版】》）
- *   https://www7a.biglobe.ne.jp/nifongo/data/noryoku.html
- * 取的是同页提供的 TSV 下载 noryoku.txt.gz（UTF-16LE + CRLF），比抓 1.6 MB 的
- * HTML 表格稳。
+ * 两个来源，级别取并集 —— 官方从 2010 年改版起就不再公布词表，市面上所有
+ * N1〜N5 词表都是估计值，两家对同一个词判不同级别很常见，都留着比替谁挑一个诚实。
  *
- * 「級別」列是旧试验的 1〜4 级，这里按数字直译成 N1〜N4；0 表示基准表未收录，跳过。
+ *   A. 日本語能力試験出題基準語彙表（旧试验 1〜4 級，最后一份官方词表）
+ *      https://www7a.biglobe.ne.jp/nifongo/data/noryoku.html
+ *      取同页提供的 TSV 下载（UTF-16LE + CRLF），比解析 1.6 MB 的 HTML 表格稳。
+ *      級別数字直译成 N1〜N4；0 表示基准表未收录，跳过。
+ *      词形取「漢字・原文」列 —— 没有汉字的词那一列本来就重复了假名写法，所以它
+ *      同时覆盖汉字词和纯假名词。只有片假名外来语例外：那一列放的是原文
+ *      （アイスクリーム → icecream），这时改取「語」列。
  *
- * 词形取「漢字・原文」列 —— 没有汉字的词那一列本来就重复了假名写法，所以它同时
- * 覆盖汉字词和纯假名词。只有片假名外来语例外：那一列放的是原文
- * （アイスクリーム → icecream），这时改取「語」列。
+ *   B. Jonathan Waller《JLPT Resources》(CC BY) http://www.tanos.co.uk/jlpt/
+ *      jisho.org 的 JLPT 标签用的就是这份，原生分 N1〜N5（A 那份没有 N5）。
+ *      经 https://github.com/stephenmk/yomitan-jlpt-vocab 用 JMdict 校正过词形
+ *      （歯磨 → 歯磨き 这类罕见写法换成常用写法），比原始列表更容易和词库对上。
+ *      词形取汉字列，纯假名词取假名列 —— 和 A 的口径一致。
  *
- * 产物每行 `词形 \t 级别数字串`，按词形排序：
- *   あいさつ	3
- *   後	24        ← 同一词形跨级别的约 170 个词并排收全，前端并排展示 N2 N4
+ * 产物每行 `词形 \t 级别数字串`，按词形排序；`#` 开头是署名，客户端解析时
+ * 因为没有制表符自然跳过：
+ *   勉強	45      ← 两源分别判 N4 / N5，都留
+ *   東	15        ← ひがし 是 N5、あずま 是 N1，同形不同读音，也都留
  *
  * 用法：
  *   npm run build:jlpt                 # 缺源文件时自动下载到 .dictcache/
@@ -27,11 +34,22 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const REPO = join(ROOT, '..')
-const SOURCE_URL = 'https://www7a.biglobe.ne.jp/nifongo/data/noryoku.txt.gz'
-const CACHE_FILE = join(ROOT, '.dictcache', 'noryoku.txt.gz')
+const CACHE_DIR = join(ROOT, '.dictcache')
 const OUT_FILE = join(REPO, 'client', 'public', 'dict', 'jlpt.tsv')
 
-/** 假名或汉字。用来分辨「原文」列到底是日语写法还是外来语原文。 */
+const KIJUN_URL = 'https://www7a.biglobe.ne.jp/nifongo/data/noryoku.txt.gz'
+const WALLER_URL =
+  'https://raw.githubusercontent.com/stephenmk/yomitan-jlpt-vocab/main/original_data'
+
+/** 写进产物开头的署名。CC BY 要求随作品传播，这个文件是直接发给浏览器的。 */
+const ATTRIBUTION = [
+  '# JLPT 词汇级别表 —— server/scripts/buildJlptVocab.ts 生成，勿手改。',
+  '# 出題基準語彙表 https://www7a.biglobe.ne.jp/nifongo/data/noryoku.html',
+  '# JLPT Resources by Jonathan Waller (CC BY) http://www.tanos.co.uk/jlpt/',
+  '#   词形经 https://github.com/stephenmk/yomitan-jlpt-vocab 按 JMdict 校正',
+]
+
+/** 假名或汉字。用来分辨「漢字・原文」列到底是日语写法还是外来语原文。 */
 const HAS_JAPANESE = /[぀-ヿ㐀-鿿]/
 const KANA_ONLY = /^[ぁ-ゟァ-ヿー]+$/
 
@@ -64,7 +82,7 @@ function expandOptional(text: string): string[] {
 }
 
 /**
- * 一格原文 → 若干个可查的词形。
+ * 出題基準的一格原文 → 若干个可查的词形。
  *
  * 格子里的标记：`「…」` 是用例语境（case「場合・状況」），`〜` 是词缀位，
  * `-` 是词素分隔（失礼-します），`。` 是寒暄语的句号，都不进词形。
@@ -96,25 +114,25 @@ function surfaceForms(field: string): string[] {
   return [...forms]
 }
 
-async function fetchSource(force: boolean): Promise<Buffer> {
-  if (!force && existsSync(CACHE_FILE)) {
-    process.stdout.write(`✓ 已缓存 ${CACHE_FILE}\n`)
-    return readFileSync(CACHE_FILE)
-  }
-  process.stdout.write(`↓ ${SOURCE_URL}\n`)
-  const response = await fetch(SOURCE_URL)
-  if (!response.ok) throw new Error(`下载失败：${response.status} ${response.statusText}`)
+async function download(url: string, name: string, force: boolean): Promise<Buffer> {
+  const file = join(CACHE_DIR, name)
+  if (!force && existsSync(file)) return readFileSync(file)
+
+  process.stdout.write(`↓ ${url}\n`)
+  const response = await fetch(url)
+  if (!response.ok) throw new Error(`下载失败：${response.status} ${response.statusText} ${url}`)
   const buffer = Buffer.from(await response.arrayBuffer())
-  mkdirSync(dirname(CACHE_FILE), { recursive: true })
-  writeFileSync(CACHE_FILE, buffer)
+  mkdirSync(CACHE_DIR, { recursive: true })
+  writeFileSync(file, buffer)
   return buffer
 }
 
-function main(gzipped: Buffer) {
+type Tag = (form: string, level: number) => void
+
+/** 源 A：出題基準語彙表。返回收下的行数。 */
+function collectKijun(gzipped: Buffer, tag: Tag): number {
   const tsv = new TextDecoder('utf-16le').decode(gunzipSync(gzipped))
-  const levels = new Map<string, Set<number>>()
   let rows = 0
-  let skipped = 0
 
   // 第一行是表头（語 / 級別 / 舊 / 漢字・原文 / …）。
   for (const line of tsv.split('\n').slice(1)) {
@@ -123,39 +141,68 @@ function main(gzipped: Buffer) {
     const [kana, rawLevel, , original] = columns
 
     const level = Number(rawLevel)
-    if (!Number.isInteger(level) || level < 1 || level > 4) {
-      skipped++
-      continue
-    }
+    if (!Number.isInteger(level) || level < 1 || level > 4) continue
     rows++
 
     const isLoanword = !HAS_JAPANESE.test(stripContext(original))
     for (const form of surfaceForms(isLoanword ? kana : original)) {
       // 汉日混排的格子（jet；ジェット機）里，原文那一半不是日语词形。
-      if (!HAS_JAPANESE.test(form)) continue
-      const seen = levels.get(form)
-      if (seen) seen.add(level)
-      else levels.set(form, new Set([level]))
+      if (HAS_JAPANESE.test(form)) tag(form, level)
     }
   }
+  return rows
+}
 
-  mkdirSync(dirname(OUT_FILE), { recursive: true })
+/** 源 B：Waller 词表的一个级别。列是 `jmdict_seq,kana,kanji,definition`。 */
+function collectWaller(csv: string, level: number, tag: Tag): number {
+  let rows = 0
+  for (const line of csv.split('\n').slice(1)) {
+    // 释义列带引号和逗号，但前三列不会，朴素切分取到 kanji 就够。
+    const [, kana = '', kanji = ''] = line.split(',')
+    const form = (kanji.trim() || kana.trim()).trim()
+    if (!form) continue
+    rows++
+    tag(form, level)
+  }
+  return rows
+}
+
+async function main(force: boolean) {
+  const levels = new Map<string, Set<number>>()
+  const tag: Tag = (form, level) => {
+    const seen = levels.get(form)
+    if (seen) seen.add(level)
+    else levels.set(form, new Set([level]))
+  }
+
+  const kijunRows = collectKijun(await download(KIJUN_URL, 'noryoku.txt.gz', force), tag)
+  process.stdout.write(`出題基準 ${kijunRows.toLocaleString()} 行 → 词形 ${levels.size}\n`)
+
+  const before = levels.size
+  let wallerRows = 0
+  for (const level of [1, 2, 3, 4, 5]) {
+    const csv = await download(`${WALLER_URL}/n${level}.csv`, `waller-n${level}.csv`, force)
+    wallerRows += collectWaller(csv.toString('utf8'), level, tag)
+  }
+  process.stdout.write(
+    `Waller ${wallerRows.toLocaleString()} 行 → 新增词形 ${levels.size - before}\n`,
+  )
+
   const lines = [...levels]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([form, set]) => `${form}\t${[...set].sort().join('')}`)
-  writeFileSync(OUT_FILE, lines.join('\n') + '\n')
+  const content = [...ATTRIBUTION, ...lines].join('\n') + '\n'
+  mkdirSync(dirname(OUT_FILE), { recursive: true })
+  writeFileSync(OUT_FILE, content)
 
   const multi = [...levels.values()].filter((set) => set.size > 1).length
   process.stdout.write(
-    `词条 ${rows.toLocaleString()} 行（跳过未收录 ${skipped}）` +
-      ` → 词形 ${lines.length.toLocaleString()} 个，其中跨级别 ${multi} 个\n` +
-      `  ${OUT_FILE} (${(Buffer.byteLength(lines.join('\n')) / 1000).toFixed(0)} KB)\n`,
+    `合计词形 ${lines.length.toLocaleString()}，其中跨级别 ${multi.toLocaleString()}\n` +
+      `  ${OUT_FILE} (${(Buffer.byteLength(content) / 1000).toFixed(0)} KB)\n`,
   )
 }
 
-fetchSource(process.argv.includes('--force-download'))
-  .then(main)
-  .catch((error) => {
-    console.error(error)
-    process.exit(1)
-  })
+main(process.argv.includes('--force-download')).catch((error) => {
+  console.error(error)
+  process.exit(1)
+})

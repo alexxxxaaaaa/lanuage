@@ -1,13 +1,19 @@
 import { Chip } from '@heroui/react'
 import type { JlptLevel } from '../lib/jlptVocab'
 
-/** 级别数字越小越难，颜色跟着难度走，不用读字也知道深浅。 */
-const LEVEL_COLOR = {
-  N1: 'danger',
-  N2: 'warning',
-  N3: 'accent',
-  N4: 'success',
-} as const satisfies Record<JlptLevel, 'danger' | 'warning' | 'accent' | 'success'>
+/**
+ * 难度色阶：N1 红 → N5 灰，和复习页的「又忘了 / 有点难 / 记住了」同一套语义色。
+ *
+ * 走 className 而不是 Chip 的 color 属性 —— 五个档要五种色，HeroUI 只给四种，
+ * 少的那一档（金）本来就在主题里，索性五档都用同一种写法。
+ */
+const LEVEL_CLASS: Record<JlptLevel, string> = {
+  N1: 'bg-danger-soft text-danger-soft-foreground',
+  N2: 'bg-warning-soft text-warning-soft-foreground',
+  N3: 'bg-gold-soft text-gold-soft-foreground',
+  N4: 'bg-success-soft text-success-soft-foreground',
+  N5: 'bg-foreground/6 text-muted',
+}
 
 type Props = {
   levels: readonly JlptLevel[]
@@ -17,7 +23,8 @@ type Props = {
 }
 
 /**
- * 一个词的 JLPT 级别标签。出題基準里跨了几个级别的词（「頭」1/2/4 級）全部并排。
+ * 一个词的 JLPT 级别标签。两份词表判得不一样、或者同形不同读音分属不同级别时
+ * （東 = ひがし N5 / あずま N1），几个级别并排挂着，不替谁挑一个。
  *
  * 没级别就整个不渲染 —— 返回 null 而不是空 span，外层 flex 的 gap 才不会
  * 在没有标签的行上留出一段空隙。
@@ -28,7 +35,7 @@ export function JlptChips({ levels, size = 'sm', className }: Props) {
   return (
     <span className={`flex shrink-0 items-center gap-1 ${className ?? ''}`}>
       {levels.map((level) => (
-        <Chip key={level} size={size} variant="soft" color={LEVEL_COLOR[level]}>
+        <Chip key={level} size={size} variant="soft" className={LEVEL_CLASS[level]}>
           <Chip.Label>{level}</Chip.Label>
         </Chip>
       ))}
