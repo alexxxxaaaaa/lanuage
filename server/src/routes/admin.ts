@@ -4,6 +4,7 @@ import {
   deleteFolder,
   deleteNote,
   deleteUser,
+  createUser,
   deleteWord,
   getNoteDetail,
   getStats,
@@ -34,8 +35,16 @@ adminRouter.get('/stats', async (c) => c.json(await getStats()))
 adminRouter.get('/users', async (c) => {
   const { page, pageSize } = readPaging(c)
   const keyword = c.req.query('keyword') ?? undefined
-  const includeHash = c.req.query('includeHash') === 'true'
-  return c.json(await listUsers({ keyword, page, pageSize, includeHash }))
+  return c.json(await listUsers({ keyword, page, pageSize }))
+})
+
+// 建号的唯一入口（公开的 /api/auth/register 已下线）。
+adminRouter.post('/users', async (c) => {
+  const { username, password } = await c.req.json<{
+    username?: string
+    password?: string
+  }>()
+  return c.json(await createUser(username ?? '', password ?? ''), 201)
 })
 
 adminRouter.get('/users/:id', async (c) => c.json(await getUserDetail(c.req.param('id'))))

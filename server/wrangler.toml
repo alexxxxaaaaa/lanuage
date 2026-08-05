@@ -17,6 +17,10 @@ migrations_dir = "prisma/migrations"
 [vars]
 OPENAI_MODEL = "gpt-5.6-luna"
 DAILY_AI_TOKEN_BUDGET = "50000"
+# CORS 白名单（逗号分隔，带协议、不带尾斜杠）。localhost / 127.0.0.1 任意端口
+# 永远放行，本地开发不用动这里。留空 = 放行所有来源。
+# 部署管理后台后记得把它的域名也加进来，否则后台会被 CORS 挡在门外。
+ALLOWED_ORIGINS = "https://lgstudy.com,https://www.lgstudy.com"
 # Subtitle proxy: a separate Node service that fetches YouTube from a
 # non-Cloudflare IP. The auth token goes via `wrangler secret put
 # SUBTITLE_PROXY_TOKEN`. Leave URL blank to disable proxy mode.

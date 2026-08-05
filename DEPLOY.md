@@ -141,11 +141,42 @@ git push github main
 cd server && npx wrangler secret put NAME_HERE
 ```
 
+### 账号 / 登录相关的一次性动作
+
+**本次账号系统加固要跑的迁移**（在部署新代码之前）：
+
+```bash
+cd server
+npx wrangler d1 execute word-sprint-db --remote \
+  --file=./prisma/migrations/20260805000000_auth_hardening/migration.sql
+```
+
+它给 `User` 加 `tokenVersion` 列、建 `LoginThrottle` 表。密码哈希不用迁移：新旧
+格式在同一列里共存，老的 bcrypt 行会在各自下次登录时自动换成 PBKDF2。
+
+部署后**所有人需要重新登录一次** —— token 里多了签发方和 `tokenVersion`，旧代码
+签的那些验不过。这是一次性的。
+
+**建账号**：日常走管理后台的「新建用户」。库里一个人都没有、或者要在生产补一个
+管理员时，用脚本生成 INSERT 再喂给 D1：
+
+```bash
+cd server
+npm run user:create -- someone 'their-password' --sql
+# 把打印出来的那行 INSERT 贴进去：
+npx wrangler d1 execute word-sprint-db --remote --command="<粘贴>"
+```
+
+管理员身份不在库里，而是看用户名在不在 `wrangler.toml` `[vars]` 的
+`ADMIN_USERNAMES` 里 —— 改它要重新部署 Worker 才生效。
+
 ---
 
 ## Troubleshooting
 
-- **CORS errors in browser**: Worker already enables `cors()` for all origins. If you see CORS blocks, it's usually a misconfigured `VITE_API_BASE_URL` (trailing slash, wrong protocol).
+- **CORS errors in browser**: the Worker only echoes back origins listed in `ALLOWED_ORIGINS` (`wrangler.toml` `[vars]`), plus any `localhost` / `127.0.0.1` port. A new front-end domain has to be added there and redeployed. Leaving the var empty falls back to allowing every origin. If the origin *is* listed, the cause is usually a misconfigured `VITE_API_BASE_URL` (trailing slash, wrong protocol).
+- **Everyone got logged out after a deploy**: expected once, right after the auth-hardening release — tokens now carry an issuer and a `tokenVersion`, so ones signed by the old code no longer validate. Signing in again is all it takes.
+- **`登录失败次数过多` on a valid password**: that IP tripped the login throttle (8 failures in 15 min → locked for 15 min). Clear it with `npx wrangler d1 execute word-sprint-db --remote --command="DELETE FROM LoginThrottle WHERE key='ip:1.2.3.4';"`.
 - **`Failed to fetch` on R2 objects (transcripts) while audio plays fine**: the `jlpt` bucket has no CORS rules. Audio goes through an `<audio>` tag (no CORS), transcripts go through `fetch()` (CORS required). Fix by applying [server/scripts/r2-cors.json](server/scripts/r2-cors.json): `cd server && npm run cors:r2` (takes ~10s to propagate; check with `npx wrangler r2 bucket cors list jlpt`). Add any new front-end origin to that file — the rules cover the whole bucket, not just transcripts.
 - **`process.env.X is undefined` in Worker logs**: Check that the secret is set (`wrangler secret list`) and that you're reading via `getEnv()`, not direct `process.env`.
 - **D1 query fails locally with `wrangler dev`**: Run `npm run d1:migrations:apply:local` first to set up the local D1 simulator.

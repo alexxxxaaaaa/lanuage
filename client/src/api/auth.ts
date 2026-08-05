@@ -4,7 +4,6 @@ export type AuthUser = {
   id: string
   username: string
   createdAt?: string
-  isAdmin?: boolean
 }
 
 export type AuthResponse = {

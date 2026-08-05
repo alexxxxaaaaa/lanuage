@@ -2,6 +2,8 @@ export interface AuthUser {
   id: string
   username: string
   createdAt?: string
+  /** 后台只对管理员开放，登录时就拿它挡掉普通账号，不用等每个接口 403。 */
+  isAdmin: boolean
 }
 
 export interface LoginResponse {
@@ -34,7 +36,6 @@ export interface AdminStats {
 export interface AdminUserRow {
   id: string
   username: string
-  passwordHash?: string
   createdAt: string
   folderCount: number
   noteCount: number
@@ -43,7 +44,6 @@ export interface AdminUserRow {
 }
 
 export interface AdminUserDetail extends AdminUserRow {
-  passwordHash: string
   wordCount: number
   expressionCount: number
   aiTotalTokens: number

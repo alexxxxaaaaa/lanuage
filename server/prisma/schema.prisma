@@ -10,10 +10,16 @@ datasource db {
 }
 
 model User {
-  id                String             @id @default(uuid())
-  username          String             @unique
-  passwordHash      String
-  createdAt         DateTime           @default(now())
+  id           String @id @default(uuid())
+  username     String @unique
+  /// 自描述格式：`pbkdf2$sha256$<迭代数>$<salt>$<hash>`。老行还是 bcrypt 的
+  /// `$2a$…`，登录验过之后会就地换成新格式，见 src/lib/password.ts。
+  passwordHash String
+  /// 已签发 token 的代数。JWT 里带一份，requireAuth 每次比对，对不上就当过期。
+  /// 改密码 / 删账号时 +1，等于把该用户所有在外的 token 一次作废 —— 没有这一列
+  /// 的话无状态 JWT 只能等它自己到期（30 天）。
+  tokenVersion Int    @default(0)
+  createdAt    DateTime           @default(now())
   folders           Folder[]
   words             Word[]
   notes             Note[]
@@ -23,6 +29,21 @@ model User {
   podcasts          Podcast[]
   reviewEvents      ReviewEvent[]
   settings          UserSettings?
+}
+
+/// 登录失败计数，按来源 IP 一行。没有这张表的话，密码就是纯粹的在线爆破靶子：
+/// 接口不限速，一个 6 位密码几小时就撞开了。
+///
+/// 只在「登录失败」时才写，成功登录只读不写；行是复用的（同一个 IP 永远一行），
+/// 所以表的规模等于近期失败过的 IP 数，不需要定期清理。
+model LoginThrottle {
+  /// 目前只有 `ip:<地址>` 一种。留成字符串是为了以后想按账号维度限流时不用改表。
+  key         String    @id
+  failures    Int       @default(0)
+  /// 窗口起点：距今超过 THROTTLE_WINDOW 就把计数清零重来，避免「一个月里零星
+  /// 错 8 次」也被锁。
+  firstFailAt DateTime  @default(now())
+  lockedUntil DateTime?
 }
 
 /// 设置页的偏好，跟账号走而不是跟浏览器走 —— 换台机器登录看到的是同一套。

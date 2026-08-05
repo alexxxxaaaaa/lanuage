@@ -18,7 +18,7 @@ import {
   Typography,
   message,
 } from 'antd'
-import { ArrowLeftOutlined, CopyOutlined, ReloadOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { adminApi } from '@/api'
 import type {
@@ -119,12 +119,6 @@ export default function UserDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
-  const copyHash = () => {
-    if (!detail?.passwordHash) return
-    navigator.clipboard.writeText(detail.passwordHash)
-    message.success('已复制哈希')
-  }
-
   if (!id) return <Empty description="缺少用户 id" />
 
   return (
@@ -154,14 +148,6 @@ export default function UserDetailPage() {
           >
             <Descriptions.Item label="用户 ID">
               <code style={{ fontSize: 12 }}>{detail.id}</code>
-            </Descriptions.Item>
-            <Descriptions.Item label="密码哈希" span={2}>
-              <Space size={4}>
-                <code style={{ fontSize: 12, wordBreak: 'break-all' }}>
-                  {detail.passwordHash}
-                </code>
-                <Button size="small" type="text" icon={<CopyOutlined />} onClick={copyHash} />
-              </Space>
             </Descriptions.Item>
           </Descriptions>
 

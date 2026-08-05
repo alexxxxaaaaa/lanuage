@@ -1,29 +1,20 @@
 import { Hono } from 'hono'
-import { getUserById, login, register } from '../services/authService'
-import { requireAuth, type AppEnv } from '../middleware/requireAuth'
+import { getUserById, login } from '../services/authService'
+import { throttleKeyFromHeaders } from '../services/loginThrottle'
+import { getUserId, type AppEnv } from '../middleware/requireAuth'
 
 export const authRouter = new Hono<AppEnv>()
 
-authRouter.post('/register', async (c) => {
-  const { username, password } = await c.req.json<{
-    username?: string
-    password?: string
-  }>()
-  const result = await register(username ?? '', password ?? '')
-  return c.json(result, 201)
-})
-
+// 没有 /register：建号只走管理后台的 POST /api/admin/users。
 authRouter.post('/login', async (c) => {
   const { username, password } = await c.req.json<{
     username?: string
     password?: string
   }>()
-  const result = await login(username ?? '', password ?? '')
+  const throttleKey = throttleKeyFromHeaders((name) => c.req.header(name))
+  const result = await login(username ?? '', password ?? '', throttleKey)
   return c.json(result)
 })
 
-authRouter.get('/me', requireAuth, async (c) => {
-  const userId = c.get('userId')
-  const user = await getUserById(userId)
-  return c.json(user)
-})
+// 鉴权由 app.ts 的 /api/* 守卫统一做，这里不用再挂一次。
+authRouter.get('/me', async (c) => c.json(await getUserById(getUserId(c))))

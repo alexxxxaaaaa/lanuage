@@ -1,9 +1,12 @@
-import bcrypt from 'bcryptjs'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../errors/AppError'
 import { noteContentToText } from '../lib/noteContent'
-
-const MIN_PASSWORD_LENGTH = 6
+import {
+  assertCredentialFormat,
+  assertPasswordFormat,
+  normalizeUsername,
+} from '../lib/credentials'
+import { hashPassword } from '../lib/password'
 
 export async function getStats() {
   const [
@@ -50,13 +53,32 @@ export async function getStats() {
   }
 }
 
-export async function listUsers(params: {
-  keyword?: string
-  page: number
-  pageSize: number
-  includeHash?: boolean
-}) {
-  const { keyword, page, pageSize, includeHash } = params
+/**
+ * 建号。公开注册下线之后这是唯一的入口。
+ *
+ * 不返回 token —— 管理员建的是别人的号，建完让本人自己去登录页登，避免后台顺手
+ * 拿到一个能冒充该用户的凭证。
+ */
+export async function createUser(rawUsername: string, password: string) {
+  const username = normalizeUsername(rawUsername)
+  assertCredentialFormat(username, password)
+
+  // 这里没有「先查再建」的竞态：唯一约束是最终判据，P2002 由 errorHandler 兜住。
+  // 先查一次只是为了把消息说清楚。
+  const existing = await prisma.user.findUnique({ where: { username }, select: { id: true } })
+  if (existing) {
+    throw new AppError('用户名已被占用', 409)
+  }
+
+  const user = await prisma.user.create({
+    data: { username, passwordHash: await hashPassword(password) },
+    select: { id: true, username: true, createdAt: true },
+  })
+  return user
+}
+
+export async function listUsers(params: { keyword?: string; page: number; pageSize: number }) {
+  const { keyword, page, pageSize } = params
   const where = keyword ? { username: { contains: keyword.toLowerCase() } } : {}
 
   const [total, rows] = await Promise.all([
@@ -66,10 +88,12 @@ export async function listUsers(params: {
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * pageSize,
       take: pageSize,
+      // passwordHash 不在这里，也不该在任何出参里：管理员没有需要看它的场景，
+      // 而 hash 一旦落到浏览器缓存或截图里就等于把离线爆破的靶子递出去了。
+      // 要换密码走 resetUserPassword。
       select: {
         id: true,
         username: true,
-        passwordHash: includeHash,
         createdAt: true,
         _count: {
           select: {
@@ -90,7 +114,6 @@ export async function listUsers(params: {
     rows: rows.map((u) => ({
       id: u.id,
       username: u.username,
-      passwordHash: includeHash ? u.passwordHash : undefined,
       createdAt: u.createdAt,
       folderCount: u._count.folders,
       noteCount: u._count.notes,
@@ -103,7 +126,12 @@ export async function listUsers(params: {
 export async function getUserDetail(id: string) {
   const user = await prisma.user.findUnique({
     where: { id },
-    include: {
+    // 同 listUsers：select 而不是 include，免得以后往 User 上加敏感列时被
+    // 「整行带出去」默默泄露。
+    select: {
+      id: true,
+      username: true,
+      createdAt: true,
       _count: {
         select: {
           folders: true,
@@ -128,7 +156,6 @@ export async function getUserDetail(id: string) {
   return {
     id: user.id,
     username: user.username,
-    passwordHash: user.passwordHash,
     createdAt: user.createdAt,
     folderCount: user._count.folders,
     noteCount: user._count.notes,
@@ -143,31 +170,70 @@ export async function getUserDetail(id: string) {
 }
 
 export async function resetUserPassword(id: string, newPassword: string) {
-  if (!newPassword || newPassword.length < MIN_PASSWORD_LENGTH) {
-    throw new AppError(`密码至少 ${MIN_PASSWORD_LENGTH} 个字符`, 400)
-  }
-  const user = await prisma.user.findUnique({ where: { id } })
+  assertPasswordFormat(newPassword)
+  const user = await prisma.user.findUnique({ where: { id }, select: { id: true } })
   if (!user) throw new AppError('用户不存在', 404)
-  const passwordHash = await bcrypt.hash(newPassword, 10)
-  await prisma.user.update({ where: { id }, data: { passwordHash } })
+
+  await prisma.user.update({
+    where: { id },
+    data: {
+      passwordHash: await hashPassword(newPassword),
+      // 换了密码就把该用户在外的 token 全作废。少了这一句，重置密码只是「以后
+      // 得用新密码登」，已经泄露的旧 token 还能再用满 30 天 —— 那就等于没救回
+      // 这个账号。
+      tokenVersion: { increment: 1 },
+    },
+  })
   return { ok: true }
 }
 
+/**
+ * 删用户及其全部数据。
+ *
+ * 这里必须逐张表列全：所有指向 User 的外键都是 ON DELETE RESTRICT，漏一张就是
+ * 最后那句 user.delete 抛 P2003。而 D1 不支持事务（Prisma 的 D1 adapter 会把
+ * $transaction 降级成逐条执行，见 pris.ly/d/d1-transactions），失败时前面删掉的
+ * 行回不来 —— 用户的词和笔记已经没了，账号却还在。所以这里不包 $transaction：
+ * 那层包装在生产上是假的，留着只会让人以为有原子性。
+ *
+ * 换来的性质是「幂等且可重试」：每一步都是 deleteMany，中途失败再点一次删除能
+ * 从断点继续推进。
+ *
+ * 顺序 = 从叶子往根走。往 User 上挂新表时，这个列表要跟着加。
+ */
 export async function deleteUser(id: string) {
-  const user = await prisma.user.findUnique({ where: { id } })
+  const user = await prisma.user.findUnique({ where: { id }, select: { id: true } })
   if (!user) throw new AppError('用户不存在', 404)
 
-  await prisma.$transaction(async (tx) => {
-    await tx.review.deleteMany({ where: { word: { userId: id } } })
-    await tx.wordFolder.deleteMany({ where: { word: { userId: id } } })
-    await tx.word.deleteMany({ where: { userId: id } })
-    await tx.folder.deleteMany({ where: { userId: id } })
-    await tx.expression.deleteMany({ where: { folder: { userId: id } } })
-    await tx.expressionFolder.deleteMany({ where: { userId: id } })
-    await tx.note.deleteMany({ where: { userId: id } })
-    await tx.aiUsageLog.deleteMany({ where: { userId: id } })
-    await tx.user.delete({ where: { id } })
-  })
+  // 无外键、纯按 userId 存的答题记录，先清掉。
+  await prisma.reviewEvent.deleteMany({ where: { userId: id } })
+  await prisma.grammarQuestionAttempt.deleteMany({ where: { userId: id } })
+  await prisma.qbankAttempt.deleteMany({ where: { userId: id } })
+  await prisma.qbankFavorite.deleteMany({ where: { userId: id } })
+  await prisma.qbankExamAttempt.deleteMany({ where: { userId: id } })
+
+  // 语法：GrammarReview 指向 Grammar 且是 RESTRICT，得走在前面；GrammarQuestion
+  // 是 CASCADE，跟着 Grammar 一起走。
+  await prisma.grammarReview.deleteMany({ where: { grammar: { userId: id } } })
+  await prisma.grammar.deleteMany({ where: { userId: id } })
+
+  await prisma.podcast.deleteMany({ where: { userId: id } })
+  await prisma.aiUsageLog.deleteMany({ where: { userId: id } })
+
+  // 单词：Review 和 WordFolder 都挂在 Word 上。
+  await prisma.review.deleteMany({ where: { word: { userId: id } } })
+  await prisma.wordFolder.deleteMany({ where: { word: { userId: id } } })
+  await prisma.word.deleteMany({ where: { userId: id } })
+  await prisma.folder.deleteMany({ where: { userId: id } })
+
+  await prisma.expression.deleteMany({ where: { folder: { userId: id } } })
+  await prisma.expressionFolder.deleteMany({ where: { userId: id } })
+
+  // Note 要等 Word 走完 —— Word.sourceNoteId 指着它。
+  await prisma.note.deleteMany({ where: { userId: id } })
+  await prisma.userSettings.deleteMany({ where: { userId: id } })
+
+  await prisma.user.delete({ where: { id } })
   return { ok: true }
 }
 

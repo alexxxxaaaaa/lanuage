@@ -20,15 +20,17 @@ cp server/.env.example server/.env
 cd server && npx prisma migrate dev
 ```
 
-That's it — your local `server/prisma/dev.db` is fresh and empty. The client is
-sign-in only (there is no registration screen), so create the first account
-against the API directly, then sign in at `/login`:
+That's it — your local `server/prisma/dev.db` is fresh and empty. There is no
+registration screen and no public registration endpoint: accounts are created
+either from the admin dashboard (`POST /api/admin/users`) or, when the database
+is still empty, from the CLI:
 
 ```bash
-curl -X POST http://localhost:3000/api/auth/register \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"me","password":"your-password"}'
+cd server && npm run user:create -- me 'your-password'
 ```
+
+Then add `me` to `ADMIN_USERNAMES` in `server/.env` if this account should also
+reach the admin dashboard, and sign in at `/login`.
 
 ## Daily development
 

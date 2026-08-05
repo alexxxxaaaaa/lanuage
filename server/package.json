@@ -12,6 +12,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "node --import tsx prisma/seed.ts",
     "prisma:studio": "prisma studio",
+    "user:create": "node --import tsx scripts/createUser.ts",
     "reviews:backfill": "node --import tsx scripts/backfillMissingReviews.ts",
     "export:sqlite-to-d1-sql": "node --import tsx scripts/exportSqliteToD1Sql.ts",
     "import:words": "node --import tsx scripts/importWordsToCloud.ts",

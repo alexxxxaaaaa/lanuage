@@ -1,9 +1,10 @@
 import type { Context } from 'hono'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { AppError } from '../errors/AppError'
 
 export function handleError(error: unknown, c: Context) {
   if (error instanceof AppError) {
-    return c.json({ message: error.message }, error.statusCode as 400 | 401 | 404 | 409 | 500)
+    return c.json({ message: error.message }, error.statusCode as ContentfulStatusCode)
   }
 
   if (typeof error === 'object' && error !== null && 'code' in error) {
