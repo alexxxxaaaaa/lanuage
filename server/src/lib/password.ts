@@ -5,10 +5,17 @@
  *
  * 为什么从 bcryptjs 换过来：bcryptjs 是纯 JS 的 bcrypt，cost=10 实测 111ms 全
  * 是 JS 执行时间，在 Workers 上顶着 CPU 限额，是全站最贵的一次请求。PBKDF2 走
- * 的是原生实现，600k 迭代实测 65ms，更快而且不占 JS 线程。
+ * 的是原生实现，不占 JS 线程。
  *
- * 迭代数取 OWASP 对 PBKDF2-SHA256 的推荐值 600k。PBKDF2 对 GPU 爆破的抵抗力
- * 本就不如 bcrypt（没有 bcrypt 那 4KB 工作内存拖慢显卡），所以这里不省迭代。
+ * 迭代数被平台钉死在 100k：workerd 的 Web Crypto 对 PBKDF2 有硬上限，超过就抛
+ * `NotSupportedError: iteration counts above 100000 are not supported`。这里曾按
+ * OWASP 对 PBKDF2-SHA256 的推荐值填 600k，结果是线上每次登录必 500 —— 本地
+ * `npm run dev` 和测试都跑在 Node 上，Node 没有这个上限，所以测不出来。改这个
+ * 常量前先确认 workerd 是否放宽了限制，别只在 Node 上验。
+ *
+ * 100k 低于 OWASP 的推荐值，这是平台天花板下的既定事实，不是选择。要补回强度得
+ * 换构造（例如链式多轮，或迁到 WASM 的 Argon2），届时靠 needsRehash 就能在各自
+ * 下次登录时无缝换掉，不需要迁移 SQL —— 存储格式本来就是自描述的。
  *
  * 存储格式是自描述的：
  *   pbkdf2$sha256$<迭代数>$<salt base64>$<hash base64>
@@ -18,7 +25,8 @@
  */
 import bcrypt from 'bcryptjs'
 
-const PBKDF2_ITERATIONS = 600_000
+/** workerd 的上限，不是调优出来的值 —— 见文件头。 */
+const PBKDF2_ITERATIONS = 100_000
 const PBKDF2_HASH = 'SHA-256'
 const SALT_BYTES = 16
 const KEY_BITS = 256
@@ -31,9 +39,13 @@ const BCRYPT_RE = /^\$2[aby]\$/
  *
  * 没有它的话，「用户不存在」是 0ms 返回而「密码错」要等一次 KDF，响应时间差一个
  * 数量级，用户名就成了可枚举的。
+ *
+ * 串里的迭代数必须跟 PBKDF2_ITERATIONS 一起改：verifyPassword 是从串里解析迭代
+ * 数的，不看常量。忘了改这行，「用户不存在」这条路径会继续用老迭代数跑，超上限
+ * 时整条路径 500 —— 而这恰好是登录最常走的分支之一。
  */
 const DUMMY_HASH =
-  'pbkdf2$sha256$600000$gP/Yq05LVz41xK7XIsDxwg==$JtbmB19SBzUFftgOwSQrqHFzLS71mo623++ojVmPaXk='
+  'pbkdf2$sha256$100000$s10hMMKAE36L70RFBQmxKw==$BZk4HZ2XR95gxLQaeTeBgMRG+kMoc8iT9XsXnKgrN8A='
 
 function toBase64(bytes: Uint8Array): string {
   let binary = ''
