@@ -11,7 +11,7 @@ import { GrammarImages } from '../components/GrammarImages'
 import { JlptChips } from '../components/JlptChips'
 import { JpText } from '../components/JpText'
 import { parseImages, resolveExamples } from '../utils/grammarText'
-import { asJlptLevels } from '../lib/jlptVocab'
+import { asGrammarLevels, GRAMMAR_LEVELS } from '../lib/grammarLevels'
 import type { Grammar, ReviewRating } from '../types'
 import { Button } from '@heroui/react'
 
@@ -42,10 +42,11 @@ export function LearnGrammarPage() {
     const n = Number(raw)
     return Number.isFinite(n) && n > 0 ? n : null
   })()
-  // ?level=N2 把这一场限定在某个级别（来自列表页的级别筛选器）。不带就是全部。
+  // ?level=N2 把这一场限定在某个级别（来自列表页的级别筛选器）。不带就是全部；
+  // 认不出的值也当没带 —— 别把一段 URL 里的自由文本原样送去查库。
   const levelFilter = (() => {
     const raw = searchParams.get('level') ?? ''
-    return /^N[1-5]$/.test(raw) ? raw : undefined
+    return GRAMMAR_LEVELS.find((level) => level === raw)
   })()
   const [allGrammars, setAllGrammars] = useState<Grammar[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -237,7 +238,7 @@ export function LearnGrammarPage() {
               {currentItem.pattern}
               <AudioButton src={currentItem.audioKey ?? ''} label="朗读句型" />
             </div>
-            <JlptChips levels={asJlptLevels(currentItem.level)} size="md" />
+            <JlptChips levels={asGrammarLevels(currentItem.level)} size="md" />
           </div>
           {currentItem.connection ? (
             <p className={STUDY_LINE}>

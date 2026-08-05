@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma'
+import { levelFilter } from '../lib/grammarLevel'
 import { AppError } from '../errors/AppError'
 import { withMediaUrls } from './grammarService'
 
@@ -267,7 +268,7 @@ export async function getUnlearnedGrammars(userId: string, level?: string) {
     where: {
       userId,
       isLearned: false,
-      ...(level ? { level } : {}),
+      ...levelFilter(level),
       OR: [
         { review: { is: null } },
         { review: { is: { lastReviewedAt: null } } },

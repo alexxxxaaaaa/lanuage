@@ -13,7 +13,7 @@ import { GrammarImages } from '../components/GrammarImages'
 import { JlptChips } from '../components/JlptChips'
 import { JpText } from '../components/JpText'
 import { parseImages, resolveExamples } from '../utils/grammarText'
-import { asJlptLevels } from '../lib/jlptVocab'
+import { asGrammarLevels } from '../lib/grammarLevels'
 import type { GrammarReviewItem, ReviewRating } from '../types'
 import { Button } from '@heroui/react'
 
@@ -174,7 +174,7 @@ export function ReviewGrammarPage() {
               <span className="muted"> · 队列剩 {queue.length}</span>
             </strong>
           </div>
-          <JlptChips levels={asJlptLevels(grammar.level)} size="md" />
+          <JlptChips levels={asGrammarLevels(grammar.level)} size="md" />
         </div>
 
         <div

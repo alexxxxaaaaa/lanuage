@@ -10,7 +10,14 @@ import { getGrammarReviewCounts } from '../api/grammarReview'
 import { getErrorMessage } from '../api/error'
 import { useI18n } from '../i18n'
 import type { CreateGrammarPayload, Grammar } from '../types'
-import { asJlptLevels, JLPT_LEVELS } from '../lib/jlptVocab'
+import {
+  asGrammarLevels,
+  CUSTOM_LEVEL,
+  GRAMMAR_LEVELS,
+  toGrammarLevel,
+  useGrammarLevelLabel,
+  type GrammarLevel,
+} from '../lib/grammarLevels'
 import { scrollAppToTop } from '../lib/scroll'
 
 const EMPTY_FORM: CreateGrammarPayload = {
@@ -20,7 +27,8 @@ const EMPTY_FORM: CreateGrammarPayload = {
   example: '',
   exampleZh: '',
   note: '',
-  level: 'N1',
+  // 手工建的句型多半不对应 JLPT 某一级，默认落在自建这一档，要归级再自己挑。
+  level: CUSTOM_LEVEL,
 }
 
 // 按钮里的计数胶囊。在 secondary / ghost 上要换成深色底才看得清。
@@ -32,8 +40,8 @@ function firstLine(text?: string) {
   return (text ?? '').split('\n').find((s) => s.trim()) ?? ''
 }
 
-// 级别筛选里「全部」这一项的键。级别本身是 N1-N5 这种字符串，空串在下拉框里
-// 不是个能选的键，所以另给一个哨兵值，落到 state 时再换回空串。
+// 级别筛选里「全部」这一项的键。级别本身是 N1-N5 / CUSTOM 这几个字符串，空串
+// 在下拉框里不是个能选的键，所以另给一个哨兵值，落到 state 时再换回空串。
 const ALL_LEVELS = '__all__'
 
 // 一次铺多少张卡片。装进整本蓝宝书之后不筛选就是 800 多条，全渲染出来手机上
@@ -43,6 +51,7 @@ const PAGE_SIZE = 200
 export function GrammarPage() {
   const navigate = useNavigate()
   const { t } = useI18n()
+  const levelLabel = useGrammarLevelLabel()
   const [grammars, setGrammars] = useState<Grammar[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -51,7 +60,7 @@ export function GrammarPage() {
   const [isAiFilling, setIsAiFilling] = useState(false)
   const [form, setForm] = useState<CreateGrammarPayload>(EMPTY_FORM)
   const [keyword, setKeyword] = useState('')
-  const [level, setLevel] = useState<string>('')
+  const [level, setLevel] = useState<GrammarLevel | ''>('')
   const [counts, setCounts] = useState<{ due: number; unlearned: number }>({
     due: 0,
     unlearned: 0,
@@ -94,7 +103,7 @@ export function GrammarPage() {
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase()
     return grammars.filter((g) => {
-      if (level && g.level !== level) return false
+      if (level && toGrammarLevel(g.level) !== level) return false
       if (learnedFilter === 'learned' && !g.isLearned) return false
       if (learnedFilter === 'unlearned' && g.isLearned) return false
       if (!kw) return true
@@ -134,9 +143,11 @@ export function GrammarPage() {
     }
   }
 
+  // 筛选器只列真正有条目的级别。归一之后排序，'CUSTOM' 按字母序落在 N1 前面，
+  // 和新建表单里的顺序一致。
   const levels = useMemo(() => {
-    const s = new Set<string>()
-    for (const g of grammars) if (g.level) s.add(g.level)
+    const s = new Set<GrammarLevel>()
+    for (const g of grammars) s.add(toGrammarLevel(g.level))
     return Array.from(s).sort()
   }, [grammars])
 
@@ -276,7 +287,7 @@ export function GrammarPage() {
           className="min-w-[120px]"
           options={[
             { value: ALL_LEVELS, label: t('grammar.levelAll') },
-            ...levels.map((lv) => ({ value: lv, label: lv })),
+            ...levels.map((lv) => ({ value: lv, label: levelLabel(lv) })),
           ]}
         />
         <div className="flex flex-wrap gap-1.5">
@@ -370,9 +381,9 @@ export function GrammarPage() {
           <label>
             级别
             <SelectField
-              value={form.level ?? 'N1'}
+              value={toGrammarLevel(form.level)}
               onChange={(v) => setForm((p) => ({ ...p, level: v }))}
-              options={JLPT_LEVELS.map((lv) => ({ value: lv, label: lv }))}
+              options={GRAMMAR_LEVELS.map((lv) => ({ value: lv, label: levelLabel(lv) }))}
             />
           </label>
           <div className="form-actions">
@@ -400,7 +411,7 @@ export function GrammarPage() {
                 <Link to={`/grammar/${g.id}`} className="text-xl font-bold text-foreground no-underline [word-break:keep-all] hover:text-accent">
                   {g.pattern}
                 </Link>
-                <JlptChips levels={asJlptLevels(g.level)} size="md" />
+                <JlptChips levels={asGrammarLevels(g.level)} size="md" />
                 {g.isLearned ? (
                   <span className="inline-flex items-center rounded-full bg-success-soft px-2 py-0.5 text-xs font-semibold text-success-soft-foreground">{t('grammar.learnedPill')}</span>
                 ) : null}

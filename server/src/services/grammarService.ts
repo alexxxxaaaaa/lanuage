@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma'
 import { getEnv } from '../lib/env'
+import { CUSTOM_LEVEL, levelFilter } from '../lib/grammarLevel'
 import { AppError } from '../errors/AppError'
 
 // 蓝宝书的朗读和活用表图片跟题库共用 jlpt 桶，各挂各的前缀。
@@ -99,7 +100,9 @@ export async function createGrammar(userId: string, input: CreateGrammarInput) {
         example: normalize(input.example),
         exampleZh: normalize(input.exampleZh),
         note: normalize(input.note),
-        level: normalize(input.level) || 'N1',
+        // 手工建的条目不带级别就是「自建」—— 建条目的只有语法页那个表单，它总会
+        // 传值，这里兜的是直接打接口的情况。
+        level: normalize(input.level) || CUSTOM_LEVEL,
         userId,
         // New rows get pinnedAt = now so they surface at the top of the
         // unified pinnedAt-desc timeline (same semantics as Word).
@@ -121,7 +124,7 @@ export async function getGrammars(
   return prisma.grammar.findMany({
     where: {
       userId,
-      ...(level ? { level } : {}),
+      ...levelFilter(level),
       ...(learned === 'learned' ? { isLearned: true } : {}),
       ...(learned === 'unlearned' ? { isLearned: false } : {}),
       ...(normalized

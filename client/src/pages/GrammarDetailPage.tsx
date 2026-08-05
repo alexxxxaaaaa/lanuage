@@ -15,7 +15,12 @@ import { GrammarImages } from '../components/GrammarImages'
 import { JlptChips } from '../components/JlptChips'
 import { JpText } from '../components/JpText'
 import { parseImages, resolveExamples } from '../utils/grammarText'
-import { asJlptLevels, JLPT_LEVELS } from '../lib/jlptVocab'
+import {
+  asGrammarLevels,
+  GRAMMAR_LEVELS,
+  toGrammarLevel,
+  useGrammarLevelLabel,
+} from '../lib/grammarLevels'
 import type { Grammar, UpdateGrammarPayload } from '../types'
 
 function toForm(g: Grammar): UpdateGrammarPayload {
@@ -33,6 +38,7 @@ function toForm(g: Grammar): UpdateGrammarPayload {
 export function GrammarDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const levelLabel = useGrammarLevelLabel()
   const [grammar, setGrammar] = useState<Grammar | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
@@ -169,7 +175,7 @@ export function GrammarDetailPage() {
         <div>
           <h2 style={{ fontFamily: 'serif' }}>
             {grammar.pattern}
-            <JlptChips levels={asJlptLevels(grammar.level)} size="md" className="ml-2.5" />
+            <JlptChips levels={asGrammarLevels(grammar.level)} size="md" className="ml-2.5" />
             {grammar.audioKey ? <AudioButton src={grammar.audioKey} label="朗读句型" /> : null}
           </h2>
         </div>
@@ -246,9 +252,9 @@ export function GrammarDetailPage() {
           </label>
           <label>级别
             <SelectField
-              value={form.level ?? 'N1'}
+              value={toGrammarLevel(form.level)}
               onChange={(v) => setForm((p) => ({ ...p, level: v }))}
-              options={JLPT_LEVELS.map((lv) => ({ value: lv, label: lv }))}
+              options={GRAMMAR_LEVELS.map((lv) => ({ value: lv, label: levelLabel(lv) }))}
             />
           </label>
           <div className="form-actions">
