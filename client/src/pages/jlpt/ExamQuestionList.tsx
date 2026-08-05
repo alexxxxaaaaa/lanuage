@@ -11,6 +11,7 @@ import {
   questionDomId,
 } from './constants'
 import { DisputeChip, DisputeNotice } from './Dispute'
+import { ExplainText } from './ExplainText'
 import {
   EXPLAIN_BLOCK,
   EXPLAIN_LABEL,
@@ -188,7 +189,7 @@ function QuestionCard({
               <p className={EXPLAIN_LABEL}>
                 {question.category === 'listening' ? '設問' : '译文'}
               </p>
-              <QbankText text={question.stemZh} />
+              <ExplainText text={question.stemZh} />
             </div>
           ) : null}
           {question.explain ? (
@@ -196,7 +197,7 @@ function QuestionCard({
               <p className={EXPLAIN_LABEL}>
                 {question.category === 'listening' ? '原文 / 译文' : '解析'}
               </p>
-              <QbankText text={question.explain} />
+              <ExplainText text={question.explain} />
             </div>
           ) : null}
           {hasDispute ? (

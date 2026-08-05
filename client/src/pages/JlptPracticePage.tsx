@@ -28,6 +28,7 @@ import {
   paperLabel,
 } from './jlpt/constants'
 import { DisputeChip, DisputeNotice } from './jlpt/Dispute'
+import { ExplainText } from './jlpt/ExplainText'
 import {
   EXPLAIN_BLOCK,
   EXPLAIN_LABEL,
@@ -643,13 +644,13 @@ export function JlptPracticePage() {
                       {question.stemZh ? (
                         <div className={EXPLAIN_BLOCK}>
                           <p className={EXPLAIN_LABEL}>{isListening ? '設問' : '译文'}</p>
-                          <QbankText text={question.stemZh} />
+                          <ExplainText text={question.stemZh} />
                         </div>
                       ) : null}
                       {question.explain ? (
                         <div className={EXPLAIN_BLOCK}>
                           <p className={EXPLAIN_LABEL}>{isListening ? '原文 / 译文' : '解析'}</p>
-                          <QbankText text={question.explain} />
+                          <ExplainText text={question.explain} />
                         </div>
                       ) : null}
                       {question.aiExplain || isAiPending ? (
