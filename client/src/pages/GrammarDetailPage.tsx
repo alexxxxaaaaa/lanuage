@@ -12,8 +12,10 @@ import { GrammarQuestionCard } from '../components/GrammarQuestionCard'
 import { getErrorMessage } from '../api/error'
 import { AudioButton } from '../components/AudioButton'
 import { GrammarImages } from '../components/GrammarImages'
+import { JlptChips } from '../components/JlptChips'
 import { JpText } from '../components/JpText'
 import { parseImages, resolveExamples } from '../utils/grammarText'
+import { asJlptLevels, JLPT_LEVELS } from '../lib/jlptVocab'
 import type { Grammar, UpdateGrammarPayload } from '../types'
 
 function toForm(g: Grammar): UpdateGrammarPayload {
@@ -167,7 +169,7 @@ export function GrammarDetailPage() {
         <div>
           <h2 style={{ fontFamily: 'serif' }}>
             {grammar.pattern}
-            <span className="folder-language tag-inline">{grammar.level}</span>
+            <JlptChips levels={asJlptLevels(grammar.level)} size="md" className="ml-2.5" />
             {grammar.audioKey ? <AudioButton src={grammar.audioKey} label="朗读句型" /> : null}
           </h2>
         </div>
@@ -246,10 +248,7 @@ export function GrammarDetailPage() {
             <SelectField
               value={form.level ?? 'N1'}
               onChange={(v) => setForm((p) => ({ ...p, level: v }))}
-              options={['N1', 'N2', 'N3', 'N4', 'N5'].map((lv) => ({
-                value: lv,
-                label: lv,
-              }))}
+              options={JLPT_LEVELS.map((lv) => ({ value: lv, label: lv }))}
             />
           </label>
           <div className="form-actions">

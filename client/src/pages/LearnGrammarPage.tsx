@@ -8,8 +8,10 @@ import {
 import { GrammarQuestionCard } from '../components/GrammarQuestionCard'
 import { AudioButton } from '../components/AudioButton'
 import { GrammarImages } from '../components/GrammarImages'
+import { JlptChips } from '../components/JlptChips'
 import { JpText } from '../components/JpText'
 import { parseImages, resolveExamples } from '../utils/grammarText'
+import { asJlptLevels } from '../lib/jlptVocab'
 import type { Grammar, ReviewRating } from '../types'
 import { Button } from '@heroui/react'
 
@@ -228,9 +230,14 @@ export function LearnGrammarPage() {
         {/* Nested inside `.card`, so it takes the secondary wash rather than
             the card surface again — same surface twice reads as one block. */}
         <div className="flex flex-col gap-3 rounded-[14px] bg-surface-secondary p-5">
-          <div className="text-[26px] font-semibold text-foreground [word-break:keep-all]">
-            {currentItem.pattern}
-            <AudioButton src={currentItem.audioKey ?? ''} label="朗读句型" />
+          {/* 级别跟着句型走，不挂到上面那行进度里：一场里可以混着几个级别
+              （没选级别筛选时），标签贴着句型才知道说的是哪一条。 */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="text-[26px] font-semibold text-foreground [word-break:keep-all]">
+              {currentItem.pattern}
+              <AudioButton src={currentItem.audioKey ?? ''} label="朗读句型" />
+            </div>
+            <JlptChips levels={asJlptLevels(currentItem.level)} size="md" />
           </div>
           {currentItem.connection ? (
             <p className={STUDY_LINE}>

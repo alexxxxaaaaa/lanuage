@@ -13,11 +13,25 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 
-export type JlptLevel = 'N1' | 'N2' | 'N3' | 'N4' | 'N5'
+export const JLPT_LEVELS = ['N1', 'N2', 'N3', 'N4', 'N5'] as const
+
+export type JlptLevel = (typeof JLPT_LEVELS)[number]
 
 type JlptTable = Map<string, readonly JlptLevel[]>
 
 const EMPTY: readonly JlptLevel[] = []
+
+/**
+ * 单值 level 字段（语法条目存的是 'N2' 这样一个字符串）转成标签数组，喂给
+ * <JlptChips />。
+ *
+ * 认不出来的值一律当没级别 —— 手工建的条目 level 是自由文本，直接透传的话
+ * 会渲染出一个没有配色的裸标签。
+ */
+export function asJlptLevels(level: string | undefined): readonly JlptLevel[] {
+  const hit = JLPT_LEVELS.find((candidate) => candidate === level)
+  return hit ? [hit] : EMPTY
+}
 
 let table: JlptTable | null = null
 let inflight: Promise<JlptTable> | null = null
