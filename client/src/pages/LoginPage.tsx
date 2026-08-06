@@ -57,7 +57,9 @@ export function LoginPage() {
     // the surface tokens are translucent washes now, and a gradient fading to
     // one would fade to whatever sits behind <main> instead of to a colour.
     <main className="relative flex h-full items-center justify-center overflow-hidden bg-linear-to-br from-background via-background to-background-tertiary px-4 py-12">
-      <div className="absolute top-4 right-4 z-20 flex items-center gap-1">
+      {/* PWA 全屏下这一角正好压在状态栏底下 —— 让开安全区，没有安全区时
+          （浏览器标签页里）env() 是 0，仍然是原来的 16px。 */}
+      <div className="absolute top-[max(1rem,env(safe-area-inset-top))] right-[max(1rem,env(safe-area-inset-right))] z-20 flex items-center gap-1">
         <ThemeToggle />
         <LocaleSwitcher />
       </div>

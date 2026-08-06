@@ -46,6 +46,15 @@
 }
 
 @layer base {
+  html {
+    /* iOS 的 PWA 全屏模式下，布局视口未必和屏幕严格等高（`viewport-fit=cover`
+       加半透明状态栏时它会短一截，主屏指示条那一条就露在外面）。露出来的部分
+       画的是 canvas 背景，而 canvas 背景取自 <html> —— 不设就是浏览器默认色，
+       深色模式下是纯黑，于是页面底部凭空多出一道黑边。染成页面底色之后，视口
+       算得准不准都看不出来，屏幕从上到下是一整块。 */
+    background-color: var(--background);
+  }
+
   html,
   body {
     height: 100%;

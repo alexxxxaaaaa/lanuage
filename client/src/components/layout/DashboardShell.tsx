@@ -26,6 +26,9 @@ function readStoredCollapsed(): boolean {
  *
  * The shell is `fixed inset-0`, so `<main>` — not the document — is the only
  * scrolling element. `KeepAliveOutlet` restores per-page offsets against it.
+ *
+ * 顶部的安全区内缩落在最外层而不是 Topbar 上：底色照样铺满整块屏幕（padding
+ * 区域也是元素背景），而侧边栏、面包屑、页面内容一起下移，只写一处。
  */
 export function DashboardShell({ user }: { user: AuthUser }) {
   const { pathname } = useLocation()
@@ -86,7 +89,7 @@ export function DashboardShell({ user }: { user: AuthUser }) {
   }
 
   return (
-    <div className="fixed inset-0 flex bg-background text-foreground">
+    <div className="fixed inset-0 flex bg-background pt-[env(safe-area-inset-top)] text-foreground">
       {/* Desktop rail */}
       <div className="hidden md:flex">
         <Sidebar
