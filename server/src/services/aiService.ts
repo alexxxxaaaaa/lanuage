@@ -159,7 +159,7 @@ type JsonCompletionInput = {
  *  - `reasoning_effort: 'none'`. These models reason by default (`medium`),
  *    and reasoning tokens come out of the same `max_completion_tokens` budget
  *    as the answer. Every task here is a short, fully-specified extraction
- *    into a fixed JSON shape, and the budgets are 130–500 tokens — any
+ *    into a fixed JSON shape, and the budgets are 130–1100 tokens — any
  *    reasoning at all would consume the response and return nothing.
  *  - No `temperature`. The family rejects every value but the default, so the
  *    old per-feature 0.1/0.2/0.3 tuning is gone rather than merely unused.
@@ -790,45 +790,113 @@ export async function fillGrammarByAi(input: FillGrammarInput): Promise<FillGram
 // ===== JLPT 真题逐选项解析 =====
 
 type QbankExplainInput = {
-  /** 卷内题号，只用于日志，如 2020.12 Q37。 */
+  /** 卷次 + 题号，只用于日志，如 2020.12 Q37。 */
   label: string
+  /** 卷内题号（Q41），文章の文法要靠它在文章里定位空格。 */
+  seq: string
+  /** 題型名（「文の組み立て」等），決定这道题该往哪个方向讲。 */
+  questionType: string
   stemJp: string
+  /**
+   * 题库自带的 stemZh。名字叫「中文」，装的东西却按題型各不相同，同一題型内
+   * 也不统一（源站如此）：多数是题干中译，用法（問題4）是「词（读音）:释义」，
+   * 文の組み立て（問題6）有 61/155 道存的是**填好空的日文完整句**，
+   * 文章の文法（問題7）有些存的是整段解题说明。
+   * 与其猜，不如把几种可能一起告诉模型，让它按内容认。
+   */
+  stemZh: string
   options: string[]
   answer: number
   /** 另一来源的答案，0 = 无分歧。非 0 时要求两个答案都给论据。 */
   altAnswer: number
   /** 読解题的文章正文，其余部分为空。 */
   passage: string
+  /** 题库自带的解析，给 AI 当参考；全库 188 道笔试题没有。 */
+  sourceExplain: string
   userId: string
 }
 
 export type QbankExplainResult = {
   summary: string
-  /** 与选项一一对应。 */
+  /** 与选项一一对应，每条都有值。 */
   options: string[]
 }
 
-/** summary ≤60 字 + 每个选项 ≤45 字，四选一正好卡在 240 字上限内。 */
-const QBANK_EXPLAIN_SUMMARY_CHARS = 60
-const QBANK_EXPLAIN_OPTION_CHARS = 45
-// 中文约 1–1.5 token/字，240 字连 JSON 结构一起给到 500 有富余。
-const MAX_QBANK_EXPLAIN_TOKENS = 500
-// 全库最长的文章 1385 字，这个上限现有数据碰不到，纯粹是防脏数据把 prompt 撑爆。
+/**
+ * 篇幅上限。要讲透「错在哪个词、哪条语法、与原文哪句冲突」，45 字是不够的，
+ * 一句引用就占掉大半。四选一合计约 440 字。
+ */
+const QBANK_EXPLAIN_SUMMARY_CHARS = 120
+const QBANK_EXPLAIN_OPTION_CHARS = 80
+// 中文约 1–1.5 token/字，440 字连 JSON 结构一起给到 1100 有富余。
+const MAX_QBANK_EXPLAIN_TOKENS = 1100
+// 全库最长的文章 1385 字、最长的自带解析 1184 字，两个上限现有数据都碰不到，
+// 纯粹是防脏数据把 prompt 撑爆。
 const QBANK_PASSAGE_LIMIT = 2000
+const QBANK_SOURCE_EXPLAIN_LIMIT = 1500
+
+/** 文の組み立て（問題6）—— 全库唯一一个「选项全都要用上」的題型，见下面的排序题分支。 */
+const ORDERING_TYPE = '文の組み立て'
+/** 文章の文法（問題7）—— 空格在文章里，题干那个「（1）」指不到它，见下面的定位分支。 */
+const CLOZE_TYPE = '文章の文法'
 
 function buildQbankExplainPrompt(input: QbankExplainInput) {
+  const count = input.options.length
   const optionList = input.options.map((o, i) => `${i + 1}. ${o}`).join('\n')
   const lines = [
     'Return strict JSON only with keys: summary, options.',
     `summary: 中文,<=${QBANK_EXPLAIN_SUMMARY_CHARS} 字。点出考点,并说明答案为何成立。`,
-    `options: 长度正好 ${input.options.length} 的字符串数组,与选项 1..${input.options.length} 一一对应。`,
-    `  每条中文 <=${QBANK_EXPLAIN_OPTION_CHARS} 字,说明该项为何对或为何错(错在哪个词/哪条语法/原文哪句)。`,
+    `options: 长度正好 ${count} 的字符串数组,与选项 1..${count} 一一对应。`,
+    // 逐选项才是这个功能的全部价值。模型很容易只写错项、跳过正解，或者干脆
+    // 少给一条 —— 那样前端渲染出来就是缺一块，所以把「一条都不能少」写死。
+    `  这 ${count} 条一条都不能少,也不能是空串;正确答案那条同样要写清它为何成立。`,
+    `  每条中文 <=${QBANK_EXPLAIN_OPTION_CHARS} 字,说明该项为何对或为何错 ——`,
+    '  错在哪个词、搭配不了哪条语法、与原文哪句冲突,要具体,不要只写「不符合语境」。',
     '引用日文时用「」括起,不要重复抄整句选项。不要写「选项1」这类编号,直接说理由。',
   ]
+  if (input.questionType) lines.push('', `【題型】${input.questionType}`)
   if (input.passage) {
     lines.push('', `【文章】\n${input.passage.slice(0, QBANK_PASSAGE_LIMIT)}`)
   }
-  lines.push('', `【题干】\n${input.stemJp}`, '', `【选项】\n${optionList}`)
+  if (input.stemJp) lines.push('', `【题干】\n${input.stemJp}`)
+  if (input.questionType === CLOZE_TYPE) {
+    // 要填的空在文章里，标的是卷内题号（41–45）；题干那个「（1）」是大題内序号，
+    // 两套编号对不上（全库 144 道都如此），只给题干的话模型会去找错空。
+    // 2025 两套更干脆，题干整个是空的。
+    const no = input.seq.replace(/\D/g, '')
+    lines.push(
+      '',
+      `【定位】这道题填的是文章里的一个空。本题卷内题号 ${input.seq}${
+        no ? `，文章里对应的空多数标作「（ ${no} ）」` : ''
+      }；题干里的「（1）」这类数字是大題内序号，与文章里的编号不是一套，别照它去找。`,
+    )
+  }
+  if (input.stemZh) {
+    lines.push(
+      '',
+      `【题干补充】题库自带，可能是题干中译、考查词释义、填好空的完整句、或一段解题说明，按内容自行判断：\n${input.stemZh}`,
+    )
+  }
+  lines.push('', `【选项】\n${optionList}`)
+  if (input.questionType === ORDERING_TYPE) {
+    // 排序题的四个选项全都要用上，没有「错误选项」，答案数字指的是 ★ 那一空填谁。
+    // 不说清楚，模型会照四选一的套路把另外三项判成错的 —— 那是彻头彻尾的错解析。
+    lines.push(
+      '',
+      `【注意】这是排序题：${count} 个选项要全部填进句中的空，不存在「错误选项」，`,
+      '下面【标准答案】的数字指的是 ★ 那一个空填哪一项。',
+      'summary 要给出完整顺序(如「3→1→4→2」)并说明为什么这样接；',
+      'options 的每一条讲这一项落在第几个空、为什么接在那里(接哪个词、构成哪条语法)，不要判对错。',
+    )
+  }
+  if (input.sourceExplain) {
+    // 题库自带的解析质量参差，有的只有一行。当线索用，别让模型照抄 ——
+    // 用户要的是另一份独立的分析，抄一遍等于这个按钮白点。
+    lines.push(
+      '',
+      `【参考解析】题库自带，可能不全或只讲了一部分，用作线索但要自己判断，不要照抄，逐选项那 ${count} 条必须是你自己的话：\n${input.sourceExplain.slice(0, QBANK_SOURCE_EXPLAIN_LIMIT)}`,
+    )
+  }
   if (input.altAnswer > 0) {
     // 分歧题：两个答案都判对，解析必须把两边的论据都摆出来，否则用户只看到
     // 「另一个也算对」却不知道为什么。
@@ -843,18 +911,15 @@ function buildQbankExplainPrompt(input: QbankExplainInput) {
   return lines.join('\n')
 }
 
-export async function explainQbankQuestionByAi(
+/** 一次调用 + 解析。长度对齐选项：少给的留空，多给的截掉。 */
+async function requestQbankExplain(
   input: QbankExplainInput,
+  user: string,
 ): Promise<QbankExplainResult> {
-  const stem = sanitize(input.stemJp)
-  if (!stem) throw new AppError('题干为空,无法生成解析', 400)
-
-  await assertWithinDailyBudget(input.userId)
-
   const content = await completeJsonOrThrow({
     system:
       'You are a JLPT N1 exam tutor. Explain in Simplified Chinese, be concise and specific. Return strict JSON only.',
-    user: buildQbankExplainPrompt({ ...input, stemJp: stem }),
+    user,
     maxOutputTokens: MAX_QBANK_EXPLAIN_TOKENS,
     log: {
       word: input.label,
@@ -865,18 +930,57 @@ export async function explainQbankQuestionByAi(
   })
 
   const parsed = parseModelJsonObject<{ summary?: unknown; options?: unknown }>(content)
-  const options = Array.isArray(parsed.options)
-    ? parsed.options.map((v) => sanitize(typeof v === 'string' ? v : ''))
-    : []
-  const summary = sanitize(typeof parsed.summary === 'string' ? parsed.summary : '')
-  if (!summary && options.every((o) => !o)) {
-    throw new AppError('AI 返回的解析是空的,请重试', 502)
-  }
-  // 少给的补空、多给的截掉：渲染时按下标对齐选项，长度不对会错位。
+  const options = Array.isArray(parsed.options) ? parsed.options : []
   return {
-    summary,
-    options: input.options.map((_, i) => options[i] ?? ''),
+    summary: sanitize(typeof parsed.summary === 'string' ? parsed.summary : ''),
+    options: input.options.map((_, i) => {
+      const v = options[i]
+      return sanitize(typeof v === 'string' ? v : '')
+    }),
   }
+}
+
+/**
+ * 逐选项解析。题干为空的题（文法7 有 8 道，题干整个在文章里）靠 passage 立住，
+ * 两个都没有才是真的没东西可讲。
+ *
+ * 缺条目就重来一次：缓存是全局的，一份缺了两条的解析会被之后每个点开这题的人
+ * 看到，多花一次调用比留下残缺划算。第二次仍然缺就报错，让用户自己决定要不要再点。
+ */
+export async function explainQbankQuestionByAi(
+  input: QbankExplainInput,
+): Promise<QbankExplainResult> {
+  const stem = sanitize(input.stemJp)
+  const passage = sanitize(input.passage)
+  if (!stem && !passage) throw new AppError('题干为空,无法生成解析', 400)
+  if (input.options.length === 0) throw new AppError('这道题没有选项,无法生成解析', 400)
+
+  await assertWithinDailyBudget(input.userId)
+
+  const normalized = { ...input, stemJp: stem, passage }
+  const prompt = buildQbankExplainPrompt(normalized)
+  const first = await requestQbankExplain(normalized, prompt)
+  if (first.summary && first.options.every(Boolean)) return first
+
+  const missing = first.options
+    .map((text, i) => (text ? 0 : i + 1))
+    .filter(Boolean)
+    .join('、')
+  const retry = await requestQbankExplain(
+    normalized,
+    `${prompt}\n\n【重来】上一次的回答${
+      missing ? `漏了选项 ${missing} 的条目` : 'summary 是空的'
+    }。这次 summary 和全部 ${input.options.length} 条逐项解析都要给齐，一条都不能空。`,
+  )
+  // 两次各有各的缺口时按条目取并集，能凑齐就不必让用户重点一次。
+  const merged: QbankExplainResult = {
+    summary: retry.summary || first.summary,
+    options: retry.options.map((text, i) => text || first.options[i]),
+  }
+  if (!merged.summary || merged.options.some((text) => !text)) {
+    throw new AppError('AI 这次没给全逐项解析,请重试', 502)
+  }
+  return merged
 }
 
 export async function generateExpressionCasualByAi(

@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import type { QbankAiExplain } from './qbank'
 
 /**
  * 模拟考试：整卷作答。题目和「精练」共用一套数据，但作答记录是另一张表，
@@ -52,6 +53,8 @@ export type ExamQuestion = {
   disputeNote?: string
   stemZh?: string
   explain?: string
+  /** 已生成过的 AI 解析；缓存全局共享，精练页生成过的这里直接就有。 */
+  aiExplain?: QbankAiExplain | null
 }
 
 export type ExamPassage = { id: string; code: string; type: string; content: string }

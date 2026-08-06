@@ -95,6 +95,17 @@ export const OPTION_ROLE_COLOR = {
   wrong: 'danger',
 } as const
 
+/**
+ * AI 解析里那排编号的着色。解析区不重复挂「正确答案」标签（上面的选项列表
+ * 已经挂过一次），只让编号跟着同一套配色走，扫一眼就知道哪条讲的是哪项。
+ * OPTION_NUM 的描边是 border-current，所以只定文字色就够。
+ */
+export const OPTION_ROLE_NUM: Record<OptionRole, string> = {
+  answer: 'text-success',
+  alt: 'text-warning',
+  wrong: 'text-danger',
+}
+
 /** 阅读材料 / 听力原文的框。 */
 export const PASSAGE_BOX =
   'rounded-[14px] border-l-[3px] border-accent/40 bg-foreground/3 px-4.5 py-3.5'

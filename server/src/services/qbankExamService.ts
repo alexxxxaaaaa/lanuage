@@ -1,6 +1,14 @@
 import { prisma } from '../lib/prisma'
 import { AppError } from '../errors/AppError'
-import { isAcceptedAnswer, loadTotals, mediaUrl, parseOptions, resolveImages } from './qbankService'
+import {
+  isAcceptedAnswer,
+  loadTotals,
+  mediaUrl,
+  parseOptions,
+  resolveImages,
+  toAiExplain,
+  type AiExplain,
+} from './qbankService'
 
 /**
  * 模拟考试：把题库里的一套真题当整卷来考。
@@ -82,6 +90,8 @@ export type ExamQuestion = {
   disputeNote?: string
   stemZh?: string
   explain?: string
+  /** 已生成过的 AI 解析（缓存全局共享，精练页生成的这里直接命中）；没有就是 null。 */
+  aiExplain?: AiExplain | null
 }
 
 export type ExamState = {
@@ -318,6 +328,9 @@ export async function getExamState(
             : { category: { in: WRITTEN_CATEGORIES } }),
       },
       orderBy: { orderNo: 'asc' },
+      // 只有复习态用得上，但条件 include 会把行类型拆成联合类型，为一次
+      // LEFT JOIN 不值得 —— 未交卷时照样 join，出参那边不放出去就是了。
+      include: { aiExplain: { select: { summary: true, options: true } } },
     }),
     prisma.qbankPassage.findMany({ where: { level, year, month } }),
   ])
@@ -338,6 +351,7 @@ export async function getExamState(
           disputeNote: q.disputeNote,
           stemZh: q.stemZh,
           explain: q.explain,
+          aiExplain: toAiExplain(q.aiExplain),
         }
       : {}),
   }))
