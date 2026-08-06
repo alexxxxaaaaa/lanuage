@@ -8,7 +8,7 @@ import {
   Spinner,
   TextField,
 } from '@heroui/react'
-import { AlertCircle, Lock, User } from 'lucide-react'
+import { AlertCircle, Eye, EyeOff, Lock, User } from 'lucide-react'
 import { useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router'
 
@@ -29,6 +29,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false)
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -132,10 +133,29 @@ export function LoginPage() {
                     <Lock className="size-4 text-muted" aria-hidden />
                   </InputGroup.Prefix>
                   <InputGroup.Input
-                    type="password"
+                    type={isPasswordVisible ? 'text' : 'password'}
                     autoComplete="current-password"
                     placeholder={t('auth.passwordPlaceholder')}
+                    // Edge 自带的密码显示按钮会和下面这颗眼睛叠成两个，藏掉原生的。
+                    className="[&::-ms-reveal]:hidden"
                   />
+                  {/* 后缀那条分隔线同样抹掉，和前缀图标保持一致的贴边观感；
+                      pe-1 让按钮的图标中心离右边缘 20px，正好对上左边的锁图标。 */}
+                  <InputGroup.Suffix className="border-s-0 pe-1">
+                    <Button
+                      isIconOnly
+                      size="sm"
+                      variant="ghost"
+                      aria-label={t(isPasswordVisible ? 'auth.hidePassword' : 'auth.showPassword')}
+                      onPress={() => setIsPasswordVisible((visible) => !visible)}
+                    >
+                      {isPasswordVisible ? (
+                        <EyeOff className="size-4" aria-hidden />
+                      ) : (
+                        <Eye className="size-4" aria-hidden />
+                      )}
+                    </Button>
+                  </InputGroup.Suffix>
                 </InputGroup>
                 <FieldError className="text-xs text-danger" />
               </TextField>
