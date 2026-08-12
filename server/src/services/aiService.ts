@@ -1,6 +1,12 @@
-import OpenAI from "openai";
 import { prisma } from "../lib/prisma";
-import { getEnv } from "../lib/env";
+import {
+  assertWithinDailyBudget,
+  completeJson,
+  completeJsonOrThrow,
+  getDefaultModel,
+  parseModelJsonObject,
+  sanitize,
+} from "../lib/aiClient";
 import { estimateCallCostUsd, getModelRates } from "../config/aiPricing";
 import { AppError } from "../errors/AppError";
 import {
@@ -85,159 +91,11 @@ type ExpressionTranslateResult = {
 };
 
 const SUPPORTED_LANGUAGES: SupportedLanguage[] = ["en", "jp"];
-export function getDefaultModel() {
-  return getEnv("OPENAI_MODEL")?.trim() || "gpt-5.6-luna";
-}
 const MAX_OUTPUT_TOKENS = 180;
 const MAX_OUTPUT_TOKENS_EXTENDED = 400;
 /** 语境模式：比常规略宽（多一个整句翻译），但省掉了两行自造例句。 */
 const MAX_OUTPUT_TOKENS_CONTEXT = 260;
 const MAX_EXPRESSION_OUTPUT_TOKENS = 200;
-
-const DAILY_TOKEN_BUDGET_DEFAULT = 50000;
-
-function getDailyTokenBudget(): number {
-  const raw = getEnv("DAILY_AI_TOKEN_BUDGET");
-  const parsed = raw ? Number(raw) : NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DAILY_TOKEN_BUDGET_DEFAULT;
-}
-
-async function assertWithinDailyBudget(userId: string) {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-
-  const result = await prisma.aiUsageLog.aggregate({
-    where: { userId, createdAt: { gte: start, lte: end } },
-    _sum: { totalTokens: true },
-  });
-
-  const used = result._sum.totalTokens ?? 0;
-  const budget = getDailyTokenBudget();
-  if (used >= budget) {
-    throw new AppError(
-      `今日 AI 用量已达上限 (${used.toLocaleString()} / ${budget.toLocaleString()} tokens)，请明天再试`,
-      429,
-    );
-  }
-}
-
-let openaiClient: OpenAI | null = null;
-
-function getOpenAIClient() {
-  const apiKey = getEnv("OPENAI_API_KEY")?.trim();
-  if (!apiKey) {
-    throw new AppError("OPENAI_API_KEY is not configured", 500);
-  }
-  if (!openaiClient) {
-    openaiClient = new OpenAI({ apiKey });
-  }
-  return openaiClient;
-}
-
-function sanitize(input?: string | null) {
-  return (input ?? "").trim();
-}
-
-/** What the usage row records about *why* a call happened. */
-type UsageLogFields = {
-  /** The user's input, verbatim — the admin usage table lists this. */
-  word: string;
-  language: string;
-  feature: string;
-  userId: string;
-};
-
-type JsonCompletionInput = {
-  system: string;
-  user: string;
-  /** Ceiling on generated tokens. Reasoning is off, so this is all answer. */
-  maxOutputTokens: number;
-  log: UsageLogFields;
-};
-
-/**
- * One JSON-mode completion, with its token usage written to `AiUsageLog`.
- *
- * Every AI feature in this file goes through here, so the model, the request
- * shape and the billing record are decided once instead of eight times over.
- *
- * Two request choices are forced by the gpt-5.6 family and worth spelling out:
- *
- *  - `reasoning_effort: 'none'`. These models reason by default (`medium`),
- *    and reasoning tokens come out of the same `max_completion_tokens` budget
- *    as the answer. Every task here is a short, fully-specified extraction
- *    into a fixed JSON shape, and the budgets are 130–1100 tokens — any
- *    reasoning at all would consume the response and return nothing.
- *  - No `temperature`. The family rejects every value but the default, so the
- *    old per-feature 0.1/0.2/0.3 tuning is gone rather than merely unused.
- *
- * Usage is logged before the content is inspected: an empty reply still spent
- * tokens, and a call that vanishes from the ledger is a call the daily budget
- * stops counting.
- *
- * Returns the raw content, or null when the model returned none.
- */
-async function completeJson(input: JsonCompletionInput): Promise<string | null> {
-  const model = getDefaultModel();
-  const completion = await getOpenAIClient().chat.completions.create({
-    model,
-    response_format: { type: "json_object" },
-    reasoning_effort: "none",
-    max_completion_tokens: input.maxOutputTokens,
-    messages: [
-      { role: "system", content: input.system },
-      { role: "user", content: input.user },
-    ],
-  });
-
-  const usage = completion.usage;
-  await prisma.aiUsageLog.create({
-    data: {
-      ...input.log,
-      model,
-      promptTokens: usage?.prompt_tokens ?? 0,
-      cachedTokens: usage?.prompt_tokens_details?.cached_tokens ?? 0,
-      cacheWriteTokens: usage?.prompt_tokens_details?.cache_write_tokens ?? 0,
-      completionTokens: usage?.completion_tokens ?? 0,
-      totalTokens: usage?.total_tokens ?? 0,
-    },
-  });
-
-  return sanitize(completion.choices[0]?.message?.content) || null;
-}
-
-/** `completeJson` for callers with no fallback for an empty reply. */
-async function completeJsonOrThrow(input: JsonCompletionInput): Promise<string> {
-  const content = await completeJson(input);
-  if (!content) throw new AppError("AI did not return content", 502);
-  return content;
-}
-
-function parseModelJsonObject<T>(content: string): T {
-  const normalized = sanitize(content);
-  const candidates: string[] = [normalized];
-  const fenced = normalized.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)?.[1];
-  if (fenced) {
-    candidates.push(sanitize(fenced));
-  }
-  const firstBrace = normalized.indexOf("{");
-  const lastBrace = normalized.lastIndexOf("}");
-  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-    candidates.push(normalized.slice(firstBrace, lastBrace + 1));
-  }
-
-  for (const candidate of candidates) {
-    try {
-      return JSON.parse(candidate) as T;
-    } catch {
-      // try next candidate
-    }
-  }
-
-  throw new AppError("AI returned invalid JSON", 502);
-}
 
 /**
  * 手输查词时这个词的词形处置，由 fillWordByAi 判定后传进来。两个字段互斥，

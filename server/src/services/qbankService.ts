@@ -1,7 +1,8 @@
 import { prisma } from '../lib/prisma'
 import { getEnv } from '../lib/env'
 import { AppError } from '../errors/AppError'
-import { explainQbankQuestionByAi, getDefaultModel } from './aiService'
+import { explainQbankQuestionByAi } from './aiService'
+import { getDefaultModel } from '../lib/aiClient'
 
 /**
  * JLPT 精练题库。题目本身是全局共享的静态数据，用户数据只有

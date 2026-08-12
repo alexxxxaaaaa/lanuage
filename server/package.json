@@ -22,6 +22,7 @@
     "merge:dict": "node --import tsx scripts/mergeDict.ts",
     "test:dict": "node --import tsx --test scripts/dictEnrichment.test.ts",
     "test:deinflect": "node --import tsx --test scripts/jaDeinflect.test.ts",
+    "test:analyze": "node --import tsx --test scripts/textAnalyze.test.ts",
     "import:dict": "node --import tsx scripts/importDict.ts",
     "export:qbank-d1-sql": "node --import tsx scripts/exportQbankD1Sql.ts",
     "upload:qbank-media": "bash scripts/uploadQbankMedia.sh",

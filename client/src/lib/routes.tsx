@@ -4,6 +4,7 @@ import {
   Library,
   MessagesSquare,
   NotebookPen,
+  ScanText,
   Search,
   Settings,
   SpellCheck,
@@ -12,6 +13,7 @@ import {
 import type { ReactElement } from 'react'
 
 import { AddWordPage } from '../pages/AddWordPage'
+import { AnalyzePage } from '../pages/AnalyzePage'
 import { ExpressionFolderDetailPage } from '../pages/ExpressionFolderDetailPage'
 import { ExpressionsPage } from '../pages/ExpressionsPage'
 import { FolderDetailPage } from '../pages/FolderDetailPage'
@@ -209,6 +211,17 @@ export const ROUTES: readonly RouteDefinition[] = [
     titleKey: 'jlptExam',
     element: <JlptExamPage />,
     parent: '/jlpt',
+  },
+
+  // --- 文解析 ---------------------------------------------------------------
+  {
+    // 解析结果和点开过的词都是花过 token 的，所以这一页留在 keep-alive 里：
+    // 去查个词、加个词单再回来，不该从空白输入框重新开始。
+    path: '/analyze',
+    titleKey: 'analyze',
+    element: <AnalyzePage />,
+    icon: ScanText,
+    showInSidebar: true,
   },
 
   // --- 其他 -----------------------------------------------------------------

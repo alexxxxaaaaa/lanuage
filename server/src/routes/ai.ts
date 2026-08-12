@@ -7,6 +7,7 @@ import {
   getAiUsageSummary,
   translateExpressionToZhByAi,
 } from '../services/aiService'
+import { analyzeText, explainWordInSentence } from '../services/textAnalyzeService'
 import { AppError } from '../errors/AppError'
 import { getUserId, type AppEnv } from '../middleware/requireAuth'
 
@@ -101,6 +102,33 @@ aiRouter.post('/expression-translate-zh', async (c) => {
   const result = await translateExpressionToZhByAi({
     text: text ?? '',
     language: language === 'jp' ? 'jp' : 'en',
+    userId: getUserId(c),
+  })
+  return c.json(result)
+})
+
+/** 文解析：整段日文 → 逐句逐词 + 整句中文翻译。 */
+aiRouter.post('/analyze-text', async (c) => {
+  const { text } = await c.req.json<{ text?: string }>()
+  const result = await analyzeText({ text: text ?? '', userId: getUserId(c) })
+  return c.json(result)
+})
+
+/** 文解析：点开某个词，按它所在的整句给读音 / 辞書形 / 语法详解。 */
+aiRouter.post('/analyze-word', async (c) => {
+  const body = await c.req.json<{
+    word?: string
+    pos?: string
+    kana?: string
+    base?: string
+    sentence?: string
+  }>()
+  const result = await explainWordInSentence({
+    word: body.word ?? '',
+    pos: body.pos,
+    kana: body.kana,
+    base: body.base,
+    sentence: body.sentence ?? '',
     userId: getUserId(c),
   })
   return c.json(result)
