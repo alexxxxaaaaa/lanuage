@@ -10,6 +10,7 @@ import {
   dictEntryRowToFillResult,
   directionForLanguage,
 } from "../lib/aiDictEntry";
+import { resolveJaHeadword } from "./dictEntryService";
 
 type SupportedLanguage = "en" | "jp";
 type SourceLanguage = SupportedLanguage | "zh";
@@ -23,6 +24,14 @@ type FillWordInput = {
   extended?: boolean;
   /** Force regeneration even when a cached AI dict row exists. */
   refresh?: boolean;
+  /**
+   * 日语活用形是否直接校准到辞書形（默认 true）。
+   *
+   * 加词页 / 批量加词要 true —— 词单里存「食べました」是实打实的坏数据。
+   * 查词页传 false：那边在结果第一行给辞書形建议，改不改由用户点，输入框里的
+   * 词绝不背着人换掉。
+   */
+  normalize?: boolean;
   /**
    * 划词加词时，选中文本所在的那整句。传了它就切到「按语境查词」模式：
    * AI 额外还原原形（baseForm）、按句中的实际义项给释义、并翻译整句
@@ -42,9 +51,9 @@ type FillWordResult = {
   example: string;
   note: string;
   /**
-   * 辞書形/原形。只有语境模式（input.context）会带值：字幕里划到的是
-   * 「食べました」，这里给「食べる」，reading/meaning/partOfSpeech 都描述它。
-   * 非语境模式恒为 undefined，加词页不读这个字段。
+   * 辞書形/原形。词头真的被换掉时才有值 —— 划词加词的语境模式（字幕里划到
+   * 「食べました」，这里给「食べる」），以及 normalize 生效的手输查词。
+   * 词头和输入一致时恒为 undefined，`word` 本身就是最终词头。
    */
   baseForm?: string;
   /** input.context 那句话的简体中文翻译。只有语境模式有值。 */
@@ -230,7 +239,22 @@ function parseModelJsonObject<T>(content: string): T {
   throw new AppError("AI returned invalid JSON", 502);
 }
 
-function buildPrompt(word: string, language: SupportedLanguage) {
+/**
+ * 手输查词时这个词的词形处置，由 fillWordByAi 判定后传进来。两个字段互斥，
+ * 都只在日语侧出现。
+ */
+type WordFormHint = {
+  /** 词库判不了这是不是活用形，让模型自己还原（输出多一个 baseForm 字段）。 */
+  askBaseForm?: boolean;
+  /** 用户执意查活用形时，它的辞書形 —— 告诉模型比让它自己猜强。 */
+  inflectedOf?: string | null;
+};
+
+function buildPrompt(
+  word: string,
+  language: SupportedLanguage,
+  form: WordFormHint = {},
+) {
   const languageHint =
     language === "jp" ? "jp + kana reading" : "en + IPA reading";
   const noteHint =
@@ -245,14 +269,22 @@ function buildPrompt(word: string, language: SupportedLanguage) {
       ? 'example: exactly 2 lines; each line "<日本語の例文>｜<中文翻译>". 句子要有一定语境(从句/接续/复合句优先)，避免只用辞書形：动词应使用至少一种变形(て形/た形/ない形/敬語ます形/受身/可能/使役/条件形/意向形等)，形容词应展示语境(过去/否定/连用)。两句要使用不同的形态/语境，不要重复。'
       : 'example: exactly 2 lines; each line "<English sentence>｜<中文翻译>". Sentences should show real syntactic context (subordinate clause/perfect aspect/passive/comparative as appropriate). Avoid bare present-tense templates; vary structure between the two lines.';
   return [
-    "Return JSON only: word,language,reading,partOfSpeech,meaning,example,note.",
+    `Return JSON only: word,language,${form.askBaseForm ? "baseForm," : ""}reading,partOfSpeech,meaning,example,note.`,
     `language="${language}", ${languageHint}.`,
+    form.askBaseForm
+      ? "baseForm: word 若是动词/形容词的活用形，给出辞書形（食べました→食べる、寒かった→寒い、行かなければ→行く）；本身已是辞書形或其它词性则与 word 相同。reading/partOfSpeech/meaning/example 一律描述 baseForm。"
+      : "",
+    form.inflectedOf
+      ? `「${word}」是「${form.inflectedOf}」的活用形：word 原样保留，reading 给「${word}」这个形的读音，meaning 给「${form.inflectedOf}」的义项，note 开头点明这是哪种活用（如「${form.inflectedOf}」的ます形过去）。`
+      : "",
     "meaning: 简体中文, 按词性分行(如 n./v.).",
     exampleStyle,
     noteHint,
     "Keep concise: meaning<=140 chars, example<=260 chars, note<=60 chars.",
     `word: ${word}`,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 /**
@@ -505,19 +537,47 @@ export async function fillWordByAi(
     });
   }
 
+  // 日语词形判定。「食べました」照原样问下去，模型会照着活用形编读音和词性，
+  // 缓存还会以活用形当词头写进 DictEntry —— 词典结果区和右侧索引栏跟着一起脏。
+  const resolved =
+    target === "jp" && !isTranslateMode
+      ? await resolveJaHeadword(word)
+      : ({ kind: "headword" } as const);
+  const shouldNormalize = input.normalize !== false;
+  // 校准后的词头：prompt、缓存键、返回的 word 全用它。顺带让「食べました」
+  // 命中「食べる」已有的缓存行，零 token。
+  let headword = shouldNormalize && resolved.kind === "base" ? resolved.word : word;
+  // 用户执意查活用形（查词页只给建议、不改写）。结果照给，但见下面的 cache()。
+  const inflectedOf = !shouldNormalize && resolved.kind === "base" ? resolved.word : null;
+  // 候选一个都没被词库收录（生僻词/口语/复合表达），让模型自己还原。
+  const askBaseForm = shouldNormalize && resolved.kind === "unknown";
+  /**
+   * 非辞書形不写词典缓存：DictEntry 是全局的、按词头存，写进一条「食べました」
+   * 就会出现在词典结果区和右侧索引栏里。代价是这种查询每次都重新生成。
+   */
+  const cache = (result: FillWordResult) =>
+    inflectedOf ? Promise.resolve() : writeAiDictCache(result);
+
   // Cache-first：非翻译模式先查 DictEntry 的 ai 行，命中零 token 直接返回。
   // extended 生成的内容更全，跳过缓存读但照样写（覆盖旧行）。zh 输入没法当
   // 缓存键（缓存按目标语词头存），恒生成，但结果照写 —— 之后直接查那个
-  // 日语/英语词就能命中。
-  if (!isTranslateMode && !input.refresh && !input.extended) {
+  // 日语/英语词就能命中。活用形连读都跳过：那里躺着的只可能是这次修复之前
+  // 写坏的行。
+  if (!isTranslateMode && !input.refresh && !input.extended && !inflectedOf) {
     const row = await prisma.dictEntry.findFirst({
       where: {
         direction: directionForLanguage(target),
-        word: aiCacheWord(word, target),
+        word: aiCacheWord(headword, target),
         source: AI_SOURCE,
       },
     });
-    if (row) return { ...dictEntryRowToFillResult(row), cached: true };
+    if (row) {
+      return {
+        ...dictEntryRowToFillResult(row),
+        ...(headword !== word ? { baseForm: headword } : {}),
+        cached: true,
+      };
+    }
   }
 
   await assertWithinDailyBudget(input.userId);
@@ -534,21 +594,34 @@ export async function fillWordByAi(
       "You are a concise vocabulary assistant. Always return strict JSON object with requested keys.",
     user: isTranslateMode
       ? buildTranslatePrompt(word, target)
-      : buildPrompt(word, target),
+      : buildPrompt(headword, target, { askBaseForm, inflectedOf }),
     maxOutputTokens: tokenBudget,
     log: usageLog,
   });
 
-  const firstResult = safeParseJson(content, word);
+  const firstResult = safeParseJson(content, headword);
+  // 词库判不了、交给模型还原的那条路：以模型给的原形为准。
+  if (askBaseForm && firstResult.baseForm) {
+    headword = firstResult.baseForm;
+  }
   // In translate mode, force-pin language to target — `safeParseJson` defaults
   // to 'en' when the AI omits the field, which would be wrong for zh→jp.
   if (isTranslateMode) {
     firstResult.language = target;
   }
+  // 日语侧词头以校准结果为准：模型偶尔会把 word 回成别的写法，那会让缓存键和
+  // 下次查询用的键对不上，同一个词每次都得重新生成。
+  if (target === "jp" && !isTranslateMode) {
+    firstResult.word = headword;
+  }
+  // 词头没被换掉就显式清空 baseForm：模型在 askBaseForm 那条路上会照样回一个
+  // 和输入相同的原形，前端拿它当「已校准」提示就成了自说自话。
+  const normalized =
+    headword !== word ? { baseForm: headword } : { baseForm: undefined };
   firstResult.note = normalizeEnglishAdjectiveNote(firstResult);
   if (!isSparseFillWordResult(firstResult)) {
-    await writeAiDictCache(firstResult);
-    return { ...firstResult, cached: false };
+    await cache(firstResult);
+    return { ...firstResult, ...normalized, cached: false };
   }
 
   // A second pass at the same prompt, sharpened. An empty reply here is not
@@ -558,16 +631,16 @@ export async function fillWordByAi(
     user: isTranslateMode
       ? buildTranslatePrompt(word, target) +
         "\n注意: 第一次返回有字段缺失,请确保 meaning 和 example 都不为空。"
-      : buildPromptRetry(word, target),
+      : buildPromptRetry(headword, target),
     maxOutputTokens: tokenBudget,
     log: usageLog,
   });
   if (!retryContent) {
-    await writeAiDictCache(firstResult);
-    return { ...firstResult, cached: false };
+    await cache(firstResult);
+    return { ...firstResult, ...normalized, cached: false };
   }
 
-  const retryResult = safeParseJson(retryContent, word);
+  const retryResult = safeParseJson(retryContent, headword);
   retryResult.note = normalizeEnglishAdjectiveNote(retryResult);
   // In translate mode the result word is the translation (from AI), not the
   // Chinese input — don't clobber it. In definition mode the word stays.
@@ -576,16 +649,17 @@ export async function fillWordByAi(
     ...retryResult,
     word: isTranslateMode
       ? retryResult.word || firstResult.word
-      : word,
+      : headword,
     language: target,
-    reading: retryResult.reading || firstResult.reading || (isTranslateMode ? '' : word),
+    reading:
+      retryResult.reading || firstResult.reading || (isTranslateMode ? '' : headword),
     partOfSpeech: retryResult.partOfSpeech || firstResult.partOfSpeech,
     meaning: retryResult.meaning || firstResult.meaning,
     example: retryResult.example || firstResult.example,
     note: retryResult.note || firstResult.note,
   };
-  await writeAiDictCache(merged);
-  return { ...merged, cached: false };
+  await cache(merged);
+  return { ...merged, ...normalized, cached: false };
 }
 
 /**

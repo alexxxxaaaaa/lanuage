@@ -13,15 +13,23 @@ import { getUserId, type AppEnv } from '../middleware/requireAuth'
 export const aiRouter = new Hono<AppEnv>()
 
 aiRouter.post('/fill-word', async (c) => {
-  const { word, sourceLanguage, targetLanguage, extended, refresh, context } =
-    await c.req.json<{
-      word?: string
-      sourceLanguage?: 'en' | 'jp' | 'zh'
-      targetLanguage?: 'en' | 'jp'
-      extended?: boolean
-      refresh?: boolean
-      context?: string
-    }>()
+  const {
+    word,
+    sourceLanguage,
+    targetLanguage,
+    extended,
+    refresh,
+    context,
+    normalize,
+  } = await c.req.json<{
+    word?: string
+    sourceLanguage?: 'en' | 'jp' | 'zh'
+    targetLanguage?: 'en' | 'jp'
+    extended?: boolean
+    refresh?: boolean
+    context?: string
+    normalize?: boolean
+  }>()
   if (
     sourceLanguage !== 'zh' &&
     sourceLanguage !== 'en' &&
@@ -38,6 +46,8 @@ aiRouter.post('/fill-word', async (c) => {
     targetLanguage,
     extended: !!extended,
     refresh: !!refresh,
+    // 只有显式传 false 才关掉辞書形校准（查词页那条路），漏传一律按开处理。
+    normalize: normalize !== false,
     ...(trimmedContext ? { context: trimmedContext } : {}),
     userId: getUserId(c),
   })

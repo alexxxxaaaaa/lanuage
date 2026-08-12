@@ -13,7 +13,7 @@ import {
   Tooltip,
   toast,
 } from '@heroui/react'
-import { Plus, RotateCcw, Sparkles, Trash2 } from 'lucide-react'
+import { Lightbulb, Plus, RotateCcw, Sparkles, Trash2 } from 'lucide-react'
 import { SelectField } from '../components/ui/SelectField'
 import { alertDialog, confirm } from '../components/ui/dialog'
 import { useSearchParams } from 'react-router'
@@ -88,6 +88,9 @@ export function WordSearchPage() {
   } | null>(null)
   const [localMatches, setLocalMatches] = useState<Word[]>([])
   const [dictEntries, setDictEntries] = useState<DictEntry[]>([])
+  // 输入是日语活用形时，词库给出的辞書形。只是个建议：这一次查询照用户输入的
+  // 原样执行，换不换词由用户点结果区第一行那条提示。
+  const [baseForm, setBaseForm] = useState<string | null>(null)
   // A `?q=` already in the URL on mount means the effect below is about to run,
   // so start out in the searching state instead of flashing "no results".
   const [isSearchingLocal, setIsSearchingLocal] = useState(() => q.trim().length > 0)
@@ -117,6 +120,11 @@ export function WordSearchPage() {
   // What the page is currently about: whatever is being typed, falling back to
   // the query the result on screen came from once the box has been cleared.
   const activeTerm = keyword.trim() || q.trim()
+
+  // 右侧索引栏定位用的词：查的是活用形时停在辞書形那一行 —— 索引里根本没有
+  // 「食べました」这一行，不换就会落到毫无关系的位置。定位不改变查的是什么，
+  // 所以这里可以直接用建议值；输入框已经在敲别的词时仍跟着输入走。
+  const indexTerm = baseForm && activeTerm === q.trim() ? baseForm : activeTerm
 
   // 字符层面能定方向的输入（假名 / 拉丁字母）当场就定，纯汉字返回 null ——
   // 那时保持上一次的方向不动，等 q 的词典结果回来用词库判（见下面的 effect）。
@@ -168,6 +176,9 @@ export function WordSearchPage() {
         sourceLanguage: source,
         targetLanguage: target,
         refresh,
+        // 查的就是屏幕上这个词。活用形不背着人换成辞書形 —— 那条路由上面的
+        // 建议行走，用户点了才换。
+        normalize: false,
       })
       if (token !== aiLookupTokenRef.current) return
       setGenerated({
@@ -197,6 +208,7 @@ export function WordSearchPage() {
     setGenerated(null)
     setLocalMatches([])
     setDictEntries([])
+    setBaseForm(null)
     setIsSearchingLocal(q.trim().length > 0)
   }
 
@@ -211,16 +223,20 @@ export function WordSearchPage() {
         // 词典不带 direction 全方向取回来，按方向的筛选在下面派生 —— 换方向
         // 就不必重新发请求，纯汉字的方向判定也正好吃这份结果。
         const [dict, mine] = await Promise.all([
-          fetchDictEntries(trimmed).catch(() => [] as DictEntry[]),
+          fetchDictEntries(trimmed).catch(() => ({
+            entries: [] as DictEntry[],
+            baseForm: null,
+          })),
           getWords({ q: trimmed }).catch(() => [] as Word[]),
         ])
         if (cancelled) return
-        setDictEntries(dict)
+        setDictEntries(dict.entries)
+        setBaseForm(dict.baseForm)
         setLocalMatches(mine ?? [])
         // 纯汉字 + 自动：到这一步才判得了方向 —— 日语词库收了这个词头就按
         // 日语词看，没收就当中文词翻成日语。用户显式选过方向就不插手。
         if (choice === 'auto' && detectDirection(trimmed) === null) {
-          setAutoDirection(resolveByDict(trimmed, dict))
+          setAutoDirection(resolveByDict(trimmed, dict.entries))
         }
       } finally {
         if (!cancelled) setIsSearchingLocal(false)
@@ -571,6 +587,28 @@ export function WordSearchPage() {
 
           {hasQuery ? (
             <article className="card grid gap-3">
+              {/* 辞書形建议：输入是活用形时摆在整张卡最上面。只提示不改写 ——
+                  点了才把输入框和这次查询一起换成辞書形，故意查活用形的人
+                  照样查得到。 */}
+              {baseForm ? (
+                <button
+                  type="button"
+                  onClick={() => submitKeyword(baseForm)}
+                  className="flex w-full items-center gap-2 rounded-xl border border-dashed border-accent/40 bg-accent/5 px-3 py-2 text-left text-[13px] text-muted transition-colors hover:bg-accent/10"
+                >
+                  <Lightbulb className="size-3.5 shrink-0 text-accent" aria-hidden />
+                  <span className="min-w-0 flex-1">
+                    {t('wordSearch.baseFormSuggest', {
+                      input: q.trim(),
+                      base: baseForm,
+                    })}
+                  </span>
+                  <span className="shrink-0 font-medium text-accent">
+                    {t('wordSearch.baseFormSwitch')}
+                  </span>
+                </button>
+              ) : null}
+
               {/* 标题区：词头 + 发音 + 读音就是这张卡的标题；
                   没生成过 AI 释义时，生成按钮放右上角。 */}
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -812,7 +850,7 @@ export function WordSearchPage() {
         {meta.index ? (
           <DictIndexPanel
             kind={meta.index}
-            query={activeTerm}
+            query={indexTerm}
             onPick={handlePickFromIndex}
           />
         ) : null}
