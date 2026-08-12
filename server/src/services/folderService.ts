@@ -36,16 +36,9 @@ export async function getFolders(userId: string) {
     orderBy: {
       createdAt: 'desc',
     },
-    include: {
-      _count: {
-        select: {
-          words: true,
-        },
-      },
-    },
   })
 
-  if (folders.length === 0) return folders
+  if (folders.length === 0) return []
 
   const folderIds = folders.map((folder) => folder.id)
   const todayStart = new Date()
@@ -56,7 +49,16 @@ export async function getFolders(userId: string) {
   // 归属现在在 WordFolder 上，所以按它分组、条件下沉到 word.review。
   // 一个词挂在两个词单里就两边各算一次，这是对的：两个词单各自的「今日到期」
   // 都该显示它，复习掉之后两边一起归零。
-  const [dueGroups, masteredGroups, reviewedTodayGroups] = await Promise.all([
+  // 总词数也走这条路径。用 include 里的 _count 的话，Prisma 生成的是一条不带
+  // where 的 GROUP BY 子查询 —— 每次都对整张 WordFolder 分组再 JOIN 回来，读
+  // 的行数只跟表多大有关，跟这个用户有几个词单无关（实测一次 6677 行）。下沉
+  // 成和下面三个统计一样的 folderId IN 分组，@@index([folderId]) 就吃得上了。
+  const [totalGroups, dueGroups, masteredGroups, reviewedTodayGroups] = await Promise.all([
+    prisma.wordFolder.groupBy({
+      by: ['folderId'],
+      where: { folderId: { in: folderIds } },
+      _count: { _all: true },
+    }),
     prisma.wordFolder.groupBy({
       by: ['folderId'],
       where: {
@@ -102,6 +104,11 @@ export async function getFolders(userId: string) {
     }),
   ])
 
+  // D1 的聚合结果是 BigInt。序列化那头有 worker.ts 的 toJSON 兜着，但这个数
+  // 前端要拿去求和（词单列表的总词数），显式收成 number，别让 BigInt 漏出去。
+  const totalMap = new Map(
+    totalGroups.map((row) => [row.folderId, Number(row._count._all)]),
+  )
   const dueMap = new Map(dueGroups.map((row) => [row.folderId, row._count._all]))
   const masteredMap = new Map(
     masteredGroups.map((row) => [row.folderId, row._count._all]),
@@ -112,6 +119,8 @@ export async function getFolders(userId: string) {
 
   return folders.map((folder) => ({
     ...folder,
+    // 形状保持不变 —— 前端读的是 folder._count.words（词单卡片、首页汇总）。
+    _count: { words: totalMap.get(folder.id) ?? 0 },
     dueCount: dueMap.get(folder.id) ?? 0,
     masteredCount: masteredMap.get(folder.id) ?? 0,
     reviewedTodayCount: reviewedTodayMap.get(folder.id) ?? 0,
@@ -140,9 +149,6 @@ export async function getFolderById(userId: string, id: string) {
           },
         },
       },
-      _count: {
-        select: { words: true },
-      },
     },
   })
 
@@ -151,7 +157,14 @@ export async function getFolderById(userId: string, id: string) {
   }
 
   // 连接表只是存储细节，对外还是一串词。
-  return { ...folder, words: folder.words.map(({ word }) => flattenWord(word)) }
+  //
+  // 词数直接数取回来的那串。原来这里挂着 include._count，等于为一个已经在手
+  // 的数字额外让 D1 对整张 WordFolder 做一次 GROUP BY。
+  return {
+    ...folder,
+    _count: { words: folder.words.length },
+    words: folder.words.map(({ word }) => flattenWord(word)),
+  }
 }
 
 export async function updateFolder(

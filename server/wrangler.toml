@@ -9,6 +9,10 @@ compatibility_flags = ["nodejs_compat"]
 binding = "DB"
 database_name = "word-sprint-db"
 database_id = "cb6b0f08-e4fa-47af-a729-92d6b666c0e7"
+# 只是让 `wrangler d1 migrations list` 找得到目录。**不要**跑
+# `wrangler d1 migrations apply` —— 生产的 d1_migrations 表从建库起就是空的，
+# 历次结构变更都是单独 execute 对应那个文件打的，apply 会认为一条都没应用过，
+# 从 init 的 CREATE TABLE 开始重跑一遍。流程见 DEPLOY.md 的 Schema change。
 migrations_dir = "prisma/migrations"
 
 # Vars vs secrets:

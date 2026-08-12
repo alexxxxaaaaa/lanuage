@@ -100,6 +100,9 @@ model Word {
 
   @@unique([userId, word, language])
   @@index([userId, pinnedAt])
+  // 笔记的词数统计按它分组，删笔记时的外键检查也走它。缺了这条，两种操作
+  // 都要扫整张 Word 表（删一条笔记实测读一万一千行）。
+  @@index([sourceNoteId])
 }
 
 /// 词 ↔ 词单。词单在这个模型里是挂在词上的标签，不是装词的盒子。
@@ -187,6 +190,10 @@ model Expression {
   folder     ExpressionFolder @relation(fields: [folderId], references: [id])
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
+
+  // 表达按分类取、分类卡片上的条数统计按它分组，删分类时的外键检查也走它。
+  // 对照 WordFolder 那边一直有 @@index([folderId])，这里是漏了。
+  @@index([folderId])
 }
 
 model ExpressionFolder {
@@ -489,6 +496,11 @@ model DictEntry {
 
   // 查词的两种形态各配一条：给定词头拿全部义项，以及给定读音拿全部词头
   //（关联词建议要问「读音 ください 的词头都有谁」，见 dictEntryService）。
-  @@index([direction, word])
+  //
+  // word 必须排在首列：回车搜索走 lookupLocalDict，用户没选方向时 where 里
+  // 只有 word，写成 (direction, word) 最左列就对不上，SQLite 只能退化成扫
+  // 全表五十多万行（实测 573k 行 / 63ms 一次）。(word, direction) 两种形态
+  // 都吃得上 —— headwordRows 的 direction + word 双等值照样走这条。
+  @@index([word, direction])
   @@index([direction, reading])
 }

@@ -90,29 +90,46 @@ export async function getNotes(
       noteAt: true,
       createdAt: true,
       updatedAt: true,
-      _count: { select: { words: true } },
     },
   })
 
   const needle = q.toLowerCase()
 
-  return rows
-    .filter((row) => {
-      if (!needle) return true
-      const haystack = `${row.title}\n${row.tag}\n${noteContentToText(row.content)}`
-      return haystack.toLowerCase().includes(needle)
-    })
-    .map((row) => ({
-      id: row.id,
-      title: row.title,
-      tag: row.tag,
-      // 这两列对老行才可能是 NULL，迁移已回填，这里只是兜底。
-      noteAt: row.noteAt ?? row.createdAt,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt ?? row.createdAt,
-      preview: noteContentToPreview(row.content, PREVIEW_LENGTH),
-      wordCount: row._count.words,
-    }))
+  const matched = rows.filter((row) => {
+    if (!needle) return true
+    const haystack = `${row.title}\n${row.tag}\n${noteContentToText(row.content)}`
+    return haystack.toLowerCase().includes(needle)
+  })
+
+  if (matched.length === 0) return []
+
+  // 词数单独一次 sourceNoteId IN 分组，走 @@index([sourceNoteId])。
+  //
+  // 写在上面 select 里的话 Prisma 会生成一条不带 where 的 GROUP BY 子查询，
+  // 每次列表都对整张 Word 表分组再 JOIN 回来 —— 读的行数只跟表多大有关，跟
+  // 这个用户有几条笔记无关（实测一次 11117 行）。而且放到过滤之后再统计，
+  // 带关键词搜索时只数真正要返回的那几条。
+  const countGroups = await prisma.word.groupBy({
+    by: ['sourceNoteId'],
+    where: { sourceNoteId: { in: matched.map((row) => row.id) } },
+    _count: { _all: true },
+  })
+  // D1 的聚合结果是 BigInt，收成 number 再交出去。
+  const countMap = new Map(
+    countGroups.map((row) => [row.sourceNoteId, Number(row._count._all)]),
+  )
+
+  return matched.map((row) => ({
+    id: row.id,
+    title: row.title,
+    tag: row.tag,
+    // 这两列对老行才可能是 NULL，迁移已回填，这里只是兜底。
+    noteAt: row.noteAt ?? row.createdAt,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt ?? row.createdAt,
+    preview: noteContentToPreview(row.content, PREVIEW_LENGTH),
+    wordCount: countMap.get(row.id) ?? 0,
+  }))
 }
 
 /** 标签选项，按用得多的排前面。新建笔记时的下拉就吃这个。 */
