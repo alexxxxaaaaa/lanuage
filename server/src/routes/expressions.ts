@@ -3,6 +3,7 @@ import {
   createExpressionFolder,
   createExpression,
   deleteExpression,
+  deleteExpressionFolder,
   getExpressionFolderById,
   getExpressionFolders,
   getExpressionById,
@@ -30,6 +31,11 @@ expressionsRouter.post('/folders', async (c) => {
     language: language ?? '',
   })
   return c.json(folder, 201)
+})
+
+expressionsRouter.delete('/folders/:id', async (c) => {
+  const result = await deleteExpressionFolder(getUserId(c), c.req.param('id'))
+  return c.json(result)
 })
 
 expressionsRouter.get('/', async (c) => {

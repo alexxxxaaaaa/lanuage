@@ -77,6 +77,24 @@ export async function getExpressionFolderById(userId: string, id: string) {
   return folder
 }
 
+export async function deleteExpressionFolder(userId: string, id: string) {
+  const normalizedId = normalizeText(id)
+  if (!normalizedId) throw new AppError('folder id is required', 400)
+  const existing = await prisma.expressionFolder.findFirst({
+    where: { id: normalizedId, userId },
+  })
+  if (!existing) throw new AppError('expression folder not found', 404)
+
+  // 表达只挂在一个分类下（Expression.folderId 是必填的），分类没了它们就无处
+  // 可去 —— 一起删，一个事务里做完，不留没主的表达。
+  await prisma.$transaction([
+    prisma.expression.deleteMany({ where: { folderId: normalizedId } }),
+    prisma.expressionFolder.delete({ where: { id: normalizedId } }),
+  ])
+
+  return { id: normalizedId }
+}
+
 export async function getExpressions(
   userId: string,
   filters?: {
