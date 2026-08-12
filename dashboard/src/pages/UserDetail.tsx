@@ -21,6 +21,7 @@ import {
 import { ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { adminApi } from '@/api'
+import { renderSceneTags } from '@/lib/sceneTags'
 import type {
   AdminExpressionRow,
   AdminFolderRow,
@@ -252,8 +253,8 @@ export default function UserDetailPage() {
                     {
                       title: '场景',
                       dataIndex: 'sceneTag',
-                      width: 120,
-                      render: (v: string) => (v ? <Tag color="purple">{v}</Tag> : '-'),
+                      width: 160,
+                      render: (v: string) => renderSceneTags(v),
                     },
                     {
                       title: '已掌握',

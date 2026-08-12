@@ -75,10 +75,12 @@ export type AiUsageSummary = {
 }
 
 export type AiExpressionCasualResult = {
+  /** 目标语言的译文。存 enCasual 还是 jpCasual 由分类语言决定。 */
+  text: string
+  /** 中文原文；开了 polish 才和传上去的不同。 */
   zhText: string
-  enCasual: string
-  jpCasual: string
-  sceneTag: string
+  /** 译文解析；没开 explain 时是空串。 */
+  note: string
 }
 
 export type AiFillGrammarResult = {
@@ -115,7 +117,14 @@ export async function getAiUsage(days = 7) {
 
 export async function generateExpressionCasual(payload: {
   zhText: string
-  language?: 'en' | 'jp'
+  /** 译成哪种语言，跟表达分类走，用户选不了。 */
+  language: 'en' | 'jp'
+  /** 场景标签，AI 按它定语域；不传＝日常口语。 */
+  sceneTags?: string[]
+  /** 先在不改原意的前提下润色中文，再按润色后的翻译。 */
+  polish?: boolean
+  /** 让 AI 多给一段译文解析，填进备注。 */
+  explain?: boolean
 }) {
   const response = await apiClient.post<AiExpressionCasualResult>(
     '/api/ai/expression-casual',
@@ -155,21 +164,4 @@ export async function generateChatTitle(payload: {
     timeout: AI_TIMEOUT_MS,
   })
   return response.data.title
-}
-
-export type AiExpressionTranslateResult = {
-  zhText: string
-  sceneTag: string
-}
-
-export async function translateExpressionToZh(payload: {
-  text: string
-  language: 'en' | 'jp'
-}) {
-  const response = await apiClient.post<AiExpressionTranslateResult>(
-    '/api/ai/expression-translate-zh',
-    payload,
-    { timeout: AI_TIMEOUT_MS },
-  )
-  return response.data
 }

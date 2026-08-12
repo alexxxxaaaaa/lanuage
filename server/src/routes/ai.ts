@@ -5,7 +5,6 @@ import {
   generateExampleOnlyByAi,
   generateExpressionCasualByAi,
   getAiUsageSummary,
-  translateExpressionToZhByAi,
 } from '../services/aiService'
 import { chatWithAi, titleForChat } from '../services/aiChatService'
 import { analyzeText, explainWordInSentence } from '../services/textAnalyzeService'
@@ -83,26 +82,19 @@ aiRouter.post('/example-only', async (c) => {
 })
 
 aiRouter.post('/expression-casual', async (c) => {
-  const { zhText, language } = await c.req.json<{
+  const body = await c.req.json<{
     zhText?: string
     language?: 'en' | 'jp'
+    sceneTags?: string[]
+    polish?: boolean
+    explain?: boolean
   }>()
   const result = await generateExpressionCasualByAi({
-    zhText: zhText ?? '',
-    language: language === 'jp' ? 'jp' : language === 'en' ? 'en' : undefined,
-    userId: getUserId(c),
-  })
-  return c.json(result)
-})
-
-aiRouter.post('/expression-translate-zh', async (c) => {
-  const { text, language } = await c.req.json<{
-    text?: string
-    language?: 'en' | 'jp'
-  }>()
-  const result = await translateExpressionToZhByAi({
-    text: text ?? '',
-    language: language === 'jp' ? 'jp' : 'en',
+    zhText: body.zhText ?? '',
+    language: body.language === 'jp' ? 'jp' : 'en',
+    sceneTags: body.sceneTags,
+    polish: body.polish,
+    explain: body.explain,
     userId: getUserId(c),
   })
   return c.json(result)

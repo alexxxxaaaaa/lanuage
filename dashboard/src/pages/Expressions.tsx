@@ -12,6 +12,7 @@ import {
 import { ReloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { adminApi } from '@/api'
+import { renderSceneTags } from '@/lib/sceneTags'
 import { UserPicker } from '@/components/UserPicker'
 import type { AdminExpressionRow } from '@/types/api'
 
@@ -104,8 +105,8 @@ export default function ExpressionsPage() {
           {
             title: '场景',
             dataIndex: 'sceneTag',
-            width: 120,
-            render: (v: string) => (v ? <Tag color="purple">{v}</Tag> : '-'),
+            width: 160,
+            render: (v: string) => renderSceneTags(v),
           },
           {
             title: '已掌握',

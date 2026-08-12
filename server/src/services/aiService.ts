@@ -68,26 +68,27 @@ type FillWordResult = {
 
 type ExpressionCasualInput = {
   zhText: string;
-  language?: SupportedLanguage;
+  /** 译成哪种语言。由表达分类定死，不让调用方另选。 */
+  language: SupportedLanguage;
+  /**
+   * 场景标签（中文文本，前端多选传上来）。给空数组＝按日常口语处理，也就是
+   * 加这个字段之前的老行为。
+   */
+  sceneTags?: string[];
+  /** 开了就先在不改原意的前提下把中文润一遍，再按润色后的那句翻译。 */
+  polish?: boolean;
+  /** 开了就让模型多给一段译文解析，前端填进备注。 */
+  explain?: boolean;
   userId: string;
 };
 
 type ExpressionCasualResult = {
-  zhText: string;
-  enCasual: string;
-  jpCasual: string;
-  sceneTag: string;
-};
-
-type ExpressionTranslateInput = {
+  /** 目标语言的译文。存哪一列（enCasual / jpCasual）由前端按分类语言决定。 */
   text: string;
-  language: SupportedLanguage;
-  userId: string;
-};
-
-type ExpressionTranslateResult = {
+  /** 中文原文；只有开了润色才和输入不同。 */
   zhText: string;
-  sceneTag: string;
+  /** 译文解析；没开备注解析时是空串。 */
+  note: string;
 };
 
 const SUPPORTED_LANGUAGES: SupportedLanguage[] = ["en", "jp"];
@@ -95,7 +96,12 @@ const MAX_OUTPUT_TOKENS = 180;
 const MAX_OUTPUT_TOKENS_EXTENDED = 400;
 /** 语境模式：比常规略宽（多一个整句翻译），但省掉了两行自造例句。 */
 const MAX_OUTPUT_TOKENS_CONTEXT = 260;
-const MAX_EXPRESSION_OUTPUT_TOKENS = 200;
+/** 只要一句译文的额度。润色多一句中文、解析多一段说明，按开关另加。 */
+const EXPRESSION_OUTPUT_TOKENS = 160;
+const EXPRESSION_POLISH_EXTRA_TOKENS = 90;
+const EXPRESSION_EXPLAIN_EXTRA_TOKENS = 220;
+/** 标签是拿来定语域的，给多了等于没给 —— 超出的直接丢掉。 */
+const MAX_SCENE_TAGS = 5;
 
 /**
  * 手输查词时这个词的词形处置，由 fillWordByAi 判定后传进来。两个字段互斥，
@@ -240,54 +246,53 @@ function normalizeEnglishAdjectiveNote(result: FillWordResult) {
   return `比较级: more ${word}; 最高级: most ${word}`;
 }
 
-function buildExpressionCasualPrompt(input: { zhText: string; language?: SupportedLanguage }) {
-  const target = input.language === "jp" ? "Japanese" : "English";
-  const outputRule =
-    input.language === "jp"
-      ? '- jpCasual: practical spoken Japanese sentence; enCasual must be empty string ""'
-      : '- enCasual: practical spoken English sentence; jpCasual must be empty string ""';
-  return [
-    `Convert Chinese expression to natural daily conversational ${target}.`,
-    "Return JSON only with keys: zhText, enCasual, jpCasual, sceneTag.",
-    "- zhText: must be exactly the same as input zh, do not paraphrase or shorten",
-    outputRule,
-    "- sceneTag: one short Chinese tag like 点餐/课堂/寒暄/求助/表达观点",
-    "- avoid formal written style",
-    "- keep generated sentence concise and practical",
-    `input zh: ${input.zhText}`,
-  ].join("\n");
-}
-
-function buildExpressionTranslatePrompt(input: { text: string; language: SupportedLanguage }) {
-  const sourceLabel = input.language === "jp" ? "Japanese" : "English";
-  return [
-    `Translate the following ${sourceLabel} spoken expression into natural Simplified Chinese.`,
-    "Return JSON only with keys: zhText, sceneTag.",
-    "- zhText: concise natural Simplified Chinese translation, keep the speaking tone",
-    "- sceneTag: one short Chinese tag like 点餐/课堂/寒暄/求助/表达观点",
-    "- no formal written style, keep it practical",
-    `input ${sourceLabel}: ${input.text}`,
-  ].join("\n");
-}
-
-function safeParseExpressionTranslateJson(
-  content: string,
-): ExpressionTranslateResult {
-  try {
-    const parsed =
-      parseModelJsonObject<Partial<ExpressionTranslateResult>>(content);
-    const result: ExpressionTranslateResult = {
-      zhText: sanitize(parsed.zhText),
-      sceneTag: sanitize(parsed.sceneTag),
-    };
-    if (!result.zhText) {
-      throw new AppError("AI returned invalid translate result", 502);
-    }
-    return result;
-  } catch (error) {
-    if (error instanceof AppError) throw error;
-    throw new AppError("AI returned invalid translate JSON", 502);
+/**
+ * 场景标签不查白名单 —— 前端那份词表将来加词条、用户库里还留着早期 AI 自由
+ * 生成的标签，服务端认死一份只会平白拦掉。这里只做安全边界：去空、去重、限长
+ * 限量，剩下的原样进 prompt。
+ */
+function normalizeSceneTags(tags?: string[]) {
+  if (!Array.isArray(tags)) return [];
+  const picked = new Set<string>();
+  for (const tag of tags) {
+    const value = sanitize(tag).slice(0, 20);
+    if (value) picked.add(value);
+    if (picked.size >= MAX_SCENE_TAGS) break;
   }
+  return Array.from(picked);
+}
+
+function buildExpressionCasualPrompt(input: {
+  zhText: string;
+  language: SupportedLanguage;
+  sceneTags: string[];
+  polish: boolean;
+  explain: boolean;
+}) {
+  const target = input.language === "jp" ? "Japanese" : "English";
+  // 关掉的开关对应的 key 压根不提 —— 模型不写它，也就不为它花 token。
+  const keys = ["text", input.polish && "zhText", input.explain && "note"]
+    .filter(Boolean)
+    .join(", ");
+  return [
+    `Translate the Chinese expression into natural ${target}.`,
+    `Return JSON only with keys: ${keys}.`,
+    `- text: one ${target} sentence, concise and directly usable`,
+    input.sceneTags.length
+      ? `- register: the sentence must fit these scenes: ${input.sceneTags.join(
+          "、",
+        )}. Match their politeness level, vocabulary and sentence style; satisfy all of them at once.`
+      : "- register: everyday spoken style; avoid formal written wording",
+    input.polish
+      ? "- zhText: 先把 input zh 润色成更通顺自然、更贴合上述场景的中文，不得改变原意、不得增删信息；text 按润色后的中文翻译。"
+      : "",
+    input.explain
+      ? "- note: 用简体中文说明译文的关键用词、句式和语气是怎么定的（<=120 字），不要复述译文本身。"
+      : "",
+    `input zh: ${input.zhText}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function safeParseJson(content: string, fallbackWord: string): FillWordResult {
@@ -338,19 +343,17 @@ function isSparseFillWordResult(result: FillWordResult) {
 function safeParseExpressionJson(
   content: string,
   originalZhText: string,
-  language?: SupportedLanguage,
 ): ExpressionCasualResult {
   try {
     const parsed =
       parseModelJsonObject<Partial<ExpressionCasualResult>>(content);
     const result: ExpressionCasualResult = {
-      zhText: originalZhText,
-      enCasual: sanitize(parsed.enCasual),
-      jpCasual: sanitize(parsed.jpCasual),
-      sceneTag: sanitize(parsed.sceneTag),
+      text: sanitize(parsed.text),
+      // 没开润色时 prompt 里就没有 zhText 这个 key，原样回显输入。
+      zhText: sanitize(parsed.zhText) || originalZhText,
+      note: sanitize(parsed.note),
     };
-    const targetValue = language === "jp" ? result.jpCasual : result.enCasual;
-    if (!result.zhText || !targetValue) {
+    if (!result.text) {
       throw new AppError("AI returned invalid expression result", 502);
     }
     return result;
@@ -921,51 +924,36 @@ export async function generateExpressionCasualByAi(
   const zhText = sanitize(input.zhText);
   if (!zhText) throw new AppError("zhText is required", 400);
   const language = input.language;
-  if (language && !SUPPORTED_LANGUAGES.includes(language)) {
+  if (!SUPPORTED_LANGUAGES.includes(language)) {
     throw new AppError("language must be en or jp", 400);
   }
+  const polish = !!input.polish;
+  const explain = !!input.explain;
 
   await assertWithinDailyBudget(input.userId);
 
   const content = await completeJsonOrThrow({
-    system: "You output concise spoken expression JSON only.",
-    user: buildExpressionCasualPrompt({ zhText, language }),
-    maxOutputTokens: MAX_EXPRESSION_OUTPUT_TOKENS,
+    system: "You output concise expression JSON only.",
+    user: buildExpressionCasualPrompt({
+      zhText,
+      language,
+      sceneTags: normalizeSceneTags(input.sceneTags),
+      polish,
+      explain,
+    }),
+    maxOutputTokens:
+      EXPRESSION_OUTPUT_TOKENS +
+      (polish ? EXPRESSION_POLISH_EXTRA_TOKENS : 0) +
+      (explain ? EXPRESSION_EXPLAIN_EXTRA_TOKENS : 0),
     log: {
       word: zhText,
-      language: language ?? "multi",
+      language,
       feature: "expression_casual",
       userId: input.userId,
     },
   });
 
-  return safeParseExpressionJson(content, zhText, language);
-}
-
-export async function translateExpressionToZhByAi(
-  input: ExpressionTranslateInput,
-) {
-  const text = sanitize(input.text);
-  if (!text) throw new AppError("text is required", 400);
-  if (!SUPPORTED_LANGUAGES.includes(input.language)) {
-    throw new AppError("language must be en or jp", 400);
-  }
-
-  await assertWithinDailyBudget(input.userId);
-
-  const content = await completeJsonOrThrow({
-    system: "You output concise Chinese translation JSON only.",
-    user: buildExpressionTranslatePrompt({ text, language: input.language }),
-    maxOutputTokens: MAX_EXPRESSION_OUTPUT_TOKENS,
-    log: {
-      word: text,
-      language: input.language,
-      feature: "expression_translate",
-      userId: input.userId,
-    },
-  });
-
-  return safeParseExpressionTranslateJson(content);
+  return safeParseExpressionJson(content, zhText);
 }
 
 export async function getAiUsageSummary(userId: string, days = 7) {

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Input, TextArea } from '@heroui/react'
+import { Button, Input, Switch, TextArea } from '@heroui/react'
 import { confirm, alertDialog } from '../components/ui/dialog'
 import { Search } from 'lucide-react'
 import { useParams } from 'react-router'
-import { generateExpressionCasual, translateExpressionToZh } from '../api/ai'
+import { generateExpressionCasual } from '../api/ai'
 import {
   deleteExpression,
   getExpressionFolderById,
@@ -11,15 +11,35 @@ import {
   createExpression,
 } from '../api/expressions'
 import { getErrorMessage } from '../api/error'
+import { MultiSelectField, type SelectOption } from '../components/ui/SelectField'
+import { SCENE_TAGS, parseSceneTags, serializeSceneTags } from '../lib/sceneTags'
 import { useI18n } from '../i18n'
 import type { Expression } from '../types'
 
-const initialForm = {
+type ExpressionForm = {
+  zhText: string
+  /** 目标语言的译文。存的时候按分类语言落到 enCasual / jpCasual，另一列留空。 */
+  text: string
+  sceneTags: string[]
+  note: string
+}
+
+const initialForm: ExpressionForm = {
   zhText: '',
-  sceneTag: '',
+  text: '',
+  sceneTags: [],
   note: '',
-  enCasual: '',
-  jpCasual: '',
+}
+
+/** 分类语言决定译文存哪一列 —— 一条表达只属于一种语言，另一列恒为空。 */
+function toCasualFields(language: 'en' | 'jp', text: string) {
+  return language === 'jp'
+    ? { jpCasual: text, enCasual: '' }
+    : { enCasual: text, jpCasual: '' }
+}
+
+function casualOf(language: 'en' | 'jp', item: Expression) {
+  return language === 'jp' ? item.jpCasual : item.enCasual
 }
 
 function readRevealedIds(storageKey: string | null): Set<string> {
@@ -44,13 +64,16 @@ export function ExpressionFolderDetailPage() {
   const [reloadToken, setReloadToken] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isAiLoading, setIsAiLoading] = useState(false)
-  const [isAiTranslateLoading, setIsAiTranslateLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [query, setQuery] = useState('')
   const [form, setForm] = useState(initialForm)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingForm, setEditingForm] = useState(initialForm)
+  // 润色 / 备注解析是「这次怎么生成」的开关，不是表达本身的内容 —— 所以不放进
+  // form，保存后也不跟着清空，连着加几条时不用每条重新勾。
+  const [polish, setPolish] = useState(false)
+  const [explain, setExplain] = useState(false)
   const revealStorageKey = id ? `expr-revealed:${id}` : null
   const [revealedIds, setRevealedIds] = useState<Set<string>>(() =>
     readRevealedIds(revealStorageKey),
@@ -116,6 +139,33 @@ export function ExpressionFolderDetailPage() {
     )
   }, [rows, query])
 
+  const sceneTagOptions = useMemo<SelectOption[]>(
+    () =>
+      SCENE_TAGS.map((tag) => ({
+        value: tag.value,
+        label: t(`expression.sceneTags.${tag.labelKey}`),
+        textValue: tag.value,
+      })),
+    [t],
+  )
+
+  const sceneTagLabel = (value: string) => {
+    const known = SCENE_TAGS.find((tag) => tag.value === value)
+    return known ? t(`expression.sceneTags.${known.labelKey}`) : value
+  }
+
+  /**
+   * 词表之外的标签也列进选项 —— 早期 AI 自由生成过「点餐」「寒暄」这类，编辑
+   * 一条老表达时它们得留在下拉框里，否则一存就被吞掉。
+   */
+  const sceneTagOptionsFor = (values: string[]): SelectOption[] => {
+    const known = new Set(sceneTagOptions.map((option) => option.value))
+    return [
+      ...sceneTagOptions,
+      ...values.filter((value) => !known.has(value)).map((value) => ({ value, label: value })),
+    ]
+  }
+
   const handleAiGenerate = async () => {
     const zhText = form.zhText.trim()
     if (!zhText) {
@@ -128,14 +178,19 @@ export function ExpressionFolderDetailPage() {
     }
     setIsAiLoading(true)
     try {
-      const generated = await generateExpressionCasual({ zhText, language: folderLanguage })
+      const generated = await generateExpressionCasual({
+        zhText,
+        language: folderLanguage,
+        sceneTags: form.sceneTags,
+        polish,
+        explain,
+      })
       setForm((prev) => ({
         ...prev,
-        enCasual:
-          folderLanguage === 'en' ? generated.enCasual || prev.enCasual : '',
-        jpCasual:
-          folderLanguage === 'jp' ? generated.jpCasual || prev.jpCasual : '',
-        sceneTag: generated.sceneTag || prev.sceneTag,
+        // 开了润色才会变，没开时服务端原样回显。
+        zhText: generated.zhText || prev.zhText,
+        text: generated.text || prev.text,
+        note: generated.note || prev.note,
       }))
     } catch (aiError) {
       const retry = await confirm({
@@ -147,40 +202,6 @@ export function ExpressionFolderDetailPage() {
       if (retry) void handleAiGenerate()
     } finally {
       setIsAiLoading(false)
-    }
-  }
-
-  const handleAiTranslate = async () => {
-    const sourceText = (folderLanguage === 'jp' ? form.jpCasual : form.enCasual).trim()
-    if (!sourceText) {
-      void alertDialog.warning({
-        title: t('expression.enterSourceFirst'),
-        content: t('expression.enterSourceHint'),
-        okText: t('expression.save'),
-      })
-      return
-    }
-    setIsAiTranslateLoading(true)
-    try {
-      const translated = await translateExpressionToZh({
-        text: sourceText,
-        language: folderLanguage,
-      })
-      setForm((prev) => ({
-        ...prev,
-        zhText: translated.zhText || prev.zhText,
-        sceneTag: prev.sceneTag || translated.sceneTag,
-      }))
-    } catch (aiError) {
-      const retry = await confirm({
-        title: t('expression.aiTranslateFailed'),
-        content: getErrorMessage(aiError, t('expression.aiRetry')),
-        okText: t('expression.retry'),
-        cancelText: t('expression.cancel'),
-      })
-      if (retry) void handleAiTranslate()
-    } finally {
-      setIsAiTranslateLoading(false)
     }
   }
 
@@ -197,9 +218,8 @@ export function ExpressionFolderDetailPage() {
       await createExpression({
         folderId: id,
         zhText: form.zhText,
-        enCasual: folderLanguage === 'en' ? form.enCasual : '',
-        jpCasual: folderLanguage === 'jp' ? form.jpCasual : '',
-        sceneTag: form.sceneTag,
+        ...toCasualFields(folderLanguage, form.text),
+        sceneTag: serializeSceneTags(form.sceneTags),
         note: form.note,
       })
       setForm(initialForm)
@@ -216,9 +236,8 @@ export function ExpressionFolderDetailPage() {
     setEditingId(item.id)
     setEditingForm({
       zhText: item.zhText,
-      enCasual: item.enCasual,
-      jpCasual: item.jpCasual,
-      sceneTag: item.sceneTag,
+      text: casualOf(folderLanguage, item),
+      sceneTags: parseSceneTags(item.sceneTag),
       note: item.note,
     })
   }
@@ -227,9 +246,10 @@ export function ExpressionFolderDetailPage() {
     if (!editingId) return
     try {
       await updateExpression(editingId, {
-        ...editingForm,
-        enCasual: folderLanguage === 'en' ? editingForm.enCasual : '',
-        jpCasual: folderLanguage === 'jp' ? editingForm.jpCasual : '',
+        zhText: editingForm.zhText,
+        ...toCasualFields(folderLanguage, editingForm.text),
+        sceneTag: serializeSceneTags(editingForm.sceneTags),
+        note: editingForm.note,
       })
       setEditingId(null)
       setReloadToken((token) => token + 1)
@@ -284,13 +304,45 @@ export function ExpressionFolderDetailPage() {
             />
           </label>
           <label>
-            {t('expression.sceneTag')} <span className="optional-mark">(可选)</span>
-            <Input
-              value={form.sceneTag}
-              onChange={(event) => setForm((prev) => ({ ...prev, sceneTag: event.target.value }))}
+            {t('expression.sceneTag')}{' '}
+            <span className="optional-mark">({t('expression.optional')})</span>
+            <MultiSelectField
+              aria-label={t('expression.sceneTag')}
+              values={form.sceneTags}
+              onChange={(next) => setForm((prev) => ({ ...prev, sceneTags: next }))}
+              options={sceneTagOptionsFor(form.sceneTags)}
               placeholder={t('expression.scenePlaceholder')}
+              fullWidth
             />
           </label>
+          <div className="flex flex-wrap gap-x-8 gap-y-3">
+            <Switch isSelected={polish} onChange={setPolish}>
+              <Switch.Content>
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+                <span className="grid gap-0.5">
+                  <span>{t('expression.polish')}</span>
+                  <span className="muted text-xs font-normal">
+                    {t('expression.polishHint')}
+                  </span>
+                </span>
+              </Switch.Content>
+            </Switch>
+            <Switch isSelected={explain} onChange={setExplain}>
+              <Switch.Content>
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+                <span className="grid gap-0.5">
+                  <span>{t('expression.explain')}</span>
+                  <span className="muted text-xs font-normal">
+                    {t('expression.explainHint')}
+                  </span>
+                </span>
+              </Switch.Content>
+            </Switch>
+          </div>
           <div className="form-actions">
             <Button variant="outline"
               type="button"
@@ -304,27 +356,10 @@ export function ExpressionFolderDetailPage() {
             {folderLanguage === 'jp' ? t('expression.japanese') : t('expression.english')}
             <TextArea
               rows={3}
-              value={folderLanguage === 'jp' ? form.jpCasual : form.enCasual}
-              onChange={(event) =>
-                setForm((prev) =>
-                  folderLanguage === 'jp'
-                    ? { ...prev, jpCasual: event.target.value, enCasual: '' }
-                    : { ...prev, enCasual: event.target.value, jpCasual: '' },
-                )
-              }
+              value={form.text}
+              onChange={(event) => setForm((prev) => ({ ...prev, text: event.target.value }))}
             />
           </label>
-          <div className="form-actions">
-            <Button variant="outline"
-              type="button"
-              onPress={() => void handleAiTranslate()}
-              isDisabled={isAiTranslateLoading}
-            >
-              {isAiTranslateLoading
-                ? t('expression.translatingByAi')
-                : t('expression.translateToZh')}
-            </Button>
-          </div>
           <label>
             {t('expression.note')}
             <TextArea
@@ -377,27 +412,23 @@ export function ExpressionFolderDetailPage() {
                     {folderLanguage === 'jp' ? t('expression.japanese') : t('expression.english')}
                     <TextArea
                       rows={2}
-                      value={
-                        folderLanguage === 'jp'
-                          ? editingForm.jpCasual
-                          : editingForm.enCasual
-                      }
+                      value={editingForm.text}
                       onChange={(event) =>
-                        setEditingForm((prev) =>
-                          folderLanguage === 'jp'
-                            ? { ...prev, jpCasual: event.target.value, enCasual: '' }
-                            : { ...prev, enCasual: event.target.value, jpCasual: '' },
-                        )
+                        setEditingForm((prev) => ({ ...prev, text: event.target.value }))
                       }
                     />
                   </label>
                   <label>
                     {t('expression.sceneTag')}
-                    <Input
-                      value={editingForm.sceneTag}
-                      onChange={(event) =>
-                        setEditingForm((prev) => ({ ...prev, sceneTag: event.target.value }))
+                    <MultiSelectField
+                      aria-label={t('expression.sceneTag')}
+                      values={editingForm.sceneTags}
+                      onChange={(next) =>
+                        setEditingForm((prev) => ({ ...prev, sceneTags: next }))
                       }
+                      options={sceneTagOptionsFor(editingForm.sceneTags)}
+                      placeholder={t('expression.scenePlaceholder')}
+                      fullWidth
                     />
                   </label>
                   <label>
@@ -424,7 +455,10 @@ export function ExpressionFolderDetailPage() {
                   <div className="word-card-header">
                     <div>
                       <strong className="word-title">{item.zhText}</strong>
-                      <p className="muted">{item.sceneTag || t('expression.unclassifiedScene')}</p>
+                      <p className="muted">
+                        {parseSceneTags(item.sceneTag).map(sceneTagLabel).join(' · ') ||
+                          t('expression.unclassifiedScene')}
+                      </p>
                     </div>
                   </div>
                   <div className="grid gap-1.5">
@@ -433,9 +467,7 @@ export function ExpressionFolderDetailPage() {
                       style={{ visibility: revealedIds.has(item.id) ? 'visible' : 'hidden' }}
                     >
                       <strong>{folderLanguage === 'jp' ? 'JP' : 'EN'}:</strong>{' '}
-                      {folderLanguage === 'jp'
-                        ? item.jpCasual || '-'
-                        : item.enCasual || '-'}
+                      {casualOf(folderLanguage, item) || '-'}
                     </p>
                     <Button variant="outline" size="sm" className="justify-self-start rounded-md text-xs"
                       type="button"
