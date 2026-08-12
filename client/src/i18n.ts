@@ -378,6 +378,12 @@ export const messages: Record<UiLanguage, DictNode> = {
       subtitleAiOnly: '查我的单词库，需要时一键生成 AI 释义。',
       placeholder: '输入中文 / 英语 / 日语，例如：礼貌地拒绝',
       search: '搜索',
+      // 搜索框下方建议弹窗的分节标题。
+      suggest: {
+        library: '我的词库',
+        related: '关联词',
+        dictionary: '字典',
+      },
       enterKeyword: '请输入要搜索的词',
       lookupFailed: '词典搜索失败，请稍后重试',
       aiSearching: '查询中...',
@@ -954,6 +960,11 @@ export const messages: Record<UiLanguage, DictNode> = {
       subtitleAiOnly: 'Search your library and generate AI definitions on demand.',
       placeholder: 'Type Chinese / English / Japanese, e.g. politely decline',
       search: 'Search',
+      suggest: {
+        library: 'My words',
+        related: 'Related',
+        dictionary: 'Dictionary',
+      },
       enterKeyword: 'Please enter a search term',
       lookupFailed: 'Dictionary lookup failed, please retry later',
       aiSearching: 'Searching...',
@@ -1532,6 +1543,11 @@ export const messages: Record<UiLanguage, DictNode> = {
       subtitleAiOnly: 'マイ単語を検索し、必要なら AI 釈義を生成します。',
       placeholder: '中国語/英語/日本語を入力（例：丁寧に断る）',
       search: '検索',
+      suggest: {
+        library: '単語帳',
+        related: '関連語',
+        dictionary: '辞書',
+      },
       enterKeyword: '検索語を入力してください',
       lookupFailed: '辞書検索に失敗しました。後で再試行してください',
       aiSearching: '検索中...',

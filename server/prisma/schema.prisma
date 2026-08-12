@@ -487,6 +487,8 @@ model DictEntry {
   // 五十音順 / 拼音序的排序键，和 .idx 索引文件里的第一列同源。
   sortKey   String
 
-  // 查词只有一种形态：给定方向 + 词头拿全部义项，所以这一条复合索引就够。
+  // 查词的两种形态各配一条：给定词头拿全部义项，以及给定读音拿全部词头
+  //（关联词建议要问「读音 ください 的词头都有谁」，见 dictEntryService）。
   @@index([direction, word])
+  @@index([direction, reading])
 }

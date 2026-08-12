@@ -3,6 +3,7 @@ import { lookupDictionary } from '../services/dictionaryService'
 import {
   backfillAiDictFromWords,
   clearAiDictEntry,
+  findRelatedJaWords,
   lookupLocalDict,
 } from '../services/dictEntryService'
 import { getUserId, type AppEnv } from '../middleware/requireAuth'
@@ -26,6 +27,15 @@ dictionaryRouter.get('/entries', async (c) => {
   const direction = c.req.query('direction')
   const { entries, baseForm } = await lookupLocalDict(word, direction)
   return c.json({ entries, baseForm })
+})
+
+/**
+ * 关联词：本地词库里和输入同读音的其他日语词头 ——「下さい」↔「ください」，
+ * 「はし」→ 橋 / 箸 / 端。活用形先还原成辞書形再找。搜索框的建议弹窗在用。
+ */
+dictionaryRouter.get('/related', async (c) => {
+  const items = await findRelatedJaWords(c.req.query('word') ?? '')
+  return c.json({ items })
 })
 
 /** 清除 AI 生成的缓存行（词典视图里的「清除」按钮）。direction 可选。 */

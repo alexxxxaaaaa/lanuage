@@ -54,6 +54,29 @@ export async function fetchDictEntries(
   }
 }
 
+/** 本地词库里和输入同读音的另一个词头。 */
+export type RelatedWord = {
+  word: string
+  reading: string
+  /** 一句释义，同音异义词靠它分辨（橋 桥 / 箸 筷子）。词库没写就是空串。 */
+  gloss: string
+}
+
+/**
+ * 关联词：「下さい」↔「ください」这类假名/汉字写法差异，以及同读音的其他词
+ * （「はし」→ 橋 / 箸 / 端）。活用形先还原成辞書形再找。搜索框的建议弹窗在用。
+ */
+export async function fetchRelatedWords(
+  word: string,
+  options?: { signal?: AbortSignal },
+): Promise<RelatedWord[]> {
+  const response = await apiClient.get<{ items?: RelatedWord[] }>(
+    '/api/dictionary/related',
+    { params: { word }, signal: options?.signal },
+  )
+  return response.data.items ?? []
+}
+
 /** 清除 AI 生成的缓存行。返回删掉的行数。 */
 export async function clearAiDictEntry(word: string, direction?: DictEntryDirection) {
   const response = await apiClient.delete<{ deleted: number }>('/api/dictionary/ai-entry', {

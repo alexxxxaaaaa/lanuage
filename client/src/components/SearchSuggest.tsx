@@ -8,17 +8,31 @@ import {
   type KeyboardEvent,
 } from 'react'
 import axios from 'axios'
+import { fetchRelatedWords, type RelatedWord } from '../api/dict'
 import { lookupDictionary } from '../api/dictionary'
 import { getWordSuggestions, type WordSuggestion } from '../api/words'
+import { useI18n } from '../i18n'
 
 type DictItem = {
   word: string
   reading: string
 }
 
-type Suggestion =
-  | { kind: 'library'; data: WordSuggestion }
-  | { kind: 'dictionary'; data: DictItem }
+/** 弹窗里的一行。三节共用一套形状，键盘上下键才能一路走到底。 */
+type SuggestRow = {
+  word: string
+  reading: string
+  /** 词头下面那行灰字：单词库给释义，关联词给词库释义，字典没有。 */
+  detail: string
+}
+
+type Section = {
+  key: string
+  label: string
+  rows: SuggestRow[]
+  /** 本节第一行在扁平列表里的下标，高亮和键盘定位共用一套坐标。 */
+  offset: number
+}
 
 export type SearchSuggestHandle = {
   focus: () => void
@@ -37,8 +51,8 @@ type Props = {
 const DEBOUNCE_MS = 250
 const MAX_PER_SECTION = 5
 
-const SECTION_LABEL =
-  'border-t border-border bg-foreground/3 px-3 py-1.5 text-xs text-muted first:border-t-0'
+/** 分节标题。分隔线画在整节外面，否则每节的第一个子元素都吃到 first: 而全不画。 */
+const SECTION_LABEL = 'bg-foreground/3 px-3 py-1.5 text-xs text-muted'
 /** Single-line with ellipsis, shrinkable inside a flex row. */
 const TRUNCATE = 'min-w-0 flex-[0_1_auto] truncate'
 
@@ -58,12 +72,20 @@ function dictLangFor(input: 'zh' | 'jp' | 'en'): 'jp' | 'en' {
   return input === 'en' ? 'en' : 'jp'
 }
 
+/** 一路结果落地：失败清空，取消（换了输入）时留着，等新的那次覆盖。 */
+function applyResult<T>(result: PromiseSettledResult<T[]>, set: (next: T[]) => void) {
+  if (result.status === 'fulfilled') set(result.value)
+  else if (!axios.isCancel(result.reason)) set([])
+}
+
 export const SearchSuggest = forwardRef<SearchSuggestHandle, Props>(function SearchSuggest(
   { value, onChange, onSubmit, placeholder, className, inputClassName },
   ref,
 ) {
+  const { t } = useI18n()
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [library, setLibrary] = useState<WordSuggestion[]>([])
+  const [related, setRelated] = useState<RelatedWord[]>([])
   const [dictionary, setDictionary] = useState<DictItem[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [highlight, setHighlight] = useState(-1)
@@ -77,18 +99,58 @@ export const SearchSuggest = forwardRef<SearchSuggestHandle, Props>(function Sea
     focus: () => inputRef.current?.focus({ preventScroll: true }),
   }))
 
-  // Combined, deduped list of suggestions: library first, dictionary second.
-  const items = useMemo<Suggestion[]>(() => {
-    const libCapped = library.slice(0, MAX_PER_SECTION)
-    const libKeys = new Set(libCapped.map((w) => `${w.word}|${w.reading}`))
-    const dictCapped = dictionary
-      .filter((d) => !libKeys.has(`${d.word}|${d.reading}`))
-      .slice(0, MAX_PER_SECTION)
+  /**
+   * 三节候选，按「有多大把握是用户要的词」排：自己收过的词在最前，其次是本地
+   * 词库按读音找出的关联词（精确、离线），最后是字典的模糊匹配。
+   *
+   * 同一个词只留最靠前那一节的那一行 —— 点哪一行填进输入框的都是同一个词头，
+   * 重复出现只是占地方。
+   */
+  const sections = useMemo<Section[]>(() => {
+    const seen = new Set<string>()
+    let offset = 0
+    const build = <T,>(
+      key: string,
+      source: T[],
+      limit: number,
+      toRow: (item: T) => SuggestRow,
+    ): Section => {
+      const rows: SuggestRow[] = []
+      for (const item of source) {
+        if (rows.length >= limit) break
+        const row = toRow(item)
+        if (seen.has(row.word)) continue
+        seen.add(row.word)
+        rows.push(row)
+      }
+      const section = { key, label: t(`wordSearch.suggest.${key}`), rows, offset }
+      offset += rows.length
+      return section
+    }
+
     return [
-      ...libCapped.map((data) => ({ kind: 'library' as const, data })),
-      ...dictCapped.map((data) => ({ kind: 'dictionary' as const, data })),
-    ]
-  }, [library, dictionary])
+      build('library', library, MAX_PER_SECTION, (w) => ({
+        word: w.word,
+        reading: w.reading,
+        detail: w.meaning,
+      })),
+      // 条数由服务端定死（同一个读音下的词头可能有几十个），这里不再截。
+      build('related', related, related.length, (w) => ({
+        word: w.word,
+        reading: w.reading,
+        detail: w.gloss,
+      })),
+      // 字典只用词头和读音 —— 它给的释义不入库，用户点中之后由查词页自己查。
+      build('dictionary', dictionary, MAX_PER_SECTION, (d) => ({
+        word: d.word,
+        reading: d.reading,
+        detail: '',
+      })),
+    ].filter((section) => section.rows.length > 0)
+  }, [library, related, dictionary, t])
+
+  /** 键盘上下键走的扁平列表，顺序和渲染顺序一致。 */
+  const items = useMemo(() => sections.flatMap((section) => section.rows), [sections])
 
   // Debounced remote fetch; IME composition pauses lookups so we don't fire
   // on every pinyin/romaji keystroke.
@@ -96,6 +158,7 @@ export const SearchSuggest = forwardRef<SearchSuggestHandle, Props>(function Sea
     const trimmed = value.trim()
     if (!trimmed || isComposing) {
       setLibrary([])
+      setRelated([])
       setDictionary([])
       return
     }
@@ -103,28 +166,24 @@ export const SearchSuggest = forwardRef<SearchSuggestHandle, Props>(function Sea
     const handle = window.setTimeout(() => {
       void (async () => {
         const detected = detectInputLang(trimmed)
-        const [libResult, dictResult] = await Promise.allSettled([
+        const results = await Promise.allSettled([
           getWordSuggestions(trimmed, { limit: 10, signal: controller.signal }),
+          // 关联词只对可能是日语的输入查。纯拉丁字母在日中词库里一条都不会有，
+          // 白问一次接口。
+          detected === 'en'
+            ? Promise.resolve<RelatedWord[]>([])
+            : fetchRelatedWords(trimmed, { signal: controller.signal }),
           lookupDictionary(trimmed, dictLangFor(detected), {
             signal: controller.signal,
           }),
         ])
         if (controller.signal.aborted) return
-        if (libResult.status === 'fulfilled') {
-          setLibrary(libResult.value)
-        } else if (!axios.isCancel(libResult.reason)) {
-          setLibrary([])
-        }
-        if (dictResult.status === 'fulfilled') {
-          // We only show word + reading for dictionary candidates — meanings
-          // from the dictionary aren't trusted, the user picks one and the
-          // search page runs an AI lookup on the chosen word.
-          setDictionary(
-            dictResult.value.map((d) => ({ word: d.word, reading: d.reading })),
-          )
-        } else if (!axios.isCancel(dictResult.reason)) {
-          setDictionary([])
-        }
+        const [libResult, relatedResult, dictResult] = results
+        applyResult(libResult, setLibrary)
+        applyResult(relatedResult, setRelated)
+        applyResult(dictResult, (list) =>
+          setDictionary(list.map((d) => ({ word: d.word, reading: d.reading }))),
+        )
       })()
     }, DEBOUNCE_MS)
     return () => {
@@ -166,7 +225,7 @@ export const SearchSuggest = forwardRef<SearchSuggestHandle, Props>(function Sea
       // No wrapping <form> — Enter is the submit path, for the highlighted
       // candidate when there is one and for the raw text otherwise.
       event.preventDefault()
-      commit(highlight >= 0 ? items[highlight].data.word : value)
+      commit(highlight >= 0 ? items[highlight].word : value)
       close()
     } else if (event.key === 'Escape') {
       close()
@@ -219,46 +278,41 @@ export const SearchSuggest = forwardRef<SearchSuggestHandle, Props>(function Sea
           // Prevent input blur before click handler fires.
           onMouseDown={(e) => e.preventDefault()}
         >
-          {library.slice(0, MAX_PER_SECTION).length > 0 ? (
-            <div className={SECTION_LABEL}>我的词库</div>
-          ) : null}
-          {items.map((item, idx) => {
-            const isLib = item.kind === 'library'
-            const baseIdx = idx
-            const isHighlighted = baseIdx === highlight
-            // Insert a section divider before the first dictionary item.
-            const prev = idx > 0 ? items[idx - 1] : null
-            const showDictHeader = !isLib && (prev === null || prev.kind === 'library')
-            return (
-              <div key={`${item.kind}-${idx}-${item.data.word}`}>
-                {showDictHeader ? <div className={SECTION_LABEL}>字典</div> : null}
-                <button
-                  type="button"
-                  className={`flex w-full min-w-0 cursor-pointer flex-col gap-0.5 border-none bg-transparent px-3 py-2 text-left font-[inherit] text-inherit hover:bg-accent-soft ${
-                    isHighlighted ? 'bg-accent-soft' : ''
-                  }`}
-                  onMouseEnter={() => setHighlight(baseIdx)}
-                  onClick={() => commit(item.data.word)}
-                >
-                  <div className="flex w-full min-w-0 items-baseline gap-2.5">
-                    {/* CJK breaks between any two characters, so these spans
-                        truncate rather than wrap. */}
-                    <span className={`${TRUNCATE} font-semibold`}>{item.data.word}</span>
-                    {item.data.reading && item.data.reading !== item.data.word ? (
-                      <span className={`${TRUNCATE} text-[0.9em] text-muted`}>
-                        {item.data.reading}
-                      </span>
-                    ) : null}
-                  </div>
-                  {isLib && 'meaning' in item.data && item.data.meaning ? (
-                    <div className="w-full truncate text-[0.85em] text-muted">
-                      {item.data.meaning}
+          {sections.map((section) => (
+            <div key={section.key} className="border-t border-border first:border-t-0">
+              <div className={SECTION_LABEL}>{section.label}</div>
+              {section.rows.map((row, idx) => {
+                const at = section.offset + idx
+                return (
+                  <button
+                    key={`${section.key}-${row.word}`}
+                    type="button"
+                    className={`flex w-full min-w-0 cursor-pointer flex-col gap-0.5 border-none bg-transparent px-3 py-2 text-left font-[inherit] text-inherit hover:bg-accent-soft ${
+                      at === highlight ? 'bg-accent-soft' : ''
+                    }`}
+                    onMouseEnter={() => setHighlight(at)}
+                    onClick={() => commit(row.word)}
+                  >
+                    <div className="flex w-full min-w-0 items-baseline gap-2.5">
+                      {/* CJK breaks between any two characters, so these spans
+                          truncate rather than wrap. */}
+                      <span className={`${TRUNCATE} font-semibold`}>{row.word}</span>
+                      {row.reading && row.reading !== row.word ? (
+                        <span className={`${TRUNCATE} text-[0.9em] text-muted`}>
+                          {row.reading}
+                        </span>
+                      ) : null}
                     </div>
-                  ) : null}
-                </button>
-              </div>
-            )
-          })}
+                    {row.detail ? (
+                      <div className="w-full truncate text-[0.85em] text-muted">
+                        {row.detail}
+                      </div>
+                    ) : null}
+                  </button>
+                )
+              })}
+            </div>
+          ))}
         </div>
       ) : null}
     </div>
