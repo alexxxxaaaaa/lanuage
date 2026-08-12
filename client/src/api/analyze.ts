@@ -1,4 +1,4 @@
-import { apiClient } from './client'
+import { AI_TIMEOUT_MS, apiClient } from './client'
 
 /**
  * 文解析接口。服务端实现见 server/src/services/textAnalyzeService.ts —— 那边
@@ -44,9 +44,11 @@ export type AnalyzeWordResult = {
 }
 
 export async function analyzeText(text: string) {
-  const response = await apiClient.post<AnalyzeTextResult>('/api/ai/analyze-text', {
-    text,
-  })
+  const response = await apiClient.post<AnalyzeTextResult>(
+    '/api/ai/analyze-text',
+    { text },
+    { timeout: AI_TIMEOUT_MS },
+  )
   return response.data
 }
 
@@ -58,6 +60,8 @@ export async function analyzeWord(payload: {
   kana?: string
   base?: string
 }) {
-  const response = await apiClient.post<AnalyzeWordResult>('/api/ai/analyze-word', payload)
+  const response = await apiClient.post<AnalyzeWordResult>('/api/ai/analyze-word', payload, {
+    timeout: AI_TIMEOUT_MS,
+  })
   return response.data
 }

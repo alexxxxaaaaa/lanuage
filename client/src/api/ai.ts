@@ -1,4 +1,4 @@
-import { apiClient } from './client'
+import { AI_TIMEOUT_MS, apiClient } from './client'
 import type { UiLanguage } from '../i18n'
 
 export type AiFillWordPayload = {
@@ -91,14 +91,18 @@ export type AiFillGrammarResult = {
 }
 
 export async function fillGrammarByAi(pattern: string) {
-  const response = await apiClient.post<AiFillGrammarResult>('/api/ai/fill-grammar', {
-    pattern,
-  })
+  const response = await apiClient.post<AiFillGrammarResult>(
+    '/api/ai/fill-grammar',
+    { pattern },
+    { timeout: AI_TIMEOUT_MS },
+  )
   return response.data
 }
 
 export async function fillWordByAi(payload: AiFillWordPayload) {
-  const response = await apiClient.post<AiFillWordResult>('/api/ai/fill-word', payload)
+  const response = await apiClient.post<AiFillWordResult>('/api/ai/fill-word', payload, {
+    timeout: AI_TIMEOUT_MS,
+  })
   return response.data
 }
 
@@ -116,6 +120,7 @@ export async function generateExpressionCasual(payload: {
   const response = await apiClient.post<AiExpressionCasualResult>(
     '/api/ai/expression-casual',
     payload,
+    { timeout: AI_TIMEOUT_MS },
   )
   return response.data
 }
@@ -135,7 +140,9 @@ export async function chatWithAi(payload: {
   /** 回答用哪种语言，跟界面语言走。 */
   language: UiLanguage
 }) {
-  const response = await apiClient.post<{ reply: string }>('/api/ai/chat', payload)
+  const response = await apiClient.post<{ reply: string }>('/api/ai/chat', payload, {
+    timeout: AI_TIMEOUT_MS,
+  })
   return response.data.reply
 }
 
@@ -144,7 +151,9 @@ export async function generateChatTitle(payload: {
   messages: AiChatMessage[]
   language: UiLanguage
 }) {
-  const response = await apiClient.post<{ title: string }>('/api/ai/chat-title', payload)
+  const response = await apiClient.post<{ title: string }>('/api/ai/chat-title', payload, {
+    timeout: AI_TIMEOUT_MS,
+  })
   return response.data.title
 }
 
@@ -160,6 +169,7 @@ export async function translateExpressionToZh(payload: {
   const response = await apiClient.post<AiExpressionTranslateResult>(
     '/api/ai/expression-translate-zh',
     payload,
+    { timeout: AI_TIMEOUT_MS },
   )
   return response.data
 }
