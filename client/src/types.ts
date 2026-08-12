@@ -17,10 +17,10 @@ export type NoteListItem = {
   id: string
   /** 可能是空串，展示时兜底成「无标题」。 */
   title: string
-  /** 课程标签，空串 = 未归类。 */
-  course: string
-  /** 课程时间。用户没填时等于创建时间；列表按它倒序。 */
-  lessonAt: string
+  /** 标签，空串 = 未归类。 */
+  tag: string
+  /** 笔记时间。用户没填时等于创建时间；列表按它倒序。 */
+  noteAt: string
   createdAt: string
   updatedAt: string
   preview: string

@@ -385,7 +385,7 @@ export async function listNotes(params: {
     // 认了；用户端的搜索在 noteService 里过了纯文本，那边是准的。
     where.OR = [
       { title: { contains: keyword } },
-      { course: { contains: keyword } },
+      { tag: { contains: keyword } },
       { content: { contains: keyword } },
     ]
   }
@@ -394,7 +394,7 @@ export async function listNotes(params: {
     prisma.note.count({ where }),
     prisma.note.findMany({
       where,
-      orderBy: [{ lessonAt: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [{ noteAt: 'desc' }, { createdAt: 'desc' }],
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
@@ -411,8 +411,8 @@ export async function listNotes(params: {
     rows: rows.map((n) => ({
       id: n.id,
       title: n.title,
-      course: n.course,
-      lessonAt: n.lessonAt ?? n.createdAt,
+      tag: n.tag,
+      noteAt: n.noteAt ?? n.createdAt,
       createdAt: n.createdAt,
       userId: n.userId,
       username: n.user.username,
@@ -432,7 +432,7 @@ export async function getNoteDetail(id: string) {
   const { content, ...rest } = note
   return {
     ...rest,
-    lessonAt: note.lessonAt ?? note.createdAt,
+    noteAt: note.noteAt ?? note.createdAt,
     contentText: noteContentToText(content),
   }
 }

@@ -291,14 +291,14 @@ export default function UserDetailPage() {
                   columns={[
                     { title: '标题', dataIndex: 'title', ellipsis: true },
                     {
-                      title: '课程',
-                      dataIndex: 'course',
+                      title: '标签',
+                      dataIndex: 'tag',
                       width: 160,
                       render: (v: string) => (v ? <Tag>{v}</Tag> : '-'),
                     },
                     {
-                      title: '课程时间',
-                      dataIndex: 'lessonAt',
+                      title: '时间',
+                      dataIndex: 'noteAt',
                       width: 120,
                       render: (v: string) => dayjs(v).format('YYYY-MM-DD'),
                     },
@@ -388,8 +388,8 @@ export default function UserDetailPage() {
         {viewNote && (
           <>
             <Space style={{ marginBottom: 12 }}>
-              {viewNote.course && <Tag>课程：{viewNote.course}</Tag>}
-              <Tag>课程时间：{dayjs(viewNote.lessonAt).format('YYYY-MM-DD')}</Tag>
+              {viewNote.tag && <Tag>标签：{viewNote.tag}</Tag>}
+              <Tag>时间：{dayjs(viewNote.noteAt).format('YYYY-MM-DD')}</Tag>
               <Tag>{dayjs(viewNote.createdAt).format('YYYY-MM-DD HH:mm')}</Tag>
             </Space>
             <div

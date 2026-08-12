@@ -1,6 +1,6 @@
 # Word Sprint
 
-A vocabulary learning app with spaced repetition, AI-assisted word entries, expression drills, and rich-text course notes.
+A vocabulary learning app with spaced repetition, AI-assisted word entries, expression drills, and rich-text notes.
 
 - **client**: React 19 + Vite + HeroUI + Tailwind + BlockNote + Zustand
 - **server**: Hono + Prisma + SQLite (local) / Cloudflare D1 (prod) + OpenAI
@@ -172,11 +172,11 @@ npx wrangler d1 execute word-sprint-db --remote \
 写进 `QbankAttempt`。考试模式（严格 / 自我评估）存在浏览器本地，开考那一刻
 定格到 attempt 上，中途改设置不影响进行中的考试。
 
-## 课程笔记上线（BlockNote）
+## 笔记上线（BlockNote）
 
 笔记从 Tiptap + HTML 换成了 [BlockNote](https://www.blocknotejs.org/)，编辑器存的是
-`Block[]` 的 JSON。同时「课次」（自由文本）换成了「课程时间」（日期），课程本身
-仍然是笔记上的一个字符串标签，不建表。
+`Block[]` 的 JSON。同时「课次」（自由文本）换成了日期字段，归类用的那个字段
+仍然是笔记上的一个字符串，不建表。
 
 ```bash
 cd server
@@ -189,7 +189,7 @@ npx wrangler d1 execute word-sprint-db --remote \
 ```
 
 迁移会把老的课次文本并进标题（`原标题 · L23`，标题为空就直接拿它当标题），
-再把课程时间和更新时间回填成创建时间，最后删掉 `lesson` 列。全是
+再把笔记时间和更新时间回填成创建时间，最后删掉 `lesson` 列。全是
 `ALTER TABLE` / `UPDATE`，没有建表搬数据，`Word.sourceNoteId` 那条外键不受影响。
 
 **正文格式是懒迁移的**。库里现在三种格式并存：BlockNote JSON（新）、Tiptap 的
@@ -203,3 +203,26 @@ HTML（老）、更早的 Slate JSON。打开一篇老笔记时，前端在
 搜索是两段式的：先用 SQL 的 `LIKE` 粗筛（正文在库里是 JSON/HTML，会顺带命中
 标签名和 JSON 键），再在服务端按纯文本复筛掉假阳性，所以搜 `strong` 不会把所有
 带加粗的笔记翻出来。
+
+## 笔记去掉「课程」，改成标签
+
+「课程」这个概念整个拿掉了：`Note.course` 改名成 `Note.tag`（界面上叫「标签」），
+`Note.lessonAt` 改名成 `Note.noteAt`（界面上叫「时间」）。接口跟着改：
+`GET /api/notes/courses` → `GET /api/notes/tags`，列表筛选的 query 从 `?course=`
+变成 `?tag=`，写接口的 `course` / `lessonAt` 字段同理。
+
+迁移是纯改名，用户已经填在「课程」里的字符串原样变成标签值：
+
+```bash
+cd server
+# 本地
+npx prisma migrate dev
+
+# 线上 D1：一次性的，打第二遍会报 no such column
+npx wrangler d1 execute word-sprint-db --remote \
+  --file=./prisma/migrations/20260812120000_note_course_to_tag/migration.sql
+```
+
+两条索引是先删后建：SQLite 的 `RENAME COLUMN` 会自动改写索引里的列名，但索引
+**名**还留着老列名，跟 Prisma 按 schema 推出来的名字对不上，下次 migrate 会当成
+drift。

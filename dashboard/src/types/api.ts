@@ -78,9 +78,9 @@ export interface AdminWordRow {
 export interface AdminNoteRow {
   id: string
   title: string
-  course: string
-  /** 课程时间。用户没填时等于创建时间。 */
-  lessonAt: string
+  tag: string
+  /** 笔记时间。用户没填时等于创建时间。 */
+  noteAt: string
   createdAt: string
   userId: string
   username: string

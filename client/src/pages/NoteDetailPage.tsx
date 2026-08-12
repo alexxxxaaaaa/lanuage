@@ -5,14 +5,14 @@ import { Link, useNavigate, useParams } from 'react-router'
 
 import {
   deleteNote,
-  getCourses,
+  getTags,
   getNoteById,
   updateNote,
   type NoteDetail,
   type NotePatch,
 } from '../api/notes'
 import { getErrorMessage } from '../api/error'
-import { CourseField } from '../components/notes/CourseField'
+import { TagField } from '../components/notes/TagField'
 import { NoteDateField } from '../components/notes/NoteDateField'
 import { NoteEditor, type NoteEditorHandle } from '../components/notes/NoteEditor'
 import { confirm } from '../components/ui/dialog'
@@ -60,15 +60,15 @@ export function NoteDetailPage() {
   const isPageActive = usePageActive()
 
   const [note, setNote] = useState<NoteDetail | null>(null)
-  const [courses, setCourses] = useState<string[]>([])
+  const [tags, setTags] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // 三个属性字段本地先改，落库交给自动保存；正文由编辑器自己拿着，页面只在它
   // 报变化时收一份字符串去存。
   const [title, setTitle] = useState('')
-  const [course, setCourse] = useState('')
-  const [lessonAt, setLessonAt] = useState('')
+  const [tag, setTag] = useState('')
+  const [noteAt, setNoteAt] = useState('')
 
   const titleRef = useRef<HTMLTextAreaElement>(null)
   const editorRef = useRef<NoteEditorHandle>(null)
@@ -87,7 +87,7 @@ export function NoteDetailPage() {
     ),
   )
 
-  /** 课程、日期这种一次点定的字段不必等防抖。 */
+  /** 标签、日期这种一次点定的字段不必等防抖。 */
   const commit = useCallback(
     (patch: NotePatch) => {
       queue(patch)
@@ -104,13 +104,13 @@ export function NoteDetailPage() {
       setIsLoading(true)
       setError(null)
       try {
-        const [data, courseOptions] = await Promise.all([getNoteById(noteId), getCourses()])
+        const [data, tagOptions] = await Promise.all([getNoteById(noteId), getTags()])
         if (ignore) return
         setNote(data)
         setTitle(data.title)
-        setCourse(data.course)
-        setLessonAt(data.lessonAt)
-        setCourses(courseOptions.map((option) => option.course))
+        setTag(data.tag)
+        setNoteAt(data.noteAt)
+        setTags(tagOptions.map((option) => option.tag))
       } catch (loadError) {
         if (!ignore) setError(getErrorMessage(loadError, t('notes.loadError')))
       } finally {
@@ -131,8 +131,8 @@ export function NoteDetailPage() {
   useOnPageReactivated(() => {
     if (!id) return
     void getNoteById(id).then(setNote).catch(() => undefined)
-    void getCourses()
-      .then((options) => setCourses(options.map((option) => option.course)))
+    void getTags()
+      .then((options) => setTags(options.map((option) => option.tag)))
       .catch(() => undefined)
   })
 
@@ -247,15 +247,15 @@ export function NoteDetailPage() {
             <div className="note-prop">
               <dt>
                 <Tag className="size-4" aria-hidden />
-                {t('notes.course')}
+                {t('notes.tag')}
               </dt>
               <dd>
-                <CourseField
-                  value={course}
-                  options={courses}
+                <TagField
+                  value={tag}
+                  options={tags}
                   onChange={(next) => {
-                    setCourse(next)
-                    commit({ course: next })
+                    setTag(next)
+                    commit({ tag: next })
                   }}
                 />
               </dd>
@@ -263,14 +263,14 @@ export function NoteDetailPage() {
             <div className="note-prop">
               <dt>
                 <CalendarDays className="size-4" aria-hidden />
-                {t('notes.lessonAt')}
+                {t('notes.noteAt')}
               </dt>
               <dd>
                 <NoteDateField
-                  value={lessonAt}
+                  value={noteAt}
                   onChange={(iso) => {
-                    setLessonAt(iso)
-                    commit({ lessonAt: iso })
+                    setNoteAt(iso)
+                    commit({ noteAt: iso })
                   }}
                 />
               </dd>

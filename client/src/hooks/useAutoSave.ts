@@ -7,7 +7,7 @@ export type SaveStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'error'
  *
  * 几个刻意的取舍：
  *   - 补丁是合并的，不是排队的。连打十个字只发一次 `{ content }`，改标题又改
- *     课程也只发一次 `{ title, course }`。
+ *     标签也只发一次 `{ title, tag }`。
  *   - 请求串行。上一笔没回来之前不发下一笔，否则两个 PATCH 打同一条记录，谁
  *     后到谁赢，慢的那个会把新内容盖回去。
  *   - 失败不吞改动。请求挂了就把补丁塞回待发队列，下一次输入或 flush 会重试，

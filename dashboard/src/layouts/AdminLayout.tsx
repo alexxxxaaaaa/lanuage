@@ -22,7 +22,7 @@ const menuItems: MenuProps['items'] = [
   { key: '/users', icon: <TeamOutlined />, label: '用户' },
   { key: '/folders', icon: <FolderOutlined />, label: '单词分类' },
   { key: '/words', icon: <BookOutlined />, label: '单词' },
-  { key: '/notes', icon: <FileTextOutlined />, label: '课程笔记' },
+  { key: '/notes', icon: <FileTextOutlined />, label: '笔记' },
   { key: '/expressions', icon: <MessageOutlined />, label: '口语表达' },
   { key: '/ai-usage', icon: <ApiOutlined />, label: 'AI 用量' },
 ]

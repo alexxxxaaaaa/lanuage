@@ -122,13 +122,13 @@ model Note {
   /// JSON，读的时候按格式分流，用户第一次编辑时才改写成 JSON，见
   /// `client/src/components/notes/noteContent.ts`。
   content String
-  /// 课程标签。空串 = 未归类，不建单独的表，因为一条笔记只挂一个课程。
-  course  String @default("")
+  /// 标签。空串 = 未归类，不建单独的表，因为一条笔记只挂一个标签。
+  tag     String @default("")
 
-  /// 课程时间。选填，创建时默认落成当下，所以业务上恒非空 —— 之所以在库里
+  /// 笔记时间。选填，创建时默认落成当下，所以业务上恒非空 —— 之所以在库里
   /// 是可空列，只是因为 SQLite 的 ALTER TABLE 加不了非常量默认值的 NOT NULL
   /// 列，迁移时只能先加可空列再回填。排序一律走这一列。
-  lessonAt  DateTime?
+  noteAt    DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
@@ -136,8 +136,8 @@ model Note {
   user   User   @relation(fields: [userId], references: [id])
   words  Word[]
 
-  @@index([userId, lessonAt])
-  @@index([userId, course])
+  @@index([userId, noteAt])
+  @@index([userId, tag])
 }
 
 model Review {
