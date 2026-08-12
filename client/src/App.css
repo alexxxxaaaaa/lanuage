@@ -635,32 +635,3 @@ a {
   font-family: inherit;
 }
 
-.expression-filter-row {
-  display: grid;
-  grid-template-columns: 1fr 180px auto auto;
-  gap: 10px;
-  align-items: center;
-}
-
-.expression-filter-row-single {
-  grid-template-columns: 1fr;
-}
-
-.expression-filter-row input:not(.input):not(.textarea),
-.expression-filter-row select {
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--field-border);
-  background: var(--field-background);
-  color: var(--foreground);
-  font-size: 14px;
-  font-family: inherit;
-}
-
-@media (max-width: 640px) {
-
-  .expression-filter-row {
-    grid-template-columns: 1fr;
-  }
-}
-

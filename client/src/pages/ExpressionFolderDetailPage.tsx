@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Input, Switch, TextArea } from '@heroui/react'
+import { Button, Card, Chip, Input, Switch, TextArea } from '@heroui/react'
 import { confirm, alertDialog } from '../components/ui/dialog'
 import { Search } from 'lucide-react'
 import { useParams } from 'react-router'
@@ -376,30 +376,27 @@ export function ExpressionFolderDetailPage() {
         </form>
       ) : null}
 
-      <div className="card expression-filter-row expression-filter-row-single">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" />
-          <Input
-            className="w-full pl-9"
-            placeholder={t('expression.searchPlaceholder')}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </div>
+      <div className="relative">
+        <Search className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" />
+        <Input
+          className="w-full pl-9"
+          placeholder={t('expression.searchPlaceholder')}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
       </div>
 
       {isLoading ? <div className="card">{t('expression.loading')}</div> : null}
       {error ? <p className="error-text">{error}</p> : null}
 
-      <div className="word-list">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,340px),1fr))] items-stretch gap-4">
         {filteredRows.map((item) => {
-          const isEditing = editingId === item.id
-          return (
-            <article key={item.id} className="card word-card">
-              {isEditing ? (
-                <div className="word-form">
-                  <label>
-                    {t('expression.zhText')}
+          if (editingId === item.id) {
+            return (
+              <Card key={item.id}>
+                <Card.Content className="grid gap-3">
+                  <label className="form-field">
+                    <span>{t('expression.zhText')}</span>
                     <TextArea
                       rows={2}
                       value={editingForm.zhText}
@@ -408,8 +405,10 @@ export function ExpressionFolderDetailPage() {
                       }
                     />
                   </label>
-                  <label>
-                    {folderLanguage === 'jp' ? t('expression.japanese') : t('expression.english')}
+                  <label className="form-field">
+                    <span>
+                      {folderLanguage === 'jp' ? t('expression.japanese') : t('expression.english')}
+                    </span>
                     <TextArea
                       rows={2}
                       value={editingForm.text}
@@ -418,21 +417,19 @@ export function ExpressionFolderDetailPage() {
                       }
                     />
                   </label>
-                  <label>
-                    {t('expression.sceneTag')}
+                  <label className="form-field">
+                    <span>{t('expression.sceneTag')}</span>
                     <MultiSelectField
                       aria-label={t('expression.sceneTag')}
                       values={editingForm.sceneTags}
-                      onChange={(next) =>
-                        setEditingForm((prev) => ({ ...prev, sceneTags: next }))
-                      }
+                      onChange={(next) => setEditingForm((prev) => ({ ...prev, sceneTags: next }))}
                       options={sceneTagOptionsFor(editingForm.sceneTags)}
                       placeholder={t('expression.scenePlaceholder')}
                       fullWidth
                     />
                   </label>
-                  <label>
-                    {t('expression.note')}
+                  <label className="form-field">
+                    <span>{t('expression.note')}</span>
                     <TextArea
                       rows={2}
                       value={editingForm.note}
@@ -441,55 +438,85 @@ export function ExpressionFolderDetailPage() {
                       }
                     />
                   </label>
-                  <div className="compact-actions">
-                    <Button type="button" onPress={() => void handleEditSave()}>
+                  <div className="mt-1 flex gap-2">
+                    <Button size="sm" type="button" onPress={() => void handleEditSave()}>
                       {t('expression.save')}
                     </Button>
-                    <Button variant="outline" type="button" onPress={() => setEditingId(null)}>
+                    <Button variant="outline" size="sm" type="button" onPress={() => setEditingId(null)}>
                       {t('expression.cancel')}
                     </Button>
                   </div>
-                </div>
-              ) : (
-                <>
-                  <div className="word-card-header">
-                    <div>
-                      <strong className="word-title">{item.zhText}</strong>
-                      <p className="muted">
-                        {parseSceneTags(item.sceneTag).map(sceneTagLabel).join(' · ') ||
-                          t('expression.unclassifiedScene')}
-                      </p>
-                    </div>
+                </Card.Content>
+              </Card>
+            )
+          }
+
+          const sceneTags = parseSceneTags(item.sceneTag)
+          const isRevealed = revealedIds.has(item.id)
+          return (
+            <Card key={item.id} className="gap-3">
+              <Card.Header className="gap-2">
+                {/* 表达是整句，不是单词 —— 得能换行。`.word-title` 那套 `nowrap`
+                    是给词卡的单个词用的，套在这儿会把长句顶出卡片。 */}
+                <Card.Title className="multiline-text text-lg/[1.5]">{item.zhText}</Card.Title>
+                {sceneTags.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {sceneTags.map((tag) => (
+                      <Chip key={tag} size="sm" variant="secondary">
+                        {sceneTagLabel(tag)}
+                      </Chip>
+                    ))}
                   </div>
-                  <div className="grid gap-1.5">
-                    <p
-                      className="word-note-text"
-                      style={{ visibility: revealedIds.has(item.id) ? 'visible' : 'hidden' }}
-                    >
-                      <strong>{folderLanguage === 'jp' ? 'JP' : 'EN'}:</strong>{' '}
-                      {casualOf(folderLanguage, item) || '-'}
-                    </p>
-                    <Button variant="outline" size="sm" className="justify-self-start rounded-md text-xs"
+                ) : (
+                  <Card.Description>{t('expression.unclassifiedScene')}</Card.Description>
+                )}
+              </Card.Header>
+
+              <Card.Content className="grid gap-2.5">
+                {/* 答案盖住时用高斯模糊，而不是把字藏起来：藏起来那一版要留一块
+                    空白占位，不然一开一合整列卡片都在跳；模糊本身就是原尺寸，
+                    看着也像「这里有东西，点开看」。 */}
+                <div className="grid gap-1.5 rounded-xl bg-surface-secondary px-3.5 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold tracking-[0.08em] text-muted uppercase">
+                      {folderLanguage === 'jp' ? 'JP' : 'EN'}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       type="button"
                       onPress={() => toggleReveal(item.id)}
                     >
-                      {revealedIds.has(item.id)
-                        ? t('expression.hideAnswer')
-                        : t('expression.showAnswer')}
-                    </Button>
-                    {item.note ? <p className="muted word-note-text">{item.note}</p> : null}
-                  </div>
-                  <div className="compact-actions">
-                    <Button variant="outline" type="button" onPress={() => startEdit(item)}>
-                      {t('expression.edit')}
-                    </Button>
-                    <Button variant="danger-soft" size="sm" type="button" onPress={() => handleDelete(item)}>
-                      {t('expression.delete')}
+                      {isRevealed ? t('expression.hideAnswer') : t('expression.showAnswer')}
                     </Button>
                   </div>
-                </>
-              )}
-            </article>
+                  <p
+                    className={`multiline-text text-[15px]/[1.6] transition-[filter] duration-200 ${
+                      isRevealed ? '' : 'blur-[6px] select-none'
+                    }`}
+                  >
+                    {casualOf(folderLanguage, item) || '—'}
+                  </p>
+                </div>
+                {item.note ? (
+                  <p className="muted multiline-text text-sm/[1.6]">{item.note}</p>
+                ) : null}
+              </Card.Content>
+
+              <Card.Footer className="mt-auto justify-end gap-2">
+                <Button variant="ghost" size="sm" type="button" onPress={() => startEdit(item)}>
+                  {t('expression.edit')}
+                </Button>
+                <Button
+                  variant="danger-soft"
+                  size="sm"
+                  type="button"
+                  onPress={() => void handleDelete(item)}
+                >
+                  {t('expression.delete')}
+                </Button>
+              </Card.Footer>
+            </Card>
           )
         })}
       </div>
