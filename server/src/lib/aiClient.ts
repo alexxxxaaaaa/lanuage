@@ -77,8 +77,22 @@ export type JsonCompletionInput = {
   log: UsageLogFields
 }
 
+/** One turn of a conversation. The system prompt is passed separately. */
+export type ChatMessage = {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export type ChatCompletionInput = {
+  system: string
+  /** Full history, oldest first. Single-turn callers pass one user message. */
+  messages: ChatMessage[]
+  maxOutputTokens: number
+  log: UsageLogFields
+}
+
 /**
- * One JSON-mode completion, with its token usage written to `AiUsageLog`.
+ * One completion, with its token usage written to `AiUsageLog`.
  *
  * Every AI feature in this app goes through here, so the model, the request
  * shape and the billing record are decided once instead of a dozen times over.
@@ -87,8 +101,9 @@ export type JsonCompletionInput = {
  *
  *  - `reasoning_effort: 'none'`. These models reason by default (`medium`),
  *    and reasoning tokens come out of the same `max_completion_tokens` budget
- *    as the answer. Every task here is a short, fully-specified extraction
- *    into a fixed JSON shape, and the budgets are 130–1100 tokens — any
+ *    as the answer. Every task here is either a short, fully-specified
+ *    extraction into a fixed JSON shape or a tutor answering a question it
+ *    already knows the answer to, and the budgets are 130–1100 tokens — any
  *    reasoning at all would consume the response and return nothing.
  *  - No `temperature`. The family rejects every value but the default, so the
  *    old per-feature 0.1/0.2/0.3 tuning is gone rather than merely unused.
@@ -99,17 +114,16 @@ export type JsonCompletionInput = {
  *
  * Returns the raw content, or null when the model returned none.
  */
-export async function completeJson(input: JsonCompletionInput): Promise<string | null> {
+async function complete(
+  input: ChatCompletionInput & { json: boolean },
+): Promise<string | null> {
   const model = getDefaultModel()
   const completion = await getOpenAIClient().chat.completions.create({
     model,
-    response_format: { type: 'json_object' },
+    ...(input.json ? { response_format: { type: 'json_object' as const } } : {}),
     reasoning_effort: 'none',
     max_completion_tokens: input.maxOutputTokens,
-    messages: [
-      { role: 'system', content: input.system },
-      { role: 'user', content: input.user },
-    ],
+    messages: [{ role: 'system', content: input.system }, ...input.messages],
   })
 
   const usage = completion.usage
@@ -126,6 +140,29 @@ export async function completeJson(input: JsonCompletionInput): Promise<string |
   })
 
   return sanitize(completion.choices[0]?.message?.content) || null
+}
+
+/** A single-turn completion constrained to a JSON object. */
+export async function completeJson(input: JsonCompletionInput): Promise<string | null> {
+  return complete({
+    system: input.system,
+    messages: [{ role: 'user', content: input.user }],
+    maxOutputTokens: input.maxOutputTokens,
+    log: input.log,
+    json: true,
+  })
+}
+
+/**
+ * A multi-turn completion returning prose.
+ *
+ * The only caller is the AI chat: its answer is read by a human rather than
+ * parsed, so JSON mode would just be a wrapper to strip back off.
+ */
+export async function completeChatOrThrow(input: ChatCompletionInput): Promise<string> {
+  const content = await complete({ ...input, json: false })
+  if (!content) throw new AppError('AI did not return content', 502)
+  return content
 }
 
 /** `completeJson` for callers with no fallback for an empty reply. */

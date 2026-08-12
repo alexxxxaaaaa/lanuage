@@ -7,6 +7,7 @@ import {
   getAiUsageSummary,
   translateExpressionToZhByAi,
 } from '../services/aiService'
+import { chatWithAi, titleForChat } from '../services/aiChatService'
 import { analyzeText, explainWordInSentence } from '../services/textAnalyzeService'
 import { AppError } from '../errors/AppError'
 import { getUserId, type AppEnv } from '../middleware/requireAuth'
@@ -129,6 +130,31 @@ aiRouter.post('/analyze-word', async (c) => {
     kana: body.kana,
     base: body.base,
     sentence: body.sentence ?? '',
+    userId: getUserId(c),
+  })
+  return c.json(result)
+})
+
+/**
+ * 询问 AI：多轮自由问答。会话存在浏览器，所以历史每次整份带上来，
+ * 校验和截断都在 aiChatService 里。
+ */
+aiRouter.post('/chat', async (c) => {
+  const body = await c.req.json<{ messages?: unknown; language?: unknown }>()
+  const result = await chatWithAi({
+    messages: body.messages,
+    language: body.language,
+    userId: getUserId(c),
+  })
+  return c.json(result)
+})
+
+/** 「生成笔记」时给这段对话起标题；笔记本身走 /api/notes。 */
+aiRouter.post('/chat-title', async (c) => {
+  const body = await c.req.json<{ messages?: unknown; language?: unknown }>()
+  const result = await titleForChat({
+    messages: body.messages,
+    language: body.language,
     userId: getUserId(c),
   })
   return c.json(result)

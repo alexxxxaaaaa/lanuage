@@ -9,7 +9,7 @@ import {
   ToggleButtonGroup,
   Tooltip,
 } from '@heroui/react'
-import { FileText, Plus, Trash2 } from 'lucide-react'
+import { FileText, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router'
 
 import {
@@ -137,10 +137,16 @@ export function NotesPage() {
           <h2>{t('routes.notes')}</h2>
           <p className="muted">{t('notes.subtitle')}</p>
         </div>
-        <Button isDisabled={isCreating} onPress={() => void handleCreate()}>
-          <Plus className="size-4" aria-hidden />
-          {t('notes.create')}
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button variant="ghost" onPress={() => navigate('/notes/ask')}>
+            <Sparkles className="size-4" aria-hidden />
+            {t('routes.askAi')}
+          </Button>
+          <Button isDisabled={isCreating} onPress={() => void handleCreate()}>
+            <Plus className="size-4" aria-hidden />
+            {t('notes.create')}
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-3">

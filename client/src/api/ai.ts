@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import type { UiLanguage } from '../i18n'
 
 export type AiFillWordPayload = {
   word: string
@@ -117,6 +118,34 @@ export async function generateExpressionCasual(payload: {
     payload,
   )
   return response.data
+}
+
+/**
+ * 询问 AI 的一条消息。服务端不存会话（见 server/src/services/aiChatService.ts），
+ * 每次提问都把历史整份带上去。
+ */
+export type AiChatMessage = {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export async function chatWithAi(payload: {
+  /** 完整历史，最后一条是这次的提问。 */
+  messages: AiChatMessage[]
+  /** 回答用哪种语言，跟界面语言走。 */
+  language: UiLanguage
+}) {
+  const response = await apiClient.post<{ reply: string }>('/api/ai/chat', payload)
+  return response.data.reply
+}
+
+/** 把一段对话概括成笔记标题。笔记本身用 createNote 建。 */
+export async function generateChatTitle(payload: {
+  messages: AiChatMessage[]
+  language: UiLanguage
+}) {
+  const response = await apiClient.post<{ title: string }>('/api/ai/chat-title', payload)
+  return response.data.title
 }
 
 export type AiExpressionTranslateResult = {

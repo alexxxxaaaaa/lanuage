@@ -14,6 +14,7 @@ import type { ReactElement } from 'react'
 
 import { AddWordPage } from '../pages/AddWordPage'
 import { AnalyzePage } from '../pages/AnalyzePage'
+import { AskAiPage } from '../pages/AskAiPage'
 import { ExpressionFolderDetailPage } from '../pages/ExpressionFolderDetailPage'
 import { ExpressionsPage } from '../pages/ExpressionsPage'
 import { FolderDetailPage } from '../pages/FolderDetailPage'
@@ -134,6 +135,15 @@ export const ROUTES: readonly RouteDefinition[] = [
     element: <NotesPage />,
     icon: NotebookPen,
     showInSidebar: true,
+  },
+  {
+    // 声明在 `/notes/:id` 前面，读起来才是「笔记下面的一个功能」而不是一篇笔记
+    // ——匹配顺序不靠它，React Router 和 matchRoute 都是静态段优先。
+    // 会话本身在 store 里，keep-alive 只是顺带让草稿和滚动位置也留着。
+    path: '/notes/ask',
+    titleKey: 'askAi',
+    element: <AskAiPage />,
+    parent: '/notes',
   },
   {
     path: '/notes/:id',

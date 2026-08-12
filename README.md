@@ -226,3 +226,26 @@ npx wrangler d1 execute word-sprint-db --remote \
 两条索引是先删后建：SQLite 的 `RENAME COLUMN` 会自动改写索引里的列名，但索引
 **名**还留着老列名，跟 Prisma 按 schema 推出来的名字对不上，下次 migrate 会当成
 drift。
+
+## 询问 AI（笔记 → 对话 → 笔记）
+
+笔记页的「询问 AI」进 `/notes/ask`：语言相关的自由问答，可以追问、可以让它把上一
+条答案重答，最后一键把整段对话存成一篇笔记（标签固定 `AI`，时间就是存的那一刻）。
+**没有新表，也没有迁移**，上线只要发前后端。
+
+会话存在**浏览器**（`localStorage`，见 `client/src/store/useAiChat.ts`），服务端
+`POST /api/ai/chat` 是无状态的：每次提问由客户端把历史整份带上来，服务端只截到最近
+20 条、每条 2000 字。这样不必为一个「随手清空、清空了也不用找回」的东西建表，也不用
+操心多设备之间怎么合并会话 —— 真想留下来的对话，出口是笔记，那是本来就有的持久化。
+代价写在界面上：清空会话的确认框会说这段对话只在这台设备上。
+
+排版是一条贯穿三处的约定：system prompt 只许助教用段落、`- ` / `1. ` 列表、`**加粗**`
+和 `` `行内代码` ``（`server/src/services/aiChatService.ts`），聊天气泡按这几种渲染
+（`client/src/pages/askAi/ChatMarkdown.tsx`），生成笔记时同一段文字交给 BlockNote 的
+Markdown 解析（`client/src/components/notes/chatToNote.ts`，提问变引用块）。三边认的
+是同一批记法，所以笔记里的排版就是聊天里看到的那一份。放开标题、表格、代码块会让
+两头对不上。
+
+标题是另一次调用（`POST /api/ai/chat-title`），而且**允许失败**：它烧不出来（比如日
+预算见底）时前端退回用第一句提问当标题，笔记照存不误。用量表里这两个 feature 叫
+`chat` 和 `chat_note_title`。
