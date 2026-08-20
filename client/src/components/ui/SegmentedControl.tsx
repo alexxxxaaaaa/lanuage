@@ -34,7 +34,14 @@ export function SegmentedControl<T extends string>({
       <Tabs.ListContainer>
         <Tabs.List aria-label={ariaLabel ?? 'Options'}>
           {options.map((option) => (
-            <Tabs.Tab key={option.value} id={option.value}>
+            // nowrap：分段控件是并排的开关，标签折行会把药丸撑成两行高
+            // （「全部题目」断成「全部题/目」）。宽度不够时应该整体溢出/换行，
+            // 而不是在词中间断开。
+            <Tabs.Tab
+              key={option.value}
+              id={option.value}
+              className="whitespace-nowrap"
+            >
               {option.label}
               <Tabs.Indicator />
             </Tabs.Tab>
