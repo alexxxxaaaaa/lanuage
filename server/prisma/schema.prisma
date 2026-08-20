@@ -215,6 +215,12 @@ model GrammarQuestion {
   prompt      String
   options     String
   answerIndex Int
+  /// 这道题考的知识点，答完题后显示。外部导入的题不按语法点归类（考点常在
+  /// 题干里而不在选项里，还混着词汇辨析题），所以逐题标注，空串=还没标。
+  testedPoint String                   @default("")
+  /// 用户手写的备注。默认折叠，因为它常常写着「为什么选B」这种等于答案的
+  /// 内容，重刷这道题时不该直接看见。
+  note        String                   @default("")
   createdAt   DateTime                 @default(now())
   attempts    GrammarQuestionAttempt[]
 
