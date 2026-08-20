@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import {
   DEFAULT_PAGE_SIZE,
   listAllQuestions,
+  type QuestionMode,
   listQuestionsForGrammar,
   submitAttempt,
   updateQuestionNote,
@@ -14,7 +15,10 @@ export const grammarQuestionsRouter = new Hono<AppEnv>()
 // ?mode=all|wrong (default all).
 grammarQuestionsRouter.get('/', async (c) => {
   const modeRaw = c.req.query('mode')
-  const mode: 'all' | 'wrong' = modeRaw === 'wrong' ? 'wrong' : 'all'
+  const mode: QuestionMode =
+    modeRaw === 'wrong' || modeRaw === 'done' || modeRaw === 'undone'
+      ? modeRaw
+      : 'all'
   const pageRaw = Number(c.req.query('page'))
   const sizeRaw = Number(c.req.query('pageSize'))
   const result = await listAllQuestions(

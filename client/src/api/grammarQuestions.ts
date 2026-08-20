@@ -24,8 +24,11 @@ export type GrammarQuestionPage = {
   total: number
 }
 
+/** 'done' 答过的（对错都算）、'undone' 一次没答过的、'wrong' 上次答错的。 */
+export type QuestionMode = 'all' | 'done' | 'undone' | 'wrong'
+
 export async function listGrammarQuestions(
-  mode: 'all' | 'wrong',
+  mode: QuestionMode,
   page: number,
   pageSize: number,
   q = '',

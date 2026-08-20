@@ -4,11 +4,12 @@ import { SegmentedControl } from '../components/ui/SegmentedControl'
 import {
   listGrammarQuestions,
   type GrammarQuestion,
+  type QuestionMode,
 } from '../api/grammarQuestions'
 import { getErrorMessage } from '../api/error'
 import { GrammarQuestionCard } from '../components/GrammarQuestionCard'
 
-type Mode = 'all' | 'wrong'
+type Mode = QuestionMode
 
 // Fisher–Yates. Called once per fetch — subsequent re-renders reuse the
 // same shuffled order so cards don't jump around when the user answers.
@@ -115,6 +116,8 @@ export function GrammarQuestionsPage() {
             }}
             options={[
               { label: '全部题目', value: 'all' },
+              { label: '已做', value: 'done' },
+              { label: '未做', value: 'undone' },
               { label: '错题本', value: 'wrong' },
             ]}
           />
@@ -162,7 +165,11 @@ export function GrammarQuestionsPage() {
               ? `没有匹配「${submittedQuery}」的题目`
               : mode === 'wrong'
                 ? '没有错题——先去答几题吧。'
-                : '暂无题目'}
+                : mode === 'done'
+                  ? '还没答过题'
+                  : mode === 'undone'
+                    ? '全都答过了'
+                    : '暂无题目'}
           </p>
         </div>
       ) : (

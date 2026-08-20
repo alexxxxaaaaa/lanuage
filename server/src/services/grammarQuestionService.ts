@@ -41,9 +41,17 @@ export type QuestionPage = {
 export const DEFAULT_PAGE_SIZE = 50
 const MAX_PAGE_SIZE = 200
 
+/**
+ * 题目筛选。都以「这道题有没有作答记录」为轴 —— GrammarQuestionAttempt 每
+ * (用户,题) 只留最近一次，所以 done/undone/wrong 三者互不重叠地切分全集。
+ */
+export type QuestionMode = 'all' | 'done' | 'undone' | 'wrong'
+
 // 分页返回题目。`mode`:
-//   - 'all'   → 这个用户名下所有题
-//   - 'wrong' → 只有上次答错的
+//   - 'all'    → 这个用户名下所有题
+//   - 'done'   → 答过的（对错都算）
+//   - 'undone' → 一次都没答过的
+//   - 'wrong'  → 答过且上次答错的（done 的子集）
 //
 // 两个必须这样写的地方：
 //
@@ -56,7 +64,7 @@ const MAX_PAGE_SIZE = 200
 //    做就错了：拿到第一页 50 条再筛，结果只剩几道，页数也算不出来。
 export async function listAllQuestions(
   userId: string,
-  mode: 'all' | 'wrong',
+  mode: QuestionMode,
   page = 1,
   pageSize: number = DEFAULT_PAGE_SIZE,
   keyword = '',
@@ -64,13 +72,18 @@ export async function listAllQuestions(
   const safeSize = Math.min(Math.max(1, Math.floor(pageSize)), MAX_PAGE_SIZE)
   const safePage = Math.max(1, Math.floor(page))
   const offset = (safePage - 1) * safeSize
-  const wrongOnly = mode === 'wrong'
-
   // Raw JOIN — D1 caps bound parameters around ~100, so an `IN` over ~140
   // grammarIds blows up. Scope via the Grammar JOIN with a single bound param.
-  const wrongFilter = wrongOnly
-    ? Prisma.sql`AND a.id IS NOT NULL AND a.isCorrect = 0`
-    : Prisma.empty
+  //
+  // 四档都靠 LEFT JOIN 出来的 a 判断：a.id 为空就是没做过。
+  const modeFilter =
+    mode === 'wrong'
+      ? Prisma.sql`AND a.id IS NOT NULL AND a.isCorrect = 0`
+      : mode === 'done'
+        ? Prisma.sql`AND a.id IS NOT NULL`
+        : mode === 'undone'
+          ? Prisma.sql`AND a.id IS NULL`
+          : Prisma.empty
 
   // 关键词也得下推。留在前端就只能筛当前一页，搜索框会变成假的。
   const trimmedKeyword = keyword.trim()
@@ -86,7 +99,7 @@ export async function listAllQuestions(
     LEFT JOIN GrammarQuestionAttempt a
       ON a.questionId = gq.id AND a.userId = ${userId}
     WHERE g.userId = ${userId}
-    ${wrongFilter}
+    ${modeFilter}
     ${keywordFilter}
   `
   const total = Number(totalRows[0]?.n ?? 0)
@@ -115,7 +128,7 @@ export async function listAllQuestions(
     LEFT JOIN GrammarQuestionAttempt a
       ON a.questionId = gq.id AND a.userId = ${userId}
     WHERE g.userId = ${userId}
-    ${wrongFilter}
+    ${modeFilter}
     ${keywordFilter}
     ORDER BY gq.createdAt ASC, gq.rowid ASC
     LIMIT ${safeSize} OFFSET ${offset}
