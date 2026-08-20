@@ -45,6 +45,20 @@ server/.qbank-upload.log
 # 从 server/data/dict/*.jsonl.gz 重新生成，源数据已入 git，不必再存一份。
 server/d1_dict/
 
+# Anki 原始卡组（红宝书 112 MB + 文法蓝宝书 24 MB + 蓝宝书全套 38 MB）。
+# 抽取产物 server/data/bluebook/grammar.json 已经入 git，源包不必再塞进来 ——
+# 听力音频那次就是这么把仓库撑到 1.2 GB 的。要重新抽取把 apkg 放回仓库根即可。
+*.apkg
+
+# 蓝宝书：语法条目的 JSON 入 git（1.7 MB，是导入的数据源），从它派生的都不入。
+# 媒体（1593 个 mp3 + 159 张图 / 29 MB）走 R2 分发，要重新导出就跑
+#   python3 server/scripts/convertBluebookApkg.py --media-out server/data/bluebook/media
+# 分片 SQL 和备份由 scripts/importBluebookGrammar.ts 生成。
+server/data/bluebook/media/
+server/data/bluebook/backup/
+server/d1_grammar/
+server/.bluebook-upload.log
+
 # N1 真题源文件（PDF/图片体积过大，不入库；仅提交 N1/整理/ 下的题库 md）
 N1/**/*.pdf
 N1/**/*.png

@@ -10,9 +10,10 @@ export async function getTodayGrammarReviews() {
   return response.data
 }
 
-export async function getUnlearnedGrammars() {
+export async function getUnlearnedGrammars(level?: string) {
   const response = await apiClient.get<UnlearnedResponse>(
     '/api/grammar-reviews/unlearned',
+    { params: level ? { level } : undefined },
   )
   return response.data
 }

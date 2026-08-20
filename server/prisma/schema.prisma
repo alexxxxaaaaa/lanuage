@@ -10,10 +10,16 @@ datasource db {
 }
 
 model User {
-  id                String             @id @default(uuid())
-  username          String             @unique
-  passwordHash      String
-  createdAt         DateTime           @default(now())
+  id           String @id @default(uuid())
+  username     String @unique
+  /// 自描述格式：`pbkdf2$sha256$<迭代数>$<salt>$<hash>`。老行还是 bcrypt 的
+  /// `$2a$…`，登录验过之后会就地换成新格式，见 src/lib/password.ts。
+  passwordHash String
+  /// 已签发 token 的代数。JWT 里带一份，requireAuth 每次比对，对不上就当过期。
+  /// 改密码 / 删账号时 +1，等于把该用户所有在外的 token 一次作废 —— 没有这一列
+  /// 的话无状态 JWT 只能等它自己到期（30 天）。
+  tokenVersion Int    @default(0)
+  createdAt    DateTime           @default(now())
   folders           Folder[]
   words             Word[]
   notes             Note[]
@@ -23,6 +29,21 @@ model User {
   podcasts          Podcast[]
   reviewEvents      ReviewEvent[]
   settings          UserSettings?
+}
+
+/// 登录失败计数，按来源 IP 一行。没有这张表的话，密码就是纯粹的在线爆破靶子：
+/// 接口不限速，一个 6 位密码几小时就撞开了。
+///
+/// 只在「登录失败」时才写，成功登录只读不写；行是复用的（同一个 IP 永远一行），
+/// 所以表的规模等于近期失败过的 IP 数，不需要定期清理。
+model LoginThrottle {
+  /// 目前只有 `ip:<地址>` 一种。留成字符串是为了以后想按账号维度限流时不用改表。
+  key         String    @id
+  failures    Int       @default(0)
+  /// 窗口起点：距今超过 THROTTLE_WINDOW 就把计数清零重来，避免「一个月里零星
+  /// 错 8 次」也被锁。
+  firstFailAt DateTime  @default(now())
+  lockedUntil DateTime?
 }
 
 /// 设置页的偏好，跟账号走而不是跟浏览器走 —— 换台机器登录看到的是同一套。
@@ -79,6 +100,9 @@ model Word {
 
   @@unique([userId, word, language])
   @@index([userId, pinnedAt])
+  // 笔记的词数统计按它分组，删笔记时的外键检查也走它。缺了这条，两种操作
+  // 都要扫整张 Word 表（删一条笔记实测读一万一千行）。
+  @@index([sourceNoteId])
 }
 
 /// 词 ↔ 词单。词单在这个模型里是挂在词上的标签，不是装词的盒子。
@@ -101,13 +125,13 @@ model Note {
   /// JSON，读的时候按格式分流，用户第一次编辑时才改写成 JSON，见
   /// `client/src/components/notes/noteContent.ts`。
   content String
-  /// 课程标签。空串 = 未归类，不建单独的表，因为一条笔记只挂一个课程。
-  course  String @default("")
+  /// 标签。空串 = 未归类，不建单独的表，因为一条笔记只挂一个标签。
+  tag     String @default("")
 
-  /// 课程时间。选填，创建时默认落成当下，所以业务上恒非空 —— 之所以在库里
+  /// 笔记时间。选填，创建时默认落成当下，所以业务上恒非空 —— 之所以在库里
   /// 是可空列，只是因为 SQLite 的 ALTER TABLE 加不了非常量默认值的 NOT NULL
   /// 列，迁移时只能先加可空列再回填。排序一律走这一列。
-  lessonAt  DateTime?
+  noteAt    DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
@@ -115,8 +139,8 @@ model Note {
   user   User   @relation(fields: [userId], references: [id])
   words  Word[]
 
-  @@index([userId, lessonAt])
-  @@index([userId, course])
+  @@index([userId, noteAt])
+  @@index([userId, tag])
 }
 
 model Review {
@@ -166,6 +190,10 @@ model Expression {
   folder     ExpressionFolder @relation(fields: [folderId], references: [id])
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
+
+  // 表达按分类取、分类卡片上的条数统计按它分组，删分类时的外键检查也走它。
+  // 对照 WordFolder 那边一直有 @@index([folderId])，这里是漏了。
+  @@index([folderId])
 }
 
 model ExpressionFolder {
@@ -181,15 +209,36 @@ model ExpressionFolder {
   @@index([userId])
 }
 
+/// 一条语法点。跟人走 —— 每个用户一份自己的，复习进度和练习题都挂在这上面。
+///
+/// 内容有两个来源：用户自己建（`source = 'user'`），或者从「日语文法蓝宝书
+/// N1-N5」导入（`source = 'bluebook'`，见 scripts/convertBluebookApkg.py）。
+/// 唯一键带 level 是因为书里「～たところで」这类句型 N1 和 N2 各收一条、讲
+/// 不同用法，共 12 个句型是这种情况。
 model Grammar {
   id         String            @id @default(uuid())
   pattern    String
   connection String            @default("")
   meaning    String            @default("")
+  /// 例句的纯文本版，一行一句，和 exampleZh 按行号配对。搜索查的是这一份，
+  /// 手工新建的条目也只有这一份。渲染优先走 examples，空了才回落到这里。
   example    String            @default("")
   exampleZh  String            @default("")
   note       String            @default("")
   level      String            @default("N1")
+  /// 'user' | 'bluebook'
+  source     String            @default("user")
+  /// 蓝宝书条目在原书数据里的 UUID，重新导入时用它认人。
+  sourceId   String            @default("")
+  /// 书内顺序。手工建的条目是 0，学习队列里排在导入内容前面。
+  orderNo    Int               @default(0)
+  /// JSON: [{ jp, zh, tag, audio, origin }]。jp 带 Anki 注音语法和 <b> 高亮，
+  /// tag 是「【2010年12月真题】」这类出处标注。空数组 = 用 example 那一份。
+  examples   String            @default("[]")
+  /// JSON: 文件名数组，N5 的活用表图片。相对 GRAMMAR_MEDIA_BASE。
+  images     String            @default("[]")
+  /// 句型朗读音频文件名，同样相对 GRAMMAR_MEDIA_BASE。
+  audioKey   String            @default("")
   isPinned   Boolean           @default(false)
   pinnedAt   DateTime?
   isLearned  Boolean           @default(false)
@@ -200,10 +249,11 @@ model Grammar {
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
 
-  @@unique([userId, pattern])
+  @@unique([userId, pattern, level])
   @@index([userId])
   @@index([level])
   @@index([userId, pinnedAt])
+  @@index([userId, level, orderNo])
 }
 
 // N1-style four-choice questions attached to a Grammar row. Options are
@@ -450,6 +500,13 @@ model DictEntry {
   // 五十音順 / 拼音序的排序键，和 .idx 索引文件里的第一列同源。
   sortKey   String
 
-  // 查词只有一种形态：给定方向 + 词头拿全部义项，所以这一条复合索引就够。
-  @@index([direction, word])
+  // 查词的两种形态各配一条：给定词头拿全部义项，以及给定读音拿全部词头
+  //（关联词建议要问「读音 ください 的词头都有谁」，见 dictEntryService）。
+  //
+  // word 必须排在首列：回车搜索走 lookupLocalDict，用户没选方向时 where 里
+  // 只有 word，写成 (direction, word) 最左列就对不上，SQLite 只能退化成扫
+  // 全表五十多万行（实测 573k 行 / 63ms 一次）。(word, direction) 两种形态
+  // 都吃得上 —— headwordRows 的 direction + word 双等值照样走这条。
+  @@index([word, direction])
+  @@index([direction, reading])
 }

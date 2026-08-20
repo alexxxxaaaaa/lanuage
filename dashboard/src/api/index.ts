@@ -21,9 +21,17 @@ interface PagingParams {
 export const adminApi = {
   stats: () => http.get<AdminStats>('/api/admin/stats').then((r) => r.data),
 
-  listUsers: (params: PagingParams & { includeHash?: boolean } = {}) =>
+  listUsers: (params: PagingParams = {}) =>
     http
       .get<Paged<AdminUserRow>>('/api/admin/users', { params })
+      .then((r) => r.data),
+
+  createUser: (username: string, password: string) =>
+    http
+      .post<{ id: string; username: string; createdAt: string }>('/api/admin/users', {
+        username,
+        password,
+      })
       .then((r) => r.data),
 
   getUserDetail: (id: string) =>

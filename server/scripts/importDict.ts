@@ -22,8 +22,15 @@ const DICT_DIR = join(ROOT, 'data', 'dict')
 const D1_OUT = resolve(process.cwd(), 'd1_dict')
 const DIRECTIONS = ['ja-zh', 'zh-ja'] as const
 
-/** 建表迁移目录名，写进 apply.sh。改了迁移名记得同步这里。 */
+/** 建表迁移目录名，写进 apply.sh 的开头 —— 表得先在，才灌得进去。 */
 const MIGRATION = '20260803120000_dict_entry'
+
+/**
+ * 建索引的迁移，写进 apply.sh 的末尾。放在整批插入之后而不是之前：五十多万行
+ * 一边插一边维护索引，白付一遍写入代价。空库重建时这一步才有实际动作，索引已
+ * 经在的库执行失败，apply.sh 里用 `|| true` 咽掉。
+ */
+const INDEX_MIGRATIONS = ['20260812000000_dict_entry_reading_idx']
 
 /** 单片 SQL 的体积上限 —— wrangler 一次执行的 SQL 有大小限制，且分片能断点续传。 */
 const SHARD_BYTES = 400_000
@@ -147,6 +154,12 @@ async function exportD1() {
     '  fi',
     '  i=$(( i + 1 ))',
     'done',
+    '',
+    '# 索引留到最后建：五十多万行插完再建一次，比插的时候一路维护便宜。',
+    ...INDEX_MIGRATIONS.map(
+      (name) =>
+        `npx wrangler d1 execute "$DB" --remote --file=./prisma/migrations/${name}/migration.sql -y || true`,
+    ),
     '',
     'echo "完成。"',
   ].join('\n')

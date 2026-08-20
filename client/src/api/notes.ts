@@ -17,15 +17,15 @@ export type NoteDetail = {
   title: string
   /** BlockNote 文档的 JSON。老笔记可能还是 HTML 或 Slate JSON，见 noteContent.ts。 */
   content: string
-  course: string
-  lessonAt: string
+  tag: string
+  noteAt: string
   createdAt: string
   updatedAt: string | null
   words: NoteWord[]
 }
 
-export type CourseOption = {
-  course: string
+export type TagOption = {
+  tag: string
   count: number
 }
 
@@ -33,23 +33,23 @@ export type CourseOption = {
 export type NotePatch = {
   title?: string
   content?: string
-  course?: string
+  tag?: string
   /** ISO 字符串；`null` = 退回创建时间。 */
-  lessonAt?: string | null
+  noteAt?: string | null
 }
 
-export async function getNotes(params: { course?: string; q?: string } = {}) {
+export async function getNotes(params: { tag?: string; q?: string } = {}) {
   const response = await apiClient.get<NoteListItem[]>('/api/notes', {
     params: {
-      course: params.course || undefined,
+      tag: params.tag || undefined,
       q: params.q || undefined,
     },
   })
   return response.data
 }
 
-export async function getCourses() {
-  const response = await apiClient.get<CourseOption[]>('/api/notes/courses')
+export async function getTags() {
+  const response = await apiClient.get<TagOption[]>('/api/notes/tags')
   return response.data
 }
 

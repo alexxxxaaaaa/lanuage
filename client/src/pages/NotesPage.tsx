@@ -9,15 +9,15 @@ import {
   ToggleButtonGroup,
   Tooltip,
 } from '@heroui/react'
-import { FileText, Plus, Trash2 } from 'lucide-react'
+import { FileText, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router'
 
 import {
   createNote,
   deleteNote,
-  getCourses,
+  getTags,
   getNotes,
-  type CourseOption,
+  type TagOption,
 } from '../api/notes'
 import { getErrorMessage } from '../api/error'
 import { confirm } from '../components/ui/dialog'
@@ -30,17 +30,17 @@ import type { NoteListItem } from '../types'
 /** 搜索是打到服务端的（正文只有那边有），所以别每敲一个字就发一次。 */
 const SEARCH_DEBOUNCE_MS = 250
 
-// 课程名是用户自己敲的字符串，直接当 key 会跟「全部」撞名。加个前缀隔开。
-const ALL_COURSES_KEY = 'all'
-const COURSE_KEY_PREFIX = 'course:'
+// 标签名是用户自己敲的字符串，直接当 key 会跟「全部」撞名。加个前缀隔开。
+const ALL_TAGS_KEY = 'all'
+const TAG_KEY_PREFIX = 'tag:'
 
 export function NotesPage() {
   const navigate = useNavigate()
   const { t, language } = useI18n()
 
   const [notes, setNotes] = useState<NoteListItem[]>([])
-  const [courses, setCourses] = useState<CourseOption[]>([])
-  const [course, setCourse] = useState('')
+  const [tags, setTags] = useState<TagOption[]>([])
+  const [tag, setTag] = useState('')
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -63,7 +63,7 @@ export function NotesPage() {
       setIsLoading(true)
       setError(null)
       try {
-        const rows = await getNotes({ course, q: debouncedQuery })
+        const rows = await getNotes({ tag, q: debouncedQuery })
         if (!ignore) setNotes(rows)
       } catch (loadError) {
         if (!ignore) setError(getErrorMessage(loadError, t('notes.loadError')))
@@ -76,15 +76,15 @@ export function NotesPage() {
       ignore = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [course, debouncedQuery, revision])
+  }, [tag, debouncedQuery, revision])
 
-  // 课程选项跟着笔记走，但不受当前筛选影响 —— 否则选中一个课程之后其它选项
+  // 标签选项跟着笔记走，但不受当前筛选影响 —— 否则选中一个标签之后其它选项
   // 就消失了，没法切换。
   useEffect(() => {
     let ignore = false
-    void getCourses()
+    void getTags()
       .then((options) => {
-        if (!ignore) setCourses(options)
+        if (!ignore) setTags(options)
       })
       .catch(() => undefined)
     return () => {
@@ -92,15 +92,15 @@ export function NotesPage() {
     }
   }, [revision])
 
-  // 从详情页回来时标题、课程、时间都可能变过。
+  // 从详情页回来时标题、标签、时间都可能变过。
   useOnPageReactivated(reload)
 
   const handleCreate = async () => {
     setIsCreating(true)
     setError(null)
     try {
-      // 先落一条空笔记再跳进去，之后全靠自动保存打补丁。当前筛的课程顺手带上。
-      const created = await createNote(course ? { course } : {})
+      // 先落一条空笔记再跳进去，之后全靠自动保存打补丁。当前筛的标签顺手带上。
+      const created = await createNote(tag ? { tag } : {})
       navigate(`/notes/${created.id}`)
     } catch (createError) {
       setError(getErrorMessage(createError, t('notes.createError')))
@@ -128,7 +128,7 @@ export function NotesPage() {
     }
   }
 
-  const isFiltered = course !== '' || debouncedQuery !== ''
+  const isFiltered = tag !== '' || debouncedQuery !== ''
 
   return (
     <section className="page">
@@ -137,10 +137,16 @@ export function NotesPage() {
           <h2>{t('routes.notes')}</h2>
           <p className="muted">{t('notes.subtitle')}</p>
         </div>
-        <Button isDisabled={isCreating} onPress={() => void handleCreate()}>
-          <Plus className="size-4" aria-hidden />
-          {t('notes.create')}
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button variant="ghost" onPress={() => navigate('/notes/ask')}>
+            <Sparkles className="size-4" aria-hidden />
+            {t('routes.askAi')}
+          </Button>
+          <Button isDisabled={isCreating} onPress={() => void handleCreate()}>
+            <Plus className="size-4" aria-hidden />
+            {t('notes.create')}
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-3">
@@ -157,25 +163,25 @@ export function NotesPage() {
           </SearchField.Group>
         </SearchField>
 
-        {courses.length > 0 ? (
+        {tags.length > 0 ? (
           <ToggleButtonGroup
             isDetached
-            aria-label={t('notes.course')}
+            aria-label={t('notes.tag')}
             className="flex-wrap"
             disallowEmptySelection
-            selectedKeys={[course ? `${COURSE_KEY_PREFIX}${course}` : ALL_COURSES_KEY]}
+            selectedKeys={[tag ? `${TAG_KEY_PREFIX}${tag}` : ALL_TAGS_KEY]}
             selectionMode="single"
             size="sm"
             onSelectionChange={(keys) => {
               const [key] = [...keys]
-              const next = typeof key === 'string' ? key : ALL_COURSES_KEY
-              setCourse(next.startsWith(COURSE_KEY_PREFIX) ? next.slice(COURSE_KEY_PREFIX.length) : '')
+              const next = typeof key === 'string' ? key : ALL_TAGS_KEY
+              setTag(next.startsWith(TAG_KEY_PREFIX) ? next.slice(TAG_KEY_PREFIX.length) : '')
             }}
           >
-            <ToggleButton id={ALL_COURSES_KEY}>{t('notes.allCourses')}</ToggleButton>
-            {courses.map((option) => (
-              <ToggleButton id={`${COURSE_KEY_PREFIX}${option.course}`} key={option.course}>
-                {option.course}
+            <ToggleButton id={ALL_TAGS_KEY}>{t('notes.allTags')}</ToggleButton>
+            {tags.map((option) => (
+              <ToggleButton id={`${TAG_KEY_PREFIX}${option.tag}`} key={option.tag}>
+                {option.tag}
                 <span className="text-muted">{option.count}</span>
               </ToggleButton>
             ))}
@@ -198,9 +204,9 @@ export function NotesPage() {
                 {t('notes.columnTitle')}
               </Table.Column>
               <Table.Column width="46%">{t('notes.columnPreview')}</Table.Column>
-              <Table.Column width={140}>{t('notes.course')}</Table.Column>
+              <Table.Column width={140}>{t('notes.tag')}</Table.Column>
               <Table.Column width={80}>{t('notes.columnWords')}</Table.Column>
-              <Table.Column width={120}>{t('notes.lessonAt')}</Table.Column>
+              <Table.Column width={120}>{t('notes.noteAt')}</Table.Column>
               {/* 操作列，表头留空是这类列的通行做法。 */}
               <Table.Column width={64}>{''}</Table.Column>
             </Table.Header>
@@ -236,9 +242,9 @@ export function NotesPage() {
                     {note.preview || '—'}
                   </Table.Cell>
                   <Table.Cell>
-                    {note.course ? (
+                    {note.tag ? (
                       <Chip className="max-w-full" color="accent" size="sm" variant="soft">
-                        <Chip.Label className="truncate">{note.course}</Chip.Label>
+                        <Chip.Label className="truncate">{note.tag}</Chip.Label>
                       </Chip>
                     ) : (
                       <span className="text-muted">—</span>
@@ -248,7 +254,7 @@ export function NotesPage() {
                     {note.wordCount > 0 ? note.wordCount : '—'}
                   </Table.Cell>
                   <Table.Cell className="tabular-nums text-muted">
-                    {formatListDate(note.lessonAt, language)}
+                    {formatListDate(note.noteAt, language)}
                   </Table.Cell>
                   <Table.Cell>
                     <Tooltip delay={300}>

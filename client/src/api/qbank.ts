@@ -1,4 +1,4 @@
-import { apiClient } from './client'
+import { AI_TIMEOUT_MS, apiClient } from './client'
 
 /** 后端一次最多返回这么多道题的正文，见 server/src/services/qbankService.ts。 */
 export const QBANK_PAGE_SIZE = 20
@@ -126,7 +126,7 @@ export async function generateQbankAiExplain(questionId: string, refresh = false
   const r = await apiClient.post<QbankAiExplain>(
     `/api/qbank/questions/${questionId}/ai-explain`,
     undefined,
-    { params: refresh ? { refresh: '1' } : {} },
+    { params: refresh ? { refresh: '1' } : {}, timeout: AI_TIMEOUT_MS },
   )
   return r.data
 }

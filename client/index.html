@@ -13,9 +13,16 @@
     <meta name="theme-color" content="#f0f1f3" />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f0f1f3" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0c0f" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- 无前缀的标准名，WebKit 从 Safari 17.4 起就认它；manifest 里的
+         `display: standalone` 是同一件事的另一半。带 apple- 前缀的那条是
+         iOS 17.4 之前的遗留写法，重复声明只会在控制台多一条弃用警告。 -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Word Sprint" />
+    <!-- iOS 上让已安装的 web app 真正铺满屏幕（内容画到状态栏和主屏指示条
+         底下）只有这一个开关 —— manifest 的 `display: fullscreen` 在 iOS 上
+         是被忽略的。Apple 已把它标为 deprecated 且没给替代品：等哪天它失效，
+         视口会退回安全区以内，届时 env(safe-area-inset-*) 全部归零，下面按
+         这些变量做的内缩自动变成 0，布局两种模式下都成立。 -->
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Word Sprint</title>
   </head>

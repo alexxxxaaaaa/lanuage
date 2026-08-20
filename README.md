@@ -1,6 +1,6 @@
 # Word Sprint
 
-A vocabulary learning app with spaced repetition, AI-assisted word entries, expression drills, and rich-text course notes.
+A vocabulary learning app with spaced repetition, AI-assisted word entries, expression drills, and rich-text notes.
 
 - **client**: React 19 + Vite + HeroUI + Tailwind + BlockNote + Zustand
 - **server**: Hono + Prisma + SQLite (local) / Cloudflare D1 (prod) + OpenAI
@@ -20,15 +20,17 @@ cp server/.env.example server/.env
 cd server && npx prisma migrate dev
 ```
 
-That's it — your local `server/prisma/dev.db` is fresh and empty. The client is
-sign-in only (there is no registration screen), so create the first account
-against the API directly, then sign in at `/login`:
+That's it — your local `server/prisma/dev.db` is fresh and empty. There is no
+registration screen and no public registration endpoint: accounts are created
+either from the admin dashboard (`POST /api/admin/users`) or, when the database
+is still empty, from the CLI:
 
 ```bash
-curl -X POST http://localhost:3000/api/auth/register \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"me","password":"your-password"}'
+cd server && npm run user:create -- me 'your-password'
 ```
+
+Then add `me` to `ADMIN_USERNAMES` in `server/.env` if this account should also
+reach the admin dashboard, and sign in at `/login`.
 
 ## Daily development
 
@@ -170,11 +172,11 @@ npx wrangler d1 execute word-sprint-db --remote \
 写进 `QbankAttempt`。考试模式（严格 / 自我评估）存在浏览器本地，开考那一刻
 定格到 attempt 上，中途改设置不影响进行中的考试。
 
-## 课程笔记上线（BlockNote）
+## 笔记上线（BlockNote）
 
 笔记从 Tiptap + HTML 换成了 [BlockNote](https://www.blocknotejs.org/)，编辑器存的是
-`Block[]` 的 JSON。同时「课次」（自由文本）换成了「课程时间」（日期），课程本身
-仍然是笔记上的一个字符串标签，不建表。
+`Block[]` 的 JSON。同时「课次」（自由文本）换成了日期字段，归类用的那个字段
+仍然是笔记上的一个字符串，不建表。
 
 ```bash
 cd server
@@ -187,7 +189,7 @@ npx wrangler d1 execute word-sprint-db --remote \
 ```
 
 迁移会把老的课次文本并进标题（`原标题 · L23`，标题为空就直接拿它当标题），
-再把课程时间和更新时间回填成创建时间，最后删掉 `lesson` 列。全是
+再把笔记时间和更新时间回填成创建时间，最后删掉 `lesson` 列。全是
 `ALTER TABLE` / `UPDATE`，没有建表搬数据，`Word.sourceNoteId` 那条外键不受影响。
 
 **正文格式是懒迁移的**。库里现在三种格式并存：BlockNote JSON（新）、Tiptap 的
@@ -201,3 +203,49 @@ HTML（老）、更早的 Slate JSON。打开一篇老笔记时，前端在
 搜索是两段式的：先用 SQL 的 `LIKE` 粗筛（正文在库里是 JSON/HTML，会顺带命中
 标签名和 JSON 键），再在服务端按纯文本复筛掉假阳性，所以搜 `strong` 不会把所有
 带加粗的笔记翻出来。
+
+## 笔记去掉「课程」，改成标签
+
+「课程」这个概念整个拿掉了：`Note.course` 改名成 `Note.tag`（界面上叫「标签」），
+`Note.lessonAt` 改名成 `Note.noteAt`（界面上叫「时间」）。接口跟着改：
+`GET /api/notes/courses` → `GET /api/notes/tags`，列表筛选的 query 从 `?course=`
+变成 `?tag=`，写接口的 `course` / `lessonAt` 字段同理。
+
+迁移是纯改名，用户已经填在「课程」里的字符串原样变成标签值：
+
+```bash
+cd server
+# 本地
+npx prisma migrate dev
+
+# 线上 D1：一次性的，打第二遍会报 no such column
+npx wrangler d1 execute word-sprint-db --remote \
+  --file=./prisma/migrations/20260812120000_note_course_to_tag/migration.sql
+```
+
+两条索引是先删后建：SQLite 的 `RENAME COLUMN` 会自动改写索引里的列名，但索引
+**名**还留着老列名，跟 Prisma 按 schema 推出来的名字对不上，下次 migrate 会当成
+drift。
+
+## 询问 AI（笔记 → 对话 → 笔记）
+
+笔记页的「询问 AI」进 `/notes/ask`：语言相关的自由问答，可以追问、可以让它把上一
+条答案重答，最后一键把整段对话存成一篇笔记（标签固定 `AI`，时间就是存的那一刻）。
+**没有新表，也没有迁移**，上线只要发前后端。
+
+会话存在**浏览器**（`localStorage`，见 `client/src/store/useAiChat.ts`），服务端
+`POST /api/ai/chat` 是无状态的：每次提问由客户端把历史整份带上来，服务端只截到最近
+20 条、每条 2000 字。这样不必为一个「随手清空、清空了也不用找回」的东西建表，也不用
+操心多设备之间怎么合并会话 —— 真想留下来的对话，出口是笔记，那是本来就有的持久化。
+代价写在界面上：清空会话的确认框会说这段对话只在这台设备上。
+
+排版是一条贯穿三处的约定：system prompt 只许助教用段落、`- ` / `1. ` 列表、`**加粗**`
+和 `` `行内代码` ``（`server/src/services/aiChatService.ts`），聊天气泡按这几种渲染
+（`client/src/pages/askAi/ChatMarkdown.tsx`），生成笔记时同一段文字交给 BlockNote 的
+Markdown 解析（`client/src/components/notes/chatToNote.ts`，提问变引用块）。三边认的
+是同一批记法，所以笔记里的排版就是聊天里看到的那一份。放开标题、表格、代码块会让
+两头对不上。
+
+标题是另一次调用（`POST /api/ai/chat-title`），而且**允许失败**：它烧不出来（比如日
+预算见底）时前端退回用第一句提问当标题，笔记照存不误。用量表里这两个 feature 叫
+`chat` 和 `chat_note_title`。

@@ -101,8 +101,12 @@ export function GrammarQuestionsPage() {
 
       <div className="card mb-4">
         <div className="flex flex-wrap items-center gap-3">
-          {/* shrink-0：不给 flex 压缩它的机会，否则药丸被挤窄、标签折行 */}
+          {/* fitContent：各段按自己标签的宽度排，不再等宽（否则「错题本」被
+            * 撑得空荡荡、「全部题目」又被挤到折行）。
+            * shrink-0：fitContent 收到内容宽之后，还得挡住 flex 行的压缩。 */}
           <SegmentedControl
+            fitContent
+            aria-label="筛选题目"
             className="shrink-0"
             value={mode}
             onChange={(v) => {

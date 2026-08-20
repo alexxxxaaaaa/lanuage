@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { JlptChips } from '../components/JlptChips'
 import { SelectField } from '../components/ui/SelectField'
 import { Button, Input, TextArea } from '@heroui/react'
 import { Search } from 'lucide-react'
@@ -9,6 +10,14 @@ import { getGrammarReviewCounts } from '../api/grammarReview'
 import { getErrorMessage } from '../api/error'
 import { useI18n } from '../i18n'
 import type { CreateGrammarPayload, Grammar } from '../types'
+import {
+  asGrammarLevels,
+  CUSTOM_LEVEL,
+  GRAMMAR_LEVELS,
+  toGrammarLevel,
+  useGrammarLevelLabel,
+  type GrammarLevel,
+} from '../lib/grammarLevels'
 import { scrollAppToTop } from '../lib/scroll'
 
 const EMPTY_FORM: CreateGrammarPayload = {
@@ -18,16 +27,31 @@ const EMPTY_FORM: CreateGrammarPayload = {
   example: '',
   exampleZh: '',
   note: '',
-  level: 'N1',
+  // 手工建的句型多半不对应 JLPT 某一级，默认落在自建这一档，要归级再自己挑。
+  level: CUSTOM_LEVEL,
 }
 
 // 按钮里的计数胶囊。在 secondary / ghost 上要换成深色底才看得清。
 const BADGE =
   'ml-1.5 inline-flex h-5 min-w-[22px] items-center justify-center rounded-full px-[7px] text-xs leading-none font-semibold'
 
+/** 列表卡片只露一句例句 —— example 字段是一行一句的纯文本。 */
+function firstLine(text?: string) {
+  return (text ?? '').split('\n').find((s) => s.trim()) ?? ''
+}
+
+// 级别筛选里「全部」这一项的键。级别本身是 N1-N5 / CUSTOM 这几个字符串，空串
+// 在下拉框里不是个能选的键，所以另给一个哨兵值，落到 state 时再换回空串。
+const ALL_LEVELS = '__all__'
+
+// 一次铺多少张卡片。装进整本蓝宝书之后不筛选就是 800 多条，全渲染出来手机上
+// 要卡一下；200 这个数选得比手工整理的条目量高，所以没导过书的账号看不出区别。
+const PAGE_SIZE = 200
+
 export function GrammarPage() {
   const navigate = useNavigate()
   const { t } = useI18n()
+  const levelLabel = useGrammarLevelLabel()
   const [grammars, setGrammars] = useState<Grammar[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -36,13 +60,14 @@ export function GrammarPage() {
   const [isAiFilling, setIsAiFilling] = useState(false)
   const [form, setForm] = useState<CreateGrammarPayload>(EMPTY_FORM)
   const [keyword, setKeyword] = useState('')
-  const [level, setLevel] = useState<string>('')
+  const [level, setLevel] = useState<GrammarLevel | ''>('')
   const [counts, setCounts] = useState<{ due: number; unlearned: number }>({
     due: 0,
     unlearned: 0,
   })
   const [learnCount, setLearnCount] = useState<number | null>(10)
   const [learnedFilter, setLearnedFilter] = useState<'all' | 'learned' | 'unlearned'>('all')
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
   const pinToTop = async (g: Grammar) => {
     try {
@@ -78,7 +103,7 @@ export function GrammarPage() {
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase()
     return grammars.filter((g) => {
-      if (level && g.level !== level) return false
+      if (level && toGrammarLevel(g.level) !== level) return false
       if (learnedFilter === 'learned' && !g.isLearned) return false
       if (learnedFilter === 'unlearned' && g.isLearned) return false
       if (!kw) return true
@@ -96,6 +121,19 @@ export function GrammarPage() {
     [grammars],
   )
 
+  // 换了筛选条件就从头铺 —— 不然搜完一个词还留着上一次「显示更多」的进度。
+  // 在渲染期间比对而不是塞进 effect：这是 React 说的「跟着输入调整 state」，
+  // 重渲染发生在提交之前，屏幕上不会先闪一帧旧的条数。
+  const filterKey = `${keyword}\0${level}\0${learnedFilter}`
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey)
+  if (prevFilterKey !== filterKey) {
+    setPrevFilterKey(filterKey)
+    setVisibleCount(PAGE_SIZE)
+  }
+
+  const visible = filtered.slice(0, visibleCount)
+  const rest = filtered.length - visible.length
+
   const toggleLearned = async (g: Grammar) => {
     try {
       await updateGrammar(g.id, { isLearned: !g.isLearned })
@@ -105,9 +143,11 @@ export function GrammarPage() {
     }
   }
 
+  // 筛选器只列真正有条目的级别。归一之后排序，'CUSTOM' 按字母序落在 N1 前面，
+  // 和新建表单里的顺序一致。
   const levels = useMemo(() => {
-    const s = new Set<string>()
-    for (const g of grammars) if (g.level) s.add(g.level)
+    const s = new Set<GrammarLevel>()
+    for (const g of grammars) s.add(toGrammarLevel(g.level))
     return Array.from(s).sort()
   }, [grammars])
 
@@ -188,13 +228,16 @@ export function GrammarPage() {
           </label>
           <Button
             type="button"
-            onPress={() =>
-              navigate(
-                learnCount === null
-                  ? '/grammar/learn'
-                  : `/grammar/learn?count=${learnCount}`,
-              )
-            }
+            onPress={() => {
+              // 上面那个级别筛选器同时决定学习范围 —— 整本蓝宝书 800 多条，
+              // 不挑级别的话一路学下去全是 N5 的助数词。没选级别就学全部，
+              // 和加这个参数之前一样。
+              const params = new URLSearchParams()
+              if (learnCount !== null) params.set('count', String(learnCount))
+              if (level) params.set('level', level)
+              const qs = params.toString()
+              navigate(qs ? `/grammar/learn?${qs}` : '/grammar/learn')
+            }}
           >
             {t('grammar.learnNewBtn')}
             {counts.unlearned > 0 ? <span className={`${BADGE} bg-accent-foreground/25`}>{counts.unlearned}</span> : null}
@@ -236,12 +279,16 @@ export function GrammarPage() {
             onChange={(event) => setKeyword(event.target.value)}
           />
         </div>
+        {/* 「全部」得是列表里的头一项，不能只当 placeholder —— placeholder 只在
+            没选过的时候露一次，选完某个级别就再也点不回去了。 */}
         <SelectField
-          value={level || undefined}
-          onChange={(v) => setLevel(v ?? '')}
-          placeholder={t('grammar.levelAll')}
+          value={level || ALL_LEVELS}
+          onChange={(v) => setLevel(v === ALL_LEVELS ? '' : v)}
           className="min-w-[120px]"
-          options={levels.map((lv) => ({ value: lv, label: lv }))}
+          options={[
+            { value: ALL_LEVELS, label: t('grammar.levelAll') },
+            ...levels.map((lv) => ({ value: lv, label: levelLabel(lv) })),
+          ]}
         />
         <div className="flex flex-wrap gap-1.5">
           <Button
@@ -334,12 +381,9 @@ export function GrammarPage() {
           <label>
             级别
             <SelectField
-              value={form.level ?? 'N1'}
+              value={toGrammarLevel(form.level)}
               onChange={(v) => setForm((p) => ({ ...p, level: v }))}
-              options={['N1', 'N2', 'N3', 'N4', 'N5'].map((lv) => ({
-                value: lv,
-                label: lv,
-              }))}
+              options={GRAMMAR_LEVELS.map((lv) => ({ value: lv, label: levelLabel(lv) }))}
             />
           </label>
           <div className="form-actions">
@@ -360,14 +404,14 @@ export function GrammarPage() {
       ) : null}
 
       <ul className="m-0 flex list-none flex-col gap-3 p-0">
-        {filtered.map((g) => (
+        {visible.map((g) => (
           <li key={g.id} className="rounded-[14px] bg-surface px-5 py-4.5 shadow-card transition-shadow duration-150 hover:shadow-overlay">
             <header className="mb-2.5 flex items-center justify-between gap-3">
               <div className="flex min-w-0 flex-wrap items-baseline gap-2.5">
                 <Link to={`/grammar/${g.id}`} className="text-xl font-bold text-foreground no-underline [word-break:keep-all] hover:text-accent">
                   {g.pattern}
                 </Link>
-                <span className="inline-flex items-center rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold tracking-[0.04em] text-accent-soft-foreground">{g.level}</span>
+                <JlptChips levels={asGrammarLevels(g.level)} size="md" />
                 {g.isLearned ? (
                   <span className="inline-flex items-center rounded-full bg-success-soft px-2 py-0.5 text-xs font-semibold text-success-soft-foreground">{t('grammar.learnedPill')}</span>
                 ) : null}
@@ -417,17 +461,31 @@ export function GrammarPage() {
                 <span className="font-medium text-foreground">{g.meaning}</span>
               </p>
             ) : null}
-            {g.example ? (
+            {/* 只露第一句。装进整本蓝宝书之后一条能带十几句例句，全铺出来的话
+                列表要滚上几十屏才翻得完一个级别。要看全的去详情页。 */}
+            {firstLine(g.example) ? (
               <div className="mt-2.5 flex flex-col gap-1 border-t border-separator pt-2.5 text-[13.5px]/[1.65]">
-                <p className="multiline-text">{g.example}</p>
-                {g.exampleZh ? (
-                  <p className="muted multiline-text">{g.exampleZh}</p>
+                <p className="multiline-text">{firstLine(g.example)}</p>
+                {firstLine(g.exampleZh) ? (
+                  <p className="muted multiline-text">{firstLine(g.exampleZh)}</p>
                 ) : null}
               </div>
             ) : null}
           </li>
         ))}
       </ul>
+
+      {rest > 0 ? (
+        <div className="mt-3 flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
+            onPress={() => setVisibleCount((n) => n + PAGE_SIZE)}
+          >
+            {t('grammar.showMore', { rest })}
+          </Button>
+        </div>
+      ) : null}
     </section>
   )
 }

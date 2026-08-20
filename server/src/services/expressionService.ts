@@ -23,15 +23,30 @@ function normalizeText(input?: string) {
 }
 
 export async function getExpressionFolders(userId: string) {
-  return prisma.expressionFolder.findMany({
+  const folders = await prisma.expressionFolder.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },
-    include: {
-      _count: {
-        select: { expressions: true },
-      },
-    },
   })
+  if (folders.length === 0) return []
+
+  // 条数下沉成 folderId IN 分组，走 @@index([folderId])。include 里的 _count
+  // 生成的是不带 where 的 GROUP BY 子查询，对整张 Expression 表分组，跟这个
+  // 用户有几个分类无关 —— 词单那边是同一个坑，见 folderService.getFolders。
+  const groups = await prisma.expression.groupBy({
+    by: ['folderId'],
+    where: { folderId: { in: folders.map((folder) => folder.id) } },
+    _count: { _all: true },
+  })
+  // D1 的聚合结果是 BigInt，收成 number 再交出去。
+  const countMap = new Map(
+    groups.map((row) => [row.folderId, Number(row._count._all)]),
+  )
+
+  // 形状保持不变 —— 前端读的是 folder._count.expressions。
+  return folders.map((folder) => ({
+    ...folder,
+    _count: { expressions: countMap.get(folder.id) ?? 0 },
+  }))
 }
 
 export async function createExpressionFolder(
@@ -45,18 +60,16 @@ export async function createExpressionFolder(
     throw new AppError('language must be en or jp', 400)
   }
 
-  return prisma.expressionFolder.create({
+  const folder = await prisma.expressionFolder.create({
     data: {
       name,
       language,
       userId,
     },
-    include: {
-      _count: {
-        select: { expressions: true },
-      },
-    },
   })
+  // 刚建出来的分类必然是空的。原来这里挂着 include._count，等于为一个恒等于
+  // 0 的数字让 D1 对整张 Expression 表分组一次。
+  return { ...folder, _count: { expressions: 0 } }
 }
 
 export async function getExpressionFolderById(userId: string, id: string) {
@@ -68,13 +81,29 @@ export async function getExpressionFolderById(userId: string, id: string) {
       expressions: {
         orderBy: { createdAt: 'desc' },
       },
-      _count: {
-        select: { expressions: true },
-      },
     },
   })
   if (!folder) throw new AppError('expression folder not found', 404)
-  return folder
+  // 条数直接数取回来的那串 —— expressions 已经在手里了。
+  return { ...folder, _count: { expressions: folder.expressions.length } }
+}
+
+export async function deleteExpressionFolder(userId: string, id: string) {
+  const normalizedId = normalizeText(id)
+  if (!normalizedId) throw new AppError('folder id is required', 400)
+  const existing = await prisma.expressionFolder.findFirst({
+    where: { id: normalizedId, userId },
+  })
+  if (!existing) throw new AppError('expression folder not found', 404)
+
+  // 表达只挂在一个分类下（Expression.folderId 是必填的），分类没了它们就无处
+  // 可去 —— 一起删，一个事务里做完，不留没主的表达。
+  await prisma.$transaction([
+    prisma.expression.deleteMany({ where: { folderId: normalizedId } }),
+    prisma.expressionFolder.delete({ where: { id: normalizedId } }),
+  ])
+
+  return { id: normalizedId }
 }
 
 export async function getExpressions(

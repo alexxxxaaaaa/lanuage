@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import {
   createNote,
   deleteNote,
-  getCourses,
+  getTags,
   getNoteById,
   getNotes,
   updateNote,
@@ -14,23 +14,23 @@ export const notesRouter = new Hono<AppEnv>()
 type NoteBody = {
   title?: string
   content?: string
-  course?: string
+  tag?: string
   /** ISO 字符串；`null` = 退回创建时间。 */
-  lessonAt?: string | null
+  noteAt?: string | null
 }
 
 notesRouter.get('/', async (c) => {
   const notes = await getNotes(getUserId(c), {
-    course: c.req.query('course'),
+    tag: c.req.query('tag'),
     q: c.req.query('q'),
   })
   return c.json(notes)
 })
 
 // 必须排在 `/:id` 前面，否则会被它当成一个笔记 id 吃掉。
-notesRouter.get('/courses', async (c) => {
-  const courses = await getCourses(getUserId(c))
-  return c.json(courses)
+notesRouter.get('/tags', async (c) => {
+  const tags = await getTags(getUserId(c))
+  return c.json(tags)
 })
 
 notesRouter.get('/:id', async (c) => {

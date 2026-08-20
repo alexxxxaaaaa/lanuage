@@ -3,14 +3,18 @@ import { Button, Card, Chip } from '@heroui/react'
 
 import { QbankText } from '../../components/QbankText'
 import type { ExamPassage, ExamQuestion } from '../../api/qbankExam'
+import { AiExplainBlock, AiExplainButton } from './AiExplain'
+import { useAiExplain, type AiExplainStore } from './useAiExplain'
 import {
   hasPlaceholderOptions,
   isAcceptedAnswer,
+  isImageOnlyPassage,
   mondaiLabel,
   mondaiMeta,
   questionDomId,
 } from './constants'
 import { DisputeChip, DisputeNotice } from './Dispute'
+import { ExplainText } from './ExplainText'
 import {
   EXPLAIN_BLOCK,
   EXPLAIN_LABEL,
@@ -55,6 +59,10 @@ export function ExamQuestionList({
   activeIds,
   onPick,
 }: Props) {
+  // 只有复习态用得上。挂在这里而不是页面上，是因为整卷一百多题，
+  // 生成状态天然按题走，页面不需要知道这件事。
+  const ai = useAiExplain()
+
   return (
     <div className="grid gap-4">
       {questions.map((question, i) => {
@@ -92,11 +100,17 @@ export function ExamQuestionList({
             ) : null}
 
             <QuestionCard
+              ai={ai}
               question={question}
               number={numbers.get(question.id) ?? i + 1}
               selected={answers[question.id] ?? null}
               isReview={isReview}
               isActive={activeIds?.has(question.id) ?? false}
+              // 听力（题干在音频里）和情報検索（材料是整张图）AI 都看不到该看的东西。
+              // 口径与精练页一致，服务端也有同样的守卫。
+              canAiExplain={
+                question.category !== 'listening' && !isImageOnlyPassage(passage?.content ?? '')
+              }
               onPick={onPick}
             />
           </Fragment>
@@ -107,18 +121,22 @@ export function ExamQuestionList({
 }
 
 function QuestionCard({
+  ai,
   question,
   number,
   selected,
   isReview,
   isActive,
+  canAiExplain,
   onPick,
 }: {
+  ai: AiExplainStore
   question: ExamQuestion
   number: number
   selected: number | null
   isReview: boolean
   isActive: boolean
+  canAiExplain: boolean
   onPick?: (questionId: string, selected: number) => void
 }) {
   const answer = question.answer ?? 0
@@ -127,6 +145,10 @@ function QuestionCard({
   // 未交卷时 answer 不下发，altAnswer 也不下发，所以这个标签只在复习态出现；
   // 精练页的题干标签则是作答前就显示的（那边答案本来就随正文一起下发）。
   const hasDispute = isReview && altAnswer > 0
+  // 这一轮生成的优先，否则用交卷时一起下发的那份全局缓存 —— 精练页生成过的题，
+  // 在这里翻到就已经有解析了。
+  const aiExplain = ai.generated[question.id] ?? question.aiExplain
+  const isAiPending = ai.pending.has(question.id)
 
   return (
     <Card
@@ -181,14 +203,14 @@ function QuestionCard({
         })}
       </ol>
 
-      {isReview && (question.stemZh || question.explain || hasDispute) ? (
+      {isReview && (question.stemZh || question.explain || hasDispute || canAiExplain) ? (
         <div className="grid gap-2.5 border-t border-separator pt-3.5">
           {question.stemZh ? (
             <div className={EXPLAIN_BLOCK}>
               <p className={EXPLAIN_LABEL}>
                 {question.category === 'listening' ? '設問' : '译文'}
               </p>
-              <QbankText text={question.stemZh} />
+              <ExplainText text={question.stemZh} />
             </div>
           ) : null}
           {question.explain ? (
@@ -196,15 +218,34 @@ function QuestionCard({
               <p className={EXPLAIN_LABEL}>
                 {question.category === 'listening' ? '原文 / 译文' : '解析'}
               </p>
-              <QbankText text={question.explain} />
+              <ExplainText text={question.explain} />
             </div>
           ) : null}
+          <AiExplainBlock
+            altAnswer={altAnswer}
+            answer={answer}
+            explain={aiExplain}
+            isPending={isAiPending}
+            selected={selected}
+            onRegenerate={() => void ai.run(question.id, true)}
+          />
           {hasDispute ? (
             <DisputeNotice
               answer={answer}
               altAnswer={altAnswer}
               note={question.disputeNote ?? ''}
             />
+          ) : null}
+          {/* 交卷后答案已经摊开，没有剧透可言，所以这里不锁。 */}
+          {canAiExplain ? (
+            <div className="justify-self-start">
+              <AiExplainButton
+                hasExplain={!!aiExplain}
+                isPending={isAiPending}
+                variant="outline"
+                onPress={() => void ai.run(question.id)}
+              />
+            </div>
           ) : null}
         </div>
       ) : null}

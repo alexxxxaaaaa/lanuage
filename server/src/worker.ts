@@ -10,10 +10,12 @@ export type WorkerBindings = {
   OPENAI_API_KEY?: string
   OPENAI_MODEL?: string
   ADMIN_USERNAMES?: string
+  ALLOWED_ORIGINS?: string
   DAILY_AI_TOKEN_BUDGET?: string
   SUBTITLE_PROXY_URL?: string
   SUBTITLE_PROXY_TOKEN?: string
   QBANK_MEDIA_BASE?: string
+  GRAMMAR_MEDIA_BASE?: string
 }
 
 // Cloudflare D1 returns COUNT()/aggregate results as BigInt. JSON.stringify
@@ -41,10 +43,12 @@ export default {
       OPENAI_API_KEY: env.OPENAI_API_KEY,
       OPENAI_MODEL: env.OPENAI_MODEL,
       ADMIN_USERNAMES: env.ADMIN_USERNAMES,
+      ALLOWED_ORIGINS: env.ALLOWED_ORIGINS,
       DAILY_AI_TOKEN_BUDGET: env.DAILY_AI_TOKEN_BUDGET,
       SUBTITLE_PROXY_URL: env.SUBTITLE_PROXY_URL,
       SUBTITLE_PROXY_TOKEN: env.SUBTITLE_PROXY_TOKEN,
       QBANK_MEDIA_BASE: env.QBANK_MEDIA_BASE,
+      GRAMMAR_MEDIA_BASE: env.GRAMMAR_MEDIA_BASE,
     }
 
     try {

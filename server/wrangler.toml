@@ -9,6 +9,10 @@ compatibility_flags = ["nodejs_compat"]
 binding = "DB"
 database_name = "word-sprint-db"
 database_id = "cb6b0f08-e4fa-47af-a729-92d6b666c0e7"
+# 只是让 `wrangler d1 migrations list` 找得到目录。**不要**跑
+# `wrangler d1 migrations apply` —— 生产的 d1_migrations 表从建库起就是空的，
+# 历次结构变更都是单独 execute 对应那个文件打的，apply 会认为一条都没应用过，
+# 从 init 的 CREATE TABLE 开始重跑一遍。流程见 DEPLOY.md 的 Schema change。
 migrations_dir = "prisma/migrations"
 
 # Vars vs secrets:
@@ -17,6 +21,10 @@ migrations_dir = "prisma/migrations"
 [vars]
 OPENAI_MODEL = "gpt-5.6-luna"
 DAILY_AI_TOKEN_BUDGET = "50000"
+# CORS 白名单（逗号分隔，带协议、不带尾斜杠）。localhost / 127.0.0.1 任意端口
+# 永远放行，本地开发不用动这里。留空 = 放行所有来源。
+# 部署管理后台后记得把它的域名也加进来，否则后台会被 CORS 挡在门外。
+ALLOWED_ORIGINS = "https://lgstudy.com,https://www.lgstudy.com"
 # Subtitle proxy: a separate Node service that fetches YouTube from a
 # non-Cloudflare IP. The auth token goes via `wrangler secret put
 # SUBTITLE_PROXY_TOKEN`. Leave URL blank to disable proxy mode.
@@ -24,3 +32,6 @@ SUBTITLE_PROXY_URL = ""
 # JLPT 精练题库的媒体根（R2 公共桶 jlpt 的 qbank/ 前缀）。听力 mp3 和
 # 情報検索图片都挂在这下面，上传见 server/scripts/uploadQbankMedia.sh。
 QBANK_MEDIA_BASE = "https://pub-942012cb760d44d7a0c78abce8d4d0c5.r2.dev/qbank/"
+# 蓝宝书语法的句型/例句朗读和 N5 活用表图片，同一个桶的 grammar/ 前缀。
+# 上传见 server/scripts/uploadBluebookMedia.sh。
+GRAMMAR_MEDIA_BASE = "https://pub-942012cb760d44d7a0c78abce8d4d0c5.r2.dev/grammar/"

@@ -1,4 +1,5 @@
-import { apiClient } from './client'
+import { AI_TIMEOUT_MS, apiClient } from './client'
+import type { UiLanguage } from '../i18n'
 
 export type AiFillWordPayload = {
   word: string
@@ -9,6 +10,12 @@ export type AiFillWordPayload = {
   extended?: boolean
   /** 已有 AI 缓存时强制重新生成（「重新生成」按钮）。 */
   refresh?: boolean
+  /**
+   * 日语活用形是否直接校准到辞書形，默认 true（加词页、批量加词走这个 ——
+   * 词单里该存辞書形）。查词页传 false：那边在结果第一行给建议，改不改由
+   * 用户点，输入的词不背着人换掉。
+   */
+  normalize?: boolean
   /**
    * 划词加词时选中文本所在的整句。传了它服务端切到语境模式：还原原形、
    * 按句中义项给释义、翻译整句，且不再生成自造例句。
@@ -27,8 +34,9 @@ export type AiFillWordResult = {
   /** true = 命中服务端 DictEntry 缓存，没烧 token。 */
   cached: boolean
   /**
-   * 辞書形/原形，只有语境模式带值（「食べました」→「食べる」）。此时 word
-   * 已经等于它，留着这个字段是为了让 UI 能提示「已还原为原形」。
+   * 辞書形/原形。词头真被换掉时才有值（「食べました」→「食べる」）：划词加词的
+   * 语境模式，以及 normalize 生效的手输查词。此时 word 已经等于它，留着这个
+   * 字段是为了让 UI 能提示「已还原为原形」。
    */
   baseForm?: string
   /** 语境句的中文翻译，只有语境模式带值。 */
@@ -67,10 +75,12 @@ export type AiUsageSummary = {
 }
 
 export type AiExpressionCasualResult = {
+  /** 目标语言的译文。存 enCasual 还是 jpCasual 由分类语言决定。 */
+  text: string
+  /** 中文原文；开了 polish 才和传上去的不同。 */
   zhText: string
-  enCasual: string
-  jpCasual: string
-  sceneTag: string
+  /** 译文解析；没开 explain 时是空串。 */
+  note: string
 }
 
 export type AiFillGrammarResult = {
@@ -83,14 +93,18 @@ export type AiFillGrammarResult = {
 }
 
 export async function fillGrammarByAi(pattern: string) {
-  const response = await apiClient.post<AiFillGrammarResult>('/api/ai/fill-grammar', {
-    pattern,
-  })
+  const response = await apiClient.post<AiFillGrammarResult>(
+    '/api/ai/fill-grammar',
+    { pattern },
+    { timeout: AI_TIMEOUT_MS },
+  )
   return response.data
 }
 
 export async function fillWordByAi(payload: AiFillWordPayload) {
-  const response = await apiClient.post<AiFillWordResult>('/api/ai/fill-word', payload)
+  const response = await apiClient.post<AiFillWordResult>('/api/ai/fill-word', payload, {
+    timeout: AI_TIMEOUT_MS,
+  })
   return response.data
 }
 
@@ -103,27 +117,51 @@ export async function getAiUsage(days = 7) {
 
 export async function generateExpressionCasual(payload: {
   zhText: string
-  language?: 'en' | 'jp'
+  /** 译成哪种语言，跟表达分类走，用户选不了。 */
+  language: 'en' | 'jp'
+  /** 场景标签，AI 按它定语域；不传＝日常口语。 */
+  sceneTags?: string[]
+  /** 先在不改原意的前提下润色中文，再按润色后的翻译。 */
+  polish?: boolean
+  /** 让 AI 多给一段译文解析，填进备注。 */
+  explain?: boolean
 }) {
   const response = await apiClient.post<AiExpressionCasualResult>(
     '/api/ai/expression-casual',
     payload,
+    { timeout: AI_TIMEOUT_MS },
   )
   return response.data
 }
 
-export type AiExpressionTranslateResult = {
-  zhText: string
-  sceneTag: string
+/**
+ * 询问 AI 的一条消息。服务端不存会话（见 server/src/services/aiChatService.ts），
+ * 每次提问都把历史整份带上去。
+ */
+export type AiChatMessage = {
+  role: 'user' | 'assistant'
+  content: string
 }
 
-export async function translateExpressionToZh(payload: {
-  text: string
-  language: 'en' | 'jp'
+export async function chatWithAi(payload: {
+  /** 完整历史，最后一条是这次的提问。 */
+  messages: AiChatMessage[]
+  /** 回答用哪种语言，跟界面语言走。 */
+  language: UiLanguage
 }) {
-  const response = await apiClient.post<AiExpressionTranslateResult>(
-    '/api/ai/expression-translate-zh',
-    payload,
-  )
-  return response.data
+  const response = await apiClient.post<{ reply: string }>('/api/ai/chat', payload, {
+    timeout: AI_TIMEOUT_MS,
+  })
+  return response.data.reply
+}
+
+/** 把一段对话概括成笔记标题。笔记本身用 createNote 建。 */
+export async function generateChatTitle(payload: {
+  messages: AiChatMessage[]
+  language: UiLanguage
+}) {
+  const response = await apiClient.post<{ title: string }>('/api/ai/chat-title', payload, {
+    timeout: AI_TIMEOUT_MS,
+  })
+  return response.data.title
 }

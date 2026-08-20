@@ -18,9 +18,10 @@ import {
   Typography,
   message,
 } from 'antd'
-import { ArrowLeftOutlined, CopyOutlined, ReloadOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { adminApi } from '@/api'
+import { renderSceneTags } from '@/lib/sceneTags'
 import type {
   AdminExpressionRow,
   AdminFolderRow,
@@ -119,12 +120,6 @@ export default function UserDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
-  const copyHash = () => {
-    if (!detail?.passwordHash) return
-    navigator.clipboard.writeText(detail.passwordHash)
-    message.success('已复制哈希')
-  }
-
   if (!id) return <Empty description="缺少用户 id" />
 
   return (
@@ -154,14 +149,6 @@ export default function UserDetailPage() {
           >
             <Descriptions.Item label="用户 ID">
               <code style={{ fontSize: 12 }}>{detail.id}</code>
-            </Descriptions.Item>
-            <Descriptions.Item label="密码哈希" span={2}>
-              <Space size={4}>
-                <code style={{ fontSize: 12, wordBreak: 'break-all' }}>
-                  {detail.passwordHash}
-                </code>
-                <Button size="small" type="text" icon={<CopyOutlined />} onClick={copyHash} />
-              </Space>
             </Descriptions.Item>
           </Descriptions>
 
@@ -266,8 +253,8 @@ export default function UserDetailPage() {
                     {
                       title: '场景',
                       dataIndex: 'sceneTag',
-                      width: 120,
-                      render: (v: string) => (v ? <Tag color="purple">{v}</Tag> : '-'),
+                      width: 160,
+                      render: (v: string) => renderSceneTags(v),
                     },
                     {
                       title: '已掌握',
@@ -305,14 +292,14 @@ export default function UserDetailPage() {
                   columns={[
                     { title: '标题', dataIndex: 'title', ellipsis: true },
                     {
-                      title: '课程',
-                      dataIndex: 'course',
+                      title: '标签',
+                      dataIndex: 'tag',
                       width: 160,
                       render: (v: string) => (v ? <Tag>{v}</Tag> : '-'),
                     },
                     {
-                      title: '课程时间',
-                      dataIndex: 'lessonAt',
+                      title: '时间',
+                      dataIndex: 'noteAt',
                       width: 120,
                       render: (v: string) => dayjs(v).format('YYYY-MM-DD'),
                     },
@@ -402,8 +389,8 @@ export default function UserDetailPage() {
         {viewNote && (
           <>
             <Space style={{ marginBottom: 12 }}>
-              {viewNote.course && <Tag>课程：{viewNote.course}</Tag>}
-              <Tag>课程时间：{dayjs(viewNote.lessonAt).format('YYYY-MM-DD')}</Tag>
+              {viewNote.tag && <Tag>标签：{viewNote.tag}</Tag>}
+              <Tag>时间：{dayjs(viewNote.noteAt).format('YYYY-MM-DD')}</Tag>
               <Tag>{dayjs(viewNote.createdAt).format('YYYY-MM-DD HH:mm')}</Tag>
             </Space>
             <div

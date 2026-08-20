@@ -1,7 +1,8 @@
 import { prisma } from '../lib/prisma'
 import { getEnv } from '../lib/env'
 import { AppError } from '../errors/AppError'
-import { explainQbankQuestionByAi, getDefaultModel } from './aiService'
+import { explainQbankQuestionByAi } from './aiService'
+import { getDefaultModel } from '../lib/aiClient'
 
 /**
  * JLPT 精练题库。题目本身是全局共享的静态数据，用户数据只有
@@ -39,6 +40,33 @@ export function resolveImages(content: string): string {
 /** 去掉 markdown 图片后剩下的正文。空串 = 这篇材料只有图，纯文本读不出东西。 */
 export function stripImages(content: string): string {
   return content.replace(/!\[[^\]]*\]\([^)]*\)/g, '').trim()
+}
+
+/**
+ * 喂给 AI 的材料：图片换成占位符。整条 markdown 图片语法有大半是 R2 的长 URL，
+ * 对读不了图的模型是纯噪音，但「这里原本有张图」本身是信息，不能连位置一起抹掉。
+ */
+function passageForAi(content: string): string {
+  return content.replace(/!\[[^\]]*\]\([^)]*\)/g, '［図］').trim()
+}
+
+/**
+ * 題型名。(category, mondaiNo) 唯一决定，与 client/src/pages/jlpt/constants.ts 的
+ * MONDAI 表同源 —— 那边还带卷面指示语，这里只要名字，用来告诉 AI 这道题该往哪讲。
+ * 問題6「文の組み立て」尤其需要：光看题干和四个碎片选项，看不出考的是语序。
+ * 听力不生成 AI 解析，所以只列笔试。
+ */
+const MONDAI_TYPE: Record<string, Record<number, string>> = {
+  vocab: { 1: '漢字読み', 2: '文脈規定', 3: '言い換え類義', 4: '用法' },
+  grammar: { 5: '文法形式の判断', 6: '文の組み立て', 7: '文章の文法' },
+  reading: {
+    8: '内容理解（短文）',
+    9: '内容理解（中文）',
+    10: '内容理解（長文）',
+    11: '統合理解',
+    12: '主張理解（長文）',
+    13: '情報検索',
+  },
 }
 
 export function parseOptions(raw: string): string[] {
@@ -452,7 +480,9 @@ export type AiExplain = {
   options: string[]
 }
 
-function toAiExplain(row: { summary: string; options: string } | null): AiExplain | null {
+export function toAiExplain(
+  row: { summary: string; options: string } | null | undefined,
+): AiExplain | null {
   return row ? { summary: row.summary, options: parseOptions(row.options) } : null
 }
 
@@ -461,6 +491,9 @@ function toAiExplain(row: { summary: string; options: string } | null): AiExplai
  *
  * 缓存挂在题上而非 (用户, 题)：题库全局共享，同一道题的解析对谁都一样，
  * 第一个人付 token，之后所有人零成本命中。refresh 时重算并覆盖那一份。
+ *
+ * 题库自带的 explain 会一起喂给 AI 当线索，但要求它用自己的话重讲一遍 ——
+ * 这个按钮的价值是逐选项讲透，照抄一份自带解析等于白点。
  *
  * 听力题不生成 —— 题干在音频里，文字侧只有設問，AI 看不到该看的东西；
  * 它的 explain 本来就是完整原文加译文。
@@ -477,10 +510,13 @@ export async function getAiExplain(
       month: true,
       seq: true,
       category: true,
+      mondaiNo: true,
       stemJp: true,
+      stemZh: true,
       options: true,
       answer: true,
       altAnswer: true,
+      explain: true,
       passage: { select: { content: true } },
       aiExplain: { select: { summary: true, options: true } },
     },
@@ -500,14 +536,17 @@ export async function getAiExplain(
   const cached = toAiExplain(question.aiExplain)
   if (cached && !refresh) return cached
 
-  const options = parseOptions(question.options)
   const result = await explainQbankQuestionByAi({
     label: `${question.year}.${String(question.month).padStart(2, '0')} ${question.seq}`,
+    seq: question.seq,
+    questionType: MONDAI_TYPE[question.category]?.[question.mondaiNo] ?? '',
     stemJp: question.stemJp,
-    options,
+    stemZh: question.stemZh,
+    options: parseOptions(question.options),
     answer: question.answer,
     altAnswer: question.altAnswer,
-    passage: question.passage?.content ?? '',
+    passage: passageForAi(passage),
+    sourceExplain: question.explain,
     userId,
   })
 

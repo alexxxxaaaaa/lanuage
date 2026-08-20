@@ -2,10 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, ButtonGroup, Card, Chip, ProgressCircle, Spinner, toast } from '@heroui/react'
 import { confirm } from '../components/ui/dialog'
 import { Link, useSearchParams } from 'react-router'
-import { ChevronLeft, ChevronRight, Eye, EyeOff, FileText, Sparkles, Star } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Eye, EyeOff, FileText, Star } from 'lucide-react'
 import {
   clearQbankAttempts,
-  generateQbankAiExplain,
   getQbankQuestions,
   getQbankSet,
   setQbankFavorite,
@@ -27,7 +26,10 @@ import {
   mondaiMeta,
   paperLabel,
 } from './jlpt/constants'
+import { AiExplainBlock, AiExplainButton } from './jlpt/AiExplain'
+import { useAiExplain } from './jlpt/useAiExplain'
 import { DisputeChip, DisputeNotice } from './jlpt/Dispute'
+import { ExplainText } from './jlpt/ExplainText'
 import {
   EXPLAIN_BLOCK,
   EXPLAIN_LABEL,
@@ -105,9 +107,9 @@ export function JlptPracticePage() {
   // 「答案」按钮直接摊开答案的那道题，同时只记一道。偷看不写作答记录：
   // 答题卡里这题仍然算未做，选项也还能点，选了就照常判对错。
   const [peekId, setPeekId] = useState<string | null>(null)
-  // 正在生成 AI 解析的题。按 id 记而不是只记一道：生成时还能翻页，
-  // 先回来的那个不该把另一道的 loading 一起清掉。
-  const [aiPending, setAiPending] = useState<ReadonlySet<string>>(new Set())
+  // AI 解析的生成状态。刻意不随换组清空 —— 缓存在服务端是全局的，
+  // 同一道题的解析对谁、对哪一组都是同一份，留着还省一次请求。
+  const ai = useAiExplain()
   const inFlight = useRef(new Set<string>())
   // 取正文失败的 id。放 state 不放 ref：预取 effect 要靠它跳过，
   // 渲染要靠它显示重试按钮，两边必须看到同一份。
@@ -136,7 +138,6 @@ export function JlptPracticePage() {
       setHidden(new Set())
       setFailed(new Set())
       setPeekId(null)
-      setAiPending(new Set())
       inFlight.current.clear()
       try {
         const { items: rows } = await getQbankSet(filter)
@@ -243,7 +244,9 @@ export function JlptPracticePage() {
   const revealed = !!question && question.status !== null && !hidden.has(question.id)
   const isPeeking = !!question && peekId === question.id
   const showAnswer = revealed || isPeeking
-  const isAiPending = !!question && aiPending.has(question.id)
+  // 这一轮生成的优先，否则用正文一起下发的那份全局缓存。
+  const aiExplain = question ? (ai.generated[question.id] ?? question.aiExplain) : null
+  const isAiPending = !!question && ai.pending.has(question.id)
 
   const pick = useCallback(
     async (selected: number) => {
@@ -271,28 +274,6 @@ export function JlptPracticePage() {
   const retry = () => {
     if (!current) return
     setHidden((prev) => new Set(prev).add(current.id))
-  }
-
-  /** refresh 会重算并覆盖所有人看到的那一份，所以只挂在「重新生成」上。 */
-  const runAiExplain = async (refresh = false) => {
-    if (!current) return
-    const id = current.id
-    setAiPending((prev) => new Set(prev).add(id))
-    try {
-      const aiExplain = await generateQbankAiExplain(id, refresh)
-      setDetails((prev) => {
-        const row = prev[id]
-        return row ? { ...prev, [id]: { ...row, aiExplain } } : prev
-      })
-    } catch (e) {
-      toast.danger(getErrorMessage(e, '生成 AI 解析失败'))
-    } finally {
-      setAiPending((prev) => {
-        const next = new Set(prev)
-        next.delete(id)
-        return next
-      })
-    }
   }
 
   const toggleFavorite = async () => {
@@ -643,54 +624,23 @@ export function JlptPracticePage() {
                       {question.stemZh ? (
                         <div className={EXPLAIN_BLOCK}>
                           <p className={EXPLAIN_LABEL}>{isListening ? '設問' : '译文'}</p>
-                          <QbankText text={question.stemZh} />
+                          <ExplainText text={question.stemZh} />
                         </div>
                       ) : null}
                       {question.explain ? (
                         <div className={EXPLAIN_BLOCK}>
                           <p className={EXPLAIN_LABEL}>{isListening ? '原文 / 译文' : '解析'}</p>
-                          <QbankText text={question.explain} />
+                          <ExplainText text={question.explain} />
                         </div>
                       ) : null}
-                      {question.aiExplain || isAiPending ? (
-                        <div className={EXPLAIN_BLOCK}>
-                          <div className="mb-0.5 flex items-center gap-2">
-                            <p className={`${EXPLAIN_LABEL} mb-0`}>AI 解析</p>
-                            {question.aiExplain && !isAiPending ? (
-                              <Button
-                                className="h-auto px-1.5 py-0 text-xs font-normal"
-                                size="sm"
-                                variant="ghost"
-                                onPress={() => void runAiExplain(true)}
-                              >
-                                重新生成
-                              </Button>
-                            ) : null}
-                          </div>
-                          {isAiPending ? (
-                            <p className="muted m-0 flex items-center gap-2 text-sm">
-                              <Spinner size="sm" />
-                              正在生成…
-                            </p>
-                          ) : (
-                            <>
-                              {question.aiExplain?.summary ? (
-                                <p className="m-0">{question.aiExplain.summary}</p>
-                              ) : null}
-                              <ol className="m-0 mt-1 grid list-none gap-1 p-0">
-                                {question.aiExplain?.options.map((text, i) =>
-                                  text ? (
-                                    <li key={i} className="flex gap-2">
-                                      <span className={OPTION_NUM}>{i + 1}</span>
-                                      <span className="min-w-0 flex-1">{text}</span>
-                                    </li>
-                                  ) : null,
-                                )}
-                              </ol>
-                            </>
-                          )}
-                        </div>
-                      ) : null}
+                      <AiExplainBlock
+                        altAnswer={question.altAnswer}
+                        answer={question.answer}
+                        explain={aiExplain}
+                        isPending={isAiPending}
+                        selected={question.selected}
+                        onRegenerate={() => void ai.run(question.id, true)}
+                      />
                       {question.altAnswer > 0 ? (
                         <DisputeNotice
                           answer={question.answer}
@@ -733,16 +683,13 @@ export function JlptPracticePage() {
                   ) : null}
                   {/* 听力题不生成：题干在音频里，文字侧只有設問，AI 看不到该看的。 */}
                   {canAiExplain ? (
-                    <Button
-                      // 没揭晓就生成等于剧透，所以跟着解析区一起解锁；
-                      // 已经有解析了就停用，重算走下面那块里的「重新生成」。
-                      isDisabled={!showAnswer || isAiPending || !!question.aiExplain}
-                      onPress={() => void runAiExplain()}
-                    >
-                      <ButtonGroup.Separator />
-                      <Sparkles aria-hidden />
-                      {isAiPending ? '生成中…' : 'AI 解析'}
-                    </Button>
+                    <AiExplainButton
+                      hasExplain={!!aiExplain}
+                      isLocked={!showAnswer}
+                      isPending={isAiPending}
+                      withSeparator
+                      onPress={() => void ai.run(question.id)}
+                    />
                   ) : null}
                 </ButtonGroup>
                 <ButtonGroup size="sm" variant="outline">
@@ -760,6 +707,13 @@ export function JlptPracticePage() {
                   </Button>
                 </ButtonGroup>
               </div>
+
+              {/* 灰着的按钮不解释自己为什么灰。这行只在「能生成、但还没揭晓」时出现。 */}
+              {canAiExplain && !showAnswer ? (
+                <p className="muted m-0 -mt-1 text-xs">
+                  AI 解析里有正确答案，作答或点「答案」之后才能生成。
+                </p>
+              ) : null}
             </>
           )}
         </div>

@@ -5,7 +5,7 @@ import { CalendarDate, getLocalTimeZone } from '@internationalized/date'
 import { useI18n } from '../../i18n'
 
 /**
- * 课程时间。
+ * 笔记时间。
  *
  * 存的是 ISO 时刻，界面上只到「天」—— 所以两边转换都锚在**本地**时区：读的时候
  * 取本地年月日，写回去用 `toDate(getLocalTimeZone())`，同一个时区进出，不会出现
@@ -28,7 +28,7 @@ export function NoteDateField({ value, onChange }: Props) {
 
   return (
     <DatePicker
-      aria-label={t('notes.lessonAt')}
+      aria-label={t('notes.noteAt')}
       value={dateValue}
       onChange={(next) => {
         if (next) onChange(next.toDate(getLocalTimeZone()).toISOString())
@@ -43,7 +43,7 @@ export function NoteDateField({ value, onChange }: Props) {
         </DateField.Suffix>
       </DateField.Group>
       <DatePicker.Popover>
-        <Calendar aria-label={t('notes.lessonAt')}>
+        <Calendar aria-label={t('notes.noteAt')}>
           <Calendar.Header>
             <Calendar.YearPickerTrigger>
               <Calendar.YearPickerTriggerHeading />

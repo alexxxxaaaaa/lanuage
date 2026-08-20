@@ -23,6 +23,11 @@ export async function createExpressionFolder(payload: {
   return response.data
 }
 
+export async function deleteExpressionFolder(id: string) {
+  const response = await apiClient.delete<{ id: string }>(`/api/expressions/folders/${id}`)
+  return response.data
+}
+
 export async function getExpressions(params?: {
   folderId?: string
   q?: string

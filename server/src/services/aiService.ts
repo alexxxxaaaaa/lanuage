@@ -1,6 +1,12 @@
-import OpenAI from "openai";
 import { prisma } from "../lib/prisma";
-import { getEnv } from "../lib/env";
+import {
+  assertWithinDailyBudget,
+  completeJson,
+  completeJsonOrThrow,
+  getDefaultModel,
+  parseModelJsonObject,
+  sanitize,
+} from "../lib/aiClient";
 import { estimateCallCostUsd, getModelRates } from "../config/aiPricing";
 import { AppError } from "../errors/AppError";
 import {
@@ -10,6 +16,7 @@ import {
   dictEntryRowToFillResult,
   directionForLanguage,
 } from "../lib/aiDictEntry";
+import { resolveJaHeadword } from "./dictEntryService";
 
 type SupportedLanguage = "en" | "jp";
 type SourceLanguage = SupportedLanguage | "zh";
@@ -23,6 +30,14 @@ type FillWordInput = {
   extended?: boolean;
   /** Force regeneration even when a cached AI dict row exists. */
   refresh?: boolean;
+  /**
+   * 日语活用形是否直接校准到辞書形（默认 true）。
+   *
+   * 加词页 / 批量加词要 true —— 词单里存「食べました」是实打实的坏数据。
+   * 查词页传 false：那边在结果第一行给辞書形建议，改不改由用户点，输入框里的
+   * 词绝不背着人换掉。
+   */
+  normalize?: boolean;
   /**
    * 划词加词时，选中文本所在的那整句。传了它就切到「按语境查词」模式：
    * AI 额外还原原形（baseForm）、按句中的实际义项给释义、并翻译整句
@@ -42,9 +57,9 @@ type FillWordResult = {
   example: string;
   note: string;
   /**
-   * 辞書形/原形。只有语境模式（input.context）会带值：字幕里划到的是
-   * 「食べました」，这里给「食べる」，reading/meaning/partOfSpeech 都描述它。
-   * 非语境模式恒为 undefined，加词页不读这个字段。
+   * 辞書形/原形。词头真的被换掉时才有值 —— 划词加词的语境模式（字幕里划到
+   * 「食べました」，这里给「食べる」），以及 normalize 生效的手输查词。
+   * 词头和输入一致时恒为 undefined，`word` 本身就是最终词头。
    */
   baseForm?: string;
   /** input.context 那句话的简体中文翻译。只有语境模式有值。 */
@@ -53,184 +68,57 @@ type FillWordResult = {
 
 type ExpressionCasualInput = {
   zhText: string;
-  language?: SupportedLanguage;
+  /** 译成哪种语言。由表达分类定死，不让调用方另选。 */
+  language: SupportedLanguage;
+  /**
+   * 场景标签（中文文本，前端多选传上来）。给空数组＝按日常口语处理，也就是
+   * 加这个字段之前的老行为。
+   */
+  sceneTags?: string[];
+  /** 开了就先在不改原意的前提下把中文润一遍，再按润色后的那句翻译。 */
+  polish?: boolean;
+  /** 开了就让模型多给一段译文解析，前端填进备注。 */
+  explain?: boolean;
   userId: string;
 };
 
 type ExpressionCasualResult = {
-  zhText: string;
-  enCasual: string;
-  jpCasual: string;
-  sceneTag: string;
-};
-
-type ExpressionTranslateInput = {
+  /** 目标语言的译文。存哪一列（enCasual / jpCasual）由前端按分类语言决定。 */
   text: string;
-  language: SupportedLanguage;
-  userId: string;
-};
-
-type ExpressionTranslateResult = {
+  /** 中文原文；只有开了润色才和输入不同。 */
   zhText: string;
-  sceneTag: string;
+  /** 译文解析；没开备注解析时是空串。 */
+  note: string;
 };
 
 const SUPPORTED_LANGUAGES: SupportedLanguage[] = ["en", "jp"];
-export function getDefaultModel() {
-  return getEnv("OPENAI_MODEL")?.trim() || "gpt-5.6-luna";
-}
 const MAX_OUTPUT_TOKENS = 180;
 const MAX_OUTPUT_TOKENS_EXTENDED = 400;
 /** 语境模式：比常规略宽（多一个整句翻译），但省掉了两行自造例句。 */
 const MAX_OUTPUT_TOKENS_CONTEXT = 260;
-const MAX_EXPRESSION_OUTPUT_TOKENS = 200;
-
-const DAILY_TOKEN_BUDGET_DEFAULT = 50000;
-
-function getDailyTokenBudget(): number {
-  const raw = getEnv("DAILY_AI_TOKEN_BUDGET");
-  const parsed = raw ? Number(raw) : NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DAILY_TOKEN_BUDGET_DEFAULT;
-}
-
-async function assertWithinDailyBudget(userId: string) {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-
-  const result = await prisma.aiUsageLog.aggregate({
-    where: { userId, createdAt: { gte: start, lte: end } },
-    _sum: { totalTokens: true },
-  });
-
-  const used = result._sum.totalTokens ?? 0;
-  const budget = getDailyTokenBudget();
-  if (used >= budget) {
-    throw new AppError(
-      `今日 AI 用量已达上限 (${used.toLocaleString()} / ${budget.toLocaleString()} tokens)，请明天再试`,
-      429,
-    );
-  }
-}
-
-let openaiClient: OpenAI | null = null;
-
-function getOpenAIClient() {
-  const apiKey = getEnv("OPENAI_API_KEY")?.trim();
-  if (!apiKey) {
-    throw new AppError("OPENAI_API_KEY is not configured", 500);
-  }
-  if (!openaiClient) {
-    openaiClient = new OpenAI({ apiKey });
-  }
-  return openaiClient;
-}
-
-function sanitize(input?: string | null) {
-  return (input ?? "").trim();
-}
-
-/** What the usage row records about *why* a call happened. */
-type UsageLogFields = {
-  /** The user's input, verbatim — the admin usage table lists this. */
-  word: string;
-  language: string;
-  feature: string;
-  userId: string;
-};
-
-type JsonCompletionInput = {
-  system: string;
-  user: string;
-  /** Ceiling on generated tokens. Reasoning is off, so this is all answer. */
-  maxOutputTokens: number;
-  log: UsageLogFields;
-};
+/** 只要一句译文的额度。润色多一句中文、解析多一段说明，按开关另加。 */
+const EXPRESSION_OUTPUT_TOKENS = 160;
+const EXPRESSION_POLISH_EXTRA_TOKENS = 90;
+const EXPRESSION_EXPLAIN_EXTRA_TOKENS = 220;
+/** 标签是拿来定语域的，给多了等于没给 —— 超出的直接丢掉。 */
+const MAX_SCENE_TAGS = 5;
 
 /**
- * One JSON-mode completion, with its token usage written to `AiUsageLog`.
- *
- * Every AI feature in this file goes through here, so the model, the request
- * shape and the billing record are decided once instead of eight times over.
- *
- * Two request choices are forced by the gpt-5.6 family and worth spelling out:
- *
- *  - `reasoning_effort: 'none'`. These models reason by default (`medium`),
- *    and reasoning tokens come out of the same `max_completion_tokens` budget
- *    as the answer. Every task here is a short, fully-specified extraction
- *    into a fixed JSON shape, and the budgets are 130–500 tokens — any
- *    reasoning at all would consume the response and return nothing.
- *  - No `temperature`. The family rejects every value but the default, so the
- *    old per-feature 0.1/0.2/0.3 tuning is gone rather than merely unused.
- *
- * Usage is logged before the content is inspected: an empty reply still spent
- * tokens, and a call that vanishes from the ledger is a call the daily budget
- * stops counting.
- *
- * Returns the raw content, or null when the model returned none.
+ * 手输查词时这个词的词形处置，由 fillWordByAi 判定后传进来。两个字段互斥，
+ * 都只在日语侧出现。
  */
-async function completeJson(input: JsonCompletionInput): Promise<string | null> {
-  const model = getDefaultModel();
-  const completion = await getOpenAIClient().chat.completions.create({
-    model,
-    response_format: { type: "json_object" },
-    reasoning_effort: "none",
-    max_completion_tokens: input.maxOutputTokens,
-    messages: [
-      { role: "system", content: input.system },
-      { role: "user", content: input.user },
-    ],
-  });
+type WordFormHint = {
+  /** 词库判不了这是不是活用形，让模型自己还原（输出多一个 baseForm 字段）。 */
+  askBaseForm?: boolean;
+  /** 用户执意查活用形时，它的辞書形 —— 告诉模型比让它自己猜强。 */
+  inflectedOf?: string | null;
+};
 
-  const usage = completion.usage;
-  await prisma.aiUsageLog.create({
-    data: {
-      ...input.log,
-      model,
-      promptTokens: usage?.prompt_tokens ?? 0,
-      cachedTokens: usage?.prompt_tokens_details?.cached_tokens ?? 0,
-      cacheWriteTokens: usage?.prompt_tokens_details?.cache_write_tokens ?? 0,
-      completionTokens: usage?.completion_tokens ?? 0,
-      totalTokens: usage?.total_tokens ?? 0,
-    },
-  });
-
-  return sanitize(completion.choices[0]?.message?.content) || null;
-}
-
-/** `completeJson` for callers with no fallback for an empty reply. */
-async function completeJsonOrThrow(input: JsonCompletionInput): Promise<string> {
-  const content = await completeJson(input);
-  if (!content) throw new AppError("AI did not return content", 502);
-  return content;
-}
-
-function parseModelJsonObject<T>(content: string): T {
-  const normalized = sanitize(content);
-  const candidates: string[] = [normalized];
-  const fenced = normalized.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)?.[1];
-  if (fenced) {
-    candidates.push(sanitize(fenced));
-  }
-  const firstBrace = normalized.indexOf("{");
-  const lastBrace = normalized.lastIndexOf("}");
-  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-    candidates.push(normalized.slice(firstBrace, lastBrace + 1));
-  }
-
-  for (const candidate of candidates) {
-    try {
-      return JSON.parse(candidate) as T;
-    } catch {
-      // try next candidate
-    }
-  }
-
-  throw new AppError("AI returned invalid JSON", 502);
-}
-
-function buildPrompt(word: string, language: SupportedLanguage) {
+function buildPrompt(
+  word: string,
+  language: SupportedLanguage,
+  form: WordFormHint = {},
+) {
   const languageHint =
     language === "jp" ? "jp + kana reading" : "en + IPA reading";
   const noteHint =
@@ -245,14 +133,22 @@ function buildPrompt(word: string, language: SupportedLanguage) {
       ? 'example: exactly 2 lines; each line "<日本語の例文>｜<中文翻译>". 句子要有一定语境(从句/接续/复合句优先)，避免只用辞書形：动词应使用至少一种变形(て形/た形/ない形/敬語ます形/受身/可能/使役/条件形/意向形等)，形容词应展示语境(过去/否定/连用)。两句要使用不同的形态/语境，不要重复。'
       : 'example: exactly 2 lines; each line "<English sentence>｜<中文翻译>". Sentences should show real syntactic context (subordinate clause/perfect aspect/passive/comparative as appropriate). Avoid bare present-tense templates; vary structure between the two lines.';
   return [
-    "Return JSON only: word,language,reading,partOfSpeech,meaning,example,note.",
+    `Return JSON only: word,language,${form.askBaseForm ? "baseForm," : ""}reading,partOfSpeech,meaning,example,note.`,
     `language="${language}", ${languageHint}.`,
+    form.askBaseForm
+      ? "baseForm: word 若是动词/形容词的活用形，给出辞書形（食べました→食べる、寒かった→寒い、行かなければ→行く）；本身已是辞書形或其它词性则与 word 相同。reading/partOfSpeech/meaning/example 一律描述 baseForm。"
+      : "",
+    form.inflectedOf
+      ? `「${word}」是「${form.inflectedOf}」的活用形：word 原样保留，reading 给「${word}」这个形的读音，meaning 给「${form.inflectedOf}」的义项，note 开头点明这是哪种活用（如「${form.inflectedOf}」的ます形过去）。`
+      : "",
     "meaning: 简体中文, 按词性分行(如 n./v.).",
     exampleStyle,
     noteHint,
     "Keep concise: meaning<=140 chars, example<=260 chars, note<=60 chars.",
     `word: ${word}`,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 /**
@@ -350,54 +246,53 @@ function normalizeEnglishAdjectiveNote(result: FillWordResult) {
   return `比较级: more ${word}; 最高级: most ${word}`;
 }
 
-function buildExpressionCasualPrompt(input: { zhText: string; language?: SupportedLanguage }) {
-  const target = input.language === "jp" ? "Japanese" : "English";
-  const outputRule =
-    input.language === "jp"
-      ? '- jpCasual: practical spoken Japanese sentence; enCasual must be empty string ""'
-      : '- enCasual: practical spoken English sentence; jpCasual must be empty string ""';
-  return [
-    `Convert Chinese expression to natural daily conversational ${target}.`,
-    "Return JSON only with keys: zhText, enCasual, jpCasual, sceneTag.",
-    "- zhText: must be exactly the same as input zh, do not paraphrase or shorten",
-    outputRule,
-    "- sceneTag: one short Chinese tag like 点餐/课堂/寒暄/求助/表达观点",
-    "- avoid formal written style",
-    "- keep generated sentence concise and practical",
-    `input zh: ${input.zhText}`,
-  ].join("\n");
-}
-
-function buildExpressionTranslatePrompt(input: { text: string; language: SupportedLanguage }) {
-  const sourceLabel = input.language === "jp" ? "Japanese" : "English";
-  return [
-    `Translate the following ${sourceLabel} spoken expression into natural Simplified Chinese.`,
-    "Return JSON only with keys: zhText, sceneTag.",
-    "- zhText: concise natural Simplified Chinese translation, keep the speaking tone",
-    "- sceneTag: one short Chinese tag like 点餐/课堂/寒暄/求助/表达观点",
-    "- no formal written style, keep it practical",
-    `input ${sourceLabel}: ${input.text}`,
-  ].join("\n");
-}
-
-function safeParseExpressionTranslateJson(
-  content: string,
-): ExpressionTranslateResult {
-  try {
-    const parsed =
-      parseModelJsonObject<Partial<ExpressionTranslateResult>>(content);
-    const result: ExpressionTranslateResult = {
-      zhText: sanitize(parsed.zhText),
-      sceneTag: sanitize(parsed.sceneTag),
-    };
-    if (!result.zhText) {
-      throw new AppError("AI returned invalid translate result", 502);
-    }
-    return result;
-  } catch (error) {
-    if (error instanceof AppError) throw error;
-    throw new AppError("AI returned invalid translate JSON", 502);
+/**
+ * 场景标签不查白名单 —— 前端那份词表将来加词条、用户库里还留着早期 AI 自由
+ * 生成的标签，服务端认死一份只会平白拦掉。这里只做安全边界：去空、去重、限长
+ * 限量，剩下的原样进 prompt。
+ */
+function normalizeSceneTags(tags?: string[]) {
+  if (!Array.isArray(tags)) return [];
+  const picked = new Set<string>();
+  for (const tag of tags) {
+    const value = sanitize(tag).slice(0, 20);
+    if (value) picked.add(value);
+    if (picked.size >= MAX_SCENE_TAGS) break;
   }
+  return Array.from(picked);
+}
+
+function buildExpressionCasualPrompt(input: {
+  zhText: string;
+  language: SupportedLanguage;
+  sceneTags: string[];
+  polish: boolean;
+  explain: boolean;
+}) {
+  const target = input.language === "jp" ? "Japanese" : "English";
+  // 关掉的开关对应的 key 压根不提 —— 模型不写它，也就不为它花 token。
+  const keys = ["text", input.polish && "zhText", input.explain && "note"]
+    .filter(Boolean)
+    .join(", ");
+  return [
+    `Translate the Chinese expression into natural ${target}.`,
+    `Return JSON only with keys: ${keys}.`,
+    `- text: one ${target} sentence, concise and directly usable`,
+    input.sceneTags.length
+      ? `- register: the sentence must fit these scenes: ${input.sceneTags.join(
+          "、",
+        )}. Match their politeness level, vocabulary and sentence style; satisfy all of them at once.`
+      : "- register: everyday spoken style; avoid formal written wording",
+    input.polish
+      ? "- zhText: 先把 input zh 润色成更通顺自然、更贴合上述场景的中文，不得改变原意、不得增删信息；text 按润色后的中文翻译。"
+      : "",
+    input.explain
+      ? "- note: 用简体中文说明译文的关键用词、句式和语气是怎么定的（<=120 字），不要复述译文本身。"
+      : "",
+    `input zh: ${input.zhText}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function safeParseJson(content: string, fallbackWord: string): FillWordResult {
@@ -448,19 +343,17 @@ function isSparseFillWordResult(result: FillWordResult) {
 function safeParseExpressionJson(
   content: string,
   originalZhText: string,
-  language?: SupportedLanguage,
 ): ExpressionCasualResult {
   try {
     const parsed =
       parseModelJsonObject<Partial<ExpressionCasualResult>>(content);
     const result: ExpressionCasualResult = {
-      zhText: originalZhText,
-      enCasual: sanitize(parsed.enCasual),
-      jpCasual: sanitize(parsed.jpCasual),
-      sceneTag: sanitize(parsed.sceneTag),
+      text: sanitize(parsed.text),
+      // 没开润色时 prompt 里就没有 zhText 这个 key，原样回显输入。
+      zhText: sanitize(parsed.zhText) || originalZhText,
+      note: sanitize(parsed.note),
     };
-    const targetValue = language === "jp" ? result.jpCasual : result.enCasual;
-    if (!result.zhText || !targetValue) {
+    if (!result.text) {
       throw new AppError("AI returned invalid expression result", 502);
     }
     return result;
@@ -505,19 +398,47 @@ export async function fillWordByAi(
     });
   }
 
+  // 日语词形判定。「食べました」照原样问下去，模型会照着活用形编读音和词性，
+  // 缓存还会以活用形当词头写进 DictEntry —— 词典结果区和右侧索引栏跟着一起脏。
+  const resolved =
+    target === "jp" && !isTranslateMode
+      ? await resolveJaHeadword(word)
+      : ({ kind: "headword" } as const);
+  const shouldNormalize = input.normalize !== false;
+  // 校准后的词头：prompt、缓存键、返回的 word 全用它。顺带让「食べました」
+  // 命中「食べる」已有的缓存行，零 token。
+  let headword = shouldNormalize && resolved.kind === "base" ? resolved.word : word;
+  // 用户执意查活用形（查词页只给建议、不改写）。结果照给，但见下面的 cache()。
+  const inflectedOf = !shouldNormalize && resolved.kind === "base" ? resolved.word : null;
+  // 候选一个都没被词库收录（生僻词/口语/复合表达），让模型自己还原。
+  const askBaseForm = shouldNormalize && resolved.kind === "unknown";
+  /**
+   * 非辞書形不写词典缓存：DictEntry 是全局的、按词头存，写进一条「食べました」
+   * 就会出现在词典结果区和右侧索引栏里。代价是这种查询每次都重新生成。
+   */
+  const cache = (result: FillWordResult) =>
+    inflectedOf ? Promise.resolve() : writeAiDictCache(result);
+
   // Cache-first：非翻译模式先查 DictEntry 的 ai 行，命中零 token 直接返回。
   // extended 生成的内容更全，跳过缓存读但照样写（覆盖旧行）。zh 输入没法当
   // 缓存键（缓存按目标语词头存），恒生成，但结果照写 —— 之后直接查那个
-  // 日语/英语词就能命中。
-  if (!isTranslateMode && !input.refresh && !input.extended) {
+  // 日语/英语词就能命中。活用形连读都跳过：那里躺着的只可能是这次修复之前
+  // 写坏的行。
+  if (!isTranslateMode && !input.refresh && !input.extended && !inflectedOf) {
     const row = await prisma.dictEntry.findFirst({
       where: {
         direction: directionForLanguage(target),
-        word: aiCacheWord(word, target),
+        word: aiCacheWord(headword, target),
         source: AI_SOURCE,
       },
     });
-    if (row) return { ...dictEntryRowToFillResult(row), cached: true };
+    if (row) {
+      return {
+        ...dictEntryRowToFillResult(row),
+        ...(headword !== word ? { baseForm: headword } : {}),
+        cached: true,
+      };
+    }
   }
 
   await assertWithinDailyBudget(input.userId);
@@ -534,21 +455,34 @@ export async function fillWordByAi(
       "You are a concise vocabulary assistant. Always return strict JSON object with requested keys.",
     user: isTranslateMode
       ? buildTranslatePrompt(word, target)
-      : buildPrompt(word, target),
+      : buildPrompt(headword, target, { askBaseForm, inflectedOf }),
     maxOutputTokens: tokenBudget,
     log: usageLog,
   });
 
-  const firstResult = safeParseJson(content, word);
+  const firstResult = safeParseJson(content, headword);
+  // 词库判不了、交给模型还原的那条路：以模型给的原形为准。
+  if (askBaseForm && firstResult.baseForm) {
+    headword = firstResult.baseForm;
+  }
   // In translate mode, force-pin language to target — `safeParseJson` defaults
   // to 'en' when the AI omits the field, which would be wrong for zh→jp.
   if (isTranslateMode) {
     firstResult.language = target;
   }
+  // 日语侧词头以校准结果为准：模型偶尔会把 word 回成别的写法，那会让缓存键和
+  // 下次查询用的键对不上，同一个词每次都得重新生成。
+  if (target === "jp" && !isTranslateMode) {
+    firstResult.word = headword;
+  }
+  // 词头没被换掉就显式清空 baseForm：模型在 askBaseForm 那条路上会照样回一个
+  // 和输入相同的原形，前端拿它当「已校准」提示就成了自说自话。
+  const normalized =
+    headword !== word ? { baseForm: headword } : { baseForm: undefined };
   firstResult.note = normalizeEnglishAdjectiveNote(firstResult);
   if (!isSparseFillWordResult(firstResult)) {
-    await writeAiDictCache(firstResult);
-    return { ...firstResult, cached: false };
+    await cache(firstResult);
+    return { ...firstResult, ...normalized, cached: false };
   }
 
   // A second pass at the same prompt, sharpened. An empty reply here is not
@@ -558,16 +492,16 @@ export async function fillWordByAi(
     user: isTranslateMode
       ? buildTranslatePrompt(word, target) +
         "\n注意: 第一次返回有字段缺失,请确保 meaning 和 example 都不为空。"
-      : buildPromptRetry(word, target),
+      : buildPromptRetry(headword, target),
     maxOutputTokens: tokenBudget,
     log: usageLog,
   });
   if (!retryContent) {
-    await writeAiDictCache(firstResult);
-    return { ...firstResult, cached: false };
+    await cache(firstResult);
+    return { ...firstResult, ...normalized, cached: false };
   }
 
-  const retryResult = safeParseJson(retryContent, word);
+  const retryResult = safeParseJson(retryContent, headword);
   retryResult.note = normalizeEnglishAdjectiveNote(retryResult);
   // In translate mode the result word is the translation (from AI), not the
   // Chinese input — don't clobber it. In definition mode the word stays.
@@ -576,16 +510,17 @@ export async function fillWordByAi(
     ...retryResult,
     word: isTranslateMode
       ? retryResult.word || firstResult.word
-      : word,
+      : headword,
     language: target,
-    reading: retryResult.reading || firstResult.reading || (isTranslateMode ? '' : word),
+    reading:
+      retryResult.reading || firstResult.reading || (isTranslateMode ? '' : headword),
     partOfSpeech: retryResult.partOfSpeech || firstResult.partOfSpeech,
     meaning: retryResult.meaning || firstResult.meaning,
     example: retryResult.example || firstResult.example,
     note: retryResult.note || firstResult.note,
   };
-  await writeAiDictCache(merged);
-  return { ...merged, cached: false };
+  await cache(merged);
+  return { ...merged, ...normalized, cached: false };
 }
 
 /**
@@ -790,45 +725,113 @@ export async function fillGrammarByAi(input: FillGrammarInput): Promise<FillGram
 // ===== JLPT 真题逐选项解析 =====
 
 type QbankExplainInput = {
-  /** 卷内题号，只用于日志，如 2020.12 Q37。 */
+  /** 卷次 + 题号，只用于日志，如 2020.12 Q37。 */
   label: string
+  /** 卷内题号（Q41），文章の文法要靠它在文章里定位空格。 */
+  seq: string
+  /** 題型名（「文の組み立て」等），決定这道题该往哪个方向讲。 */
+  questionType: string
   stemJp: string
+  /**
+   * 题库自带的 stemZh。名字叫「中文」，装的东西却按題型各不相同，同一題型内
+   * 也不统一（源站如此）：多数是题干中译，用法（問題4）是「词（读音）:释义」，
+   * 文の組み立て（問題6）有 61/155 道存的是**填好空的日文完整句**，
+   * 文章の文法（問題7）有些存的是整段解题说明。
+   * 与其猜，不如把几种可能一起告诉模型，让它按内容认。
+   */
+  stemZh: string
   options: string[]
   answer: number
   /** 另一来源的答案，0 = 无分歧。非 0 时要求两个答案都给论据。 */
   altAnswer: number
   /** 読解题的文章正文，其余部分为空。 */
   passage: string
+  /** 题库自带的解析，给 AI 当参考；全库 188 道笔试题没有。 */
+  sourceExplain: string
   userId: string
 }
 
 export type QbankExplainResult = {
   summary: string
-  /** 与选项一一对应。 */
+  /** 与选项一一对应，每条都有值。 */
   options: string[]
 }
 
-/** summary ≤60 字 + 每个选项 ≤45 字，四选一正好卡在 240 字上限内。 */
-const QBANK_EXPLAIN_SUMMARY_CHARS = 60
-const QBANK_EXPLAIN_OPTION_CHARS = 45
-// 中文约 1–1.5 token/字，240 字连 JSON 结构一起给到 500 有富余。
-const MAX_QBANK_EXPLAIN_TOKENS = 500
-// 全库最长的文章 1385 字，这个上限现有数据碰不到，纯粹是防脏数据把 prompt 撑爆。
+/**
+ * 篇幅上限。要讲透「错在哪个词、哪条语法、与原文哪句冲突」，45 字是不够的，
+ * 一句引用就占掉大半。四选一合计约 440 字。
+ */
+const QBANK_EXPLAIN_SUMMARY_CHARS = 120
+const QBANK_EXPLAIN_OPTION_CHARS = 80
+// 中文约 1–1.5 token/字，440 字连 JSON 结构一起给到 1100 有富余。
+const MAX_QBANK_EXPLAIN_TOKENS = 1100
+// 全库最长的文章 1385 字、最长的自带解析 1184 字，两个上限现有数据都碰不到，
+// 纯粹是防脏数据把 prompt 撑爆。
 const QBANK_PASSAGE_LIMIT = 2000
+const QBANK_SOURCE_EXPLAIN_LIMIT = 1500
+
+/** 文の組み立て（問題6）—— 全库唯一一个「选项全都要用上」的題型，见下面的排序题分支。 */
+const ORDERING_TYPE = '文の組み立て'
+/** 文章の文法（問題7）—— 空格在文章里，题干那个「（1）」指不到它，见下面的定位分支。 */
+const CLOZE_TYPE = '文章の文法'
 
 function buildQbankExplainPrompt(input: QbankExplainInput) {
+  const count = input.options.length
   const optionList = input.options.map((o, i) => `${i + 1}. ${o}`).join('\n')
   const lines = [
     'Return strict JSON only with keys: summary, options.',
     `summary: 中文,<=${QBANK_EXPLAIN_SUMMARY_CHARS} 字。点出考点,并说明答案为何成立。`,
-    `options: 长度正好 ${input.options.length} 的字符串数组,与选项 1..${input.options.length} 一一对应。`,
-    `  每条中文 <=${QBANK_EXPLAIN_OPTION_CHARS} 字,说明该项为何对或为何错(错在哪个词/哪条语法/原文哪句)。`,
+    `options: 长度正好 ${count} 的字符串数组,与选项 1..${count} 一一对应。`,
+    // 逐选项才是这个功能的全部价值。模型很容易只写错项、跳过正解，或者干脆
+    // 少给一条 —— 那样前端渲染出来就是缺一块，所以把「一条都不能少」写死。
+    `  这 ${count} 条一条都不能少,也不能是空串;正确答案那条同样要写清它为何成立。`,
+    `  每条中文 <=${QBANK_EXPLAIN_OPTION_CHARS} 字,说明该项为何对或为何错 ——`,
+    '  错在哪个词、搭配不了哪条语法、与原文哪句冲突,要具体,不要只写「不符合语境」。',
     '引用日文时用「」括起,不要重复抄整句选项。不要写「选项1」这类编号,直接说理由。',
   ]
+  if (input.questionType) lines.push('', `【題型】${input.questionType}`)
   if (input.passage) {
     lines.push('', `【文章】\n${input.passage.slice(0, QBANK_PASSAGE_LIMIT)}`)
   }
-  lines.push('', `【题干】\n${input.stemJp}`, '', `【选项】\n${optionList}`)
+  if (input.stemJp) lines.push('', `【题干】\n${input.stemJp}`)
+  if (input.questionType === CLOZE_TYPE) {
+    // 要填的空在文章里，标的是卷内题号（41–45）；题干那个「（1）」是大題内序号，
+    // 两套编号对不上（全库 144 道都如此），只给题干的话模型会去找错空。
+    // 2025 两套更干脆，题干整个是空的。
+    const no = input.seq.replace(/\D/g, '')
+    lines.push(
+      '',
+      `【定位】这道题填的是文章里的一个空。本题卷内题号 ${input.seq}${
+        no ? `，文章里对应的空多数标作「（ ${no} ）」` : ''
+      }；题干里的「（1）」这类数字是大題内序号，与文章里的编号不是一套，别照它去找。`,
+    )
+  }
+  if (input.stemZh) {
+    lines.push(
+      '',
+      `【题干补充】题库自带，可能是题干中译、考查词释义、填好空的完整句、或一段解题说明，按内容自行判断：\n${input.stemZh}`,
+    )
+  }
+  lines.push('', `【选项】\n${optionList}`)
+  if (input.questionType === ORDERING_TYPE) {
+    // 排序题的四个选项全都要用上，没有「错误选项」，答案数字指的是 ★ 那一空填谁。
+    // 不说清楚，模型会照四选一的套路把另外三项判成错的 —— 那是彻头彻尾的错解析。
+    lines.push(
+      '',
+      `【注意】这是排序题：${count} 个选项要全部填进句中的空，不存在「错误选项」，`,
+      '下面【标准答案】的数字指的是 ★ 那一个空填哪一项。',
+      'summary 要给出完整顺序(如「3→1→4→2」)并说明为什么这样接；',
+      'options 的每一条讲这一项落在第几个空、为什么接在那里(接哪个词、构成哪条语法)，不要判对错。',
+    )
+  }
+  if (input.sourceExplain) {
+    // 题库自带的解析质量参差，有的只有一行。当线索用，别让模型照抄 ——
+    // 用户要的是另一份独立的分析，抄一遍等于这个按钮白点。
+    lines.push(
+      '',
+      `【参考解析】题库自带，可能不全或只讲了一部分，用作线索但要自己判断，不要照抄，逐选项那 ${count} 条必须是你自己的话：\n${input.sourceExplain.slice(0, QBANK_SOURCE_EXPLAIN_LIMIT)}`,
+    )
+  }
   if (input.altAnswer > 0) {
     // 分歧题：两个答案都判对，解析必须把两边的论据都摆出来，否则用户只看到
     // 「另一个也算对」却不知道为什么。
@@ -843,18 +846,15 @@ function buildQbankExplainPrompt(input: QbankExplainInput) {
   return lines.join('\n')
 }
 
-export async function explainQbankQuestionByAi(
+/** 一次调用 + 解析。长度对齐选项：少给的留空，多给的截掉。 */
+async function requestQbankExplain(
   input: QbankExplainInput,
+  user: string,
 ): Promise<QbankExplainResult> {
-  const stem = sanitize(input.stemJp)
-  if (!stem) throw new AppError('题干为空,无法生成解析', 400)
-
-  await assertWithinDailyBudget(input.userId)
-
   const content = await completeJsonOrThrow({
     system:
       'You are a JLPT N1 exam tutor. Explain in Simplified Chinese, be concise and specific. Return strict JSON only.',
-    user: buildQbankExplainPrompt({ ...input, stemJp: stem }),
+    user,
     maxOutputTokens: MAX_QBANK_EXPLAIN_TOKENS,
     log: {
       word: input.label,
@@ -865,18 +865,57 @@ export async function explainQbankQuestionByAi(
   })
 
   const parsed = parseModelJsonObject<{ summary?: unknown; options?: unknown }>(content)
-  const options = Array.isArray(parsed.options)
-    ? parsed.options.map((v) => sanitize(typeof v === 'string' ? v : ''))
-    : []
-  const summary = sanitize(typeof parsed.summary === 'string' ? parsed.summary : '')
-  if (!summary && options.every((o) => !o)) {
-    throw new AppError('AI 返回的解析是空的,请重试', 502)
-  }
-  // 少给的补空、多给的截掉：渲染时按下标对齐选项，长度不对会错位。
+  const options = Array.isArray(parsed.options) ? parsed.options : []
   return {
-    summary,
-    options: input.options.map((_, i) => options[i] ?? ''),
+    summary: sanitize(typeof parsed.summary === 'string' ? parsed.summary : ''),
+    options: input.options.map((_, i) => {
+      const v = options[i]
+      return sanitize(typeof v === 'string' ? v : '')
+    }),
   }
+}
+
+/**
+ * 逐选项解析。题干为空的题（文法7 有 8 道，题干整个在文章里）靠 passage 立住，
+ * 两个都没有才是真的没东西可讲。
+ *
+ * 缺条目就重来一次：缓存是全局的，一份缺了两条的解析会被之后每个点开这题的人
+ * 看到，多花一次调用比留下残缺划算。第二次仍然缺就报错，让用户自己决定要不要再点。
+ */
+export async function explainQbankQuestionByAi(
+  input: QbankExplainInput,
+): Promise<QbankExplainResult> {
+  const stem = sanitize(input.stemJp)
+  const passage = sanitize(input.passage)
+  if (!stem && !passage) throw new AppError('题干为空,无法生成解析', 400)
+  if (input.options.length === 0) throw new AppError('这道题没有选项,无法生成解析', 400)
+
+  await assertWithinDailyBudget(input.userId)
+
+  const normalized = { ...input, stemJp: stem, passage }
+  const prompt = buildQbankExplainPrompt(normalized)
+  const first = await requestQbankExplain(normalized, prompt)
+  if (first.summary && first.options.every(Boolean)) return first
+
+  const missing = first.options
+    .map((text, i) => (text ? 0 : i + 1))
+    .filter(Boolean)
+    .join('、')
+  const retry = await requestQbankExplain(
+    normalized,
+    `${prompt}\n\n【重来】上一次的回答${
+      missing ? `漏了选项 ${missing} 的条目` : 'summary 是空的'
+    }。这次 summary 和全部 ${input.options.length} 条逐项解析都要给齐，一条都不能空。`,
+  )
+  // 两次各有各的缺口时按条目取并集，能凑齐就不必让用户重点一次。
+  const merged: QbankExplainResult = {
+    summary: retry.summary || first.summary,
+    options: retry.options.map((text, i) => text || first.options[i]),
+  }
+  if (!merged.summary || merged.options.some((text) => !text)) {
+    throw new AppError('AI 这次没给全逐项解析,请重试', 502)
+  }
+  return merged
 }
 
 export async function generateExpressionCasualByAi(
@@ -885,51 +924,36 @@ export async function generateExpressionCasualByAi(
   const zhText = sanitize(input.zhText);
   if (!zhText) throw new AppError("zhText is required", 400);
   const language = input.language;
-  if (language && !SUPPORTED_LANGUAGES.includes(language)) {
+  if (!SUPPORTED_LANGUAGES.includes(language)) {
     throw new AppError("language must be en or jp", 400);
   }
+  const polish = !!input.polish;
+  const explain = !!input.explain;
 
   await assertWithinDailyBudget(input.userId);
 
   const content = await completeJsonOrThrow({
-    system: "You output concise spoken expression JSON only.",
-    user: buildExpressionCasualPrompt({ zhText, language }),
-    maxOutputTokens: MAX_EXPRESSION_OUTPUT_TOKENS,
+    system: "You output concise expression JSON only.",
+    user: buildExpressionCasualPrompt({
+      zhText,
+      language,
+      sceneTags: normalizeSceneTags(input.sceneTags),
+      polish,
+      explain,
+    }),
+    maxOutputTokens:
+      EXPRESSION_OUTPUT_TOKENS +
+      (polish ? EXPRESSION_POLISH_EXTRA_TOKENS : 0) +
+      (explain ? EXPRESSION_EXPLAIN_EXTRA_TOKENS : 0),
     log: {
       word: zhText,
-      language: language ?? "multi",
+      language,
       feature: "expression_casual",
       userId: input.userId,
     },
   });
 
-  return safeParseExpressionJson(content, zhText, language);
-}
-
-export async function translateExpressionToZhByAi(
-  input: ExpressionTranslateInput,
-) {
-  const text = sanitize(input.text);
-  if (!text) throw new AppError("text is required", 400);
-  if (!SUPPORTED_LANGUAGES.includes(input.language)) {
-    throw new AppError("language must be en or jp", 400);
-  }
-
-  await assertWithinDailyBudget(input.userId);
-
-  const content = await completeJsonOrThrow({
-    system: "You output concise Chinese translation JSON only.",
-    user: buildExpressionTranslatePrompt({ text, language: input.language }),
-    maxOutputTokens: MAX_EXPRESSION_OUTPUT_TOKENS,
-    log: {
-      word: text,
-      language: input.language,
-      feature: "expression_translate",
-      userId: input.userId,
-    },
-  });
-
-  return safeParseExpressionTranslateJson(content);
+  return safeParseExpressionJson(content, zhText);
 }
 
 export async function getAiUsageSummary(userId: string, days = 7) {

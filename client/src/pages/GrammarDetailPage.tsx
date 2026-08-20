@@ -10,6 +10,17 @@ import {
 } from '../api/grammarQuestions'
 import { GrammarQuestionCard } from '../components/GrammarQuestionCard'
 import { getErrorMessage } from '../api/error'
+import { AudioButton } from '../components/AudioButton'
+import { GrammarImages } from '../components/GrammarImages'
+import { JlptChips } from '../components/JlptChips'
+import { JpText } from '../components/JpText'
+import { parseImages, resolveExamples } from '../utils/grammarText'
+import {
+  asGrammarLevels,
+  GRAMMAR_LEVELS,
+  toGrammarLevel,
+  useGrammarLevelLabel,
+} from '../lib/grammarLevels'
 import type { Grammar, UpdateGrammarPayload } from '../types'
 
 function toForm(g: Grammar): UpdateGrammarPayload {
@@ -27,6 +38,7 @@ function toForm(g: Grammar): UpdateGrammarPayload {
 export function GrammarDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const levelLabel = useGrammarLevelLabel()
   const [grammar, setGrammar] = useState<Grammar | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
@@ -152,8 +164,10 @@ export function GrammarDetailPage() {
     )
   }
 
-  const examples = grammar.example.split('\n').filter((s) => s.trim())
-  const translations = grammar.exampleZh.split('\n').filter((s) => s.trim())
+  // 蓝宝书条目有结构化例句（自带出处标注和朗读），手工建的条目回落到
+  // example / exampleZh 按行配对 —— 两种都由 resolveExamples 抹平。
+  const examples = resolveExamples(grammar)
+  const images = parseImages(grammar.images)
 
   return (
     <section className="page">
@@ -161,7 +175,8 @@ export function GrammarDetailPage() {
         <div>
           <h2 style={{ fontFamily: 'serif' }}>
             {grammar.pattern}
-            <span className="folder-language tag-inline">{grammar.level}</span>
+            <JlptChips levels={asGrammarLevels(grammar.level)} size="md" className="ml-2.5" />
+            {grammar.audioKey ? <AudioButton src={grammar.audioKey} label="朗读句型" /> : null}
           </h2>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -237,12 +252,9 @@ export function GrammarDetailPage() {
           </label>
           <label>级别
             <SelectField
-              value={form.level ?? 'N1'}
+              value={toGrammarLevel(form.level)}
               onChange={(v) => setForm((p) => ({ ...p, level: v }))}
-              options={['N1', 'N2', 'N3', 'N4', 'N5'].map((lv) => ({
-                value: lv,
-                label: lv,
-              }))}
+              options={GRAMMAR_LEVELS.map((lv) => ({ value: lv, label: levelLabel(lv) }))}
             />
           </label>
           <div className="form-actions">
@@ -257,7 +269,18 @@ export function GrammarDetailPage() {
             <h3 style={{ marginTop: 0 }}>意思</h3>
             <p>{grammar.meaning || <span className="muted">(空)</span>}</p>
             <h3>接续</h3>
-            <p style={{ whiteSpace: 'pre-line' }}>{grammar.connection || <span className="muted">(空)</span>}</p>
+            {grammar.connection ? (
+              <p style={{ whiteSpace: 'pre-line' }}>
+                <JpText text={grammar.connection} />
+              </p>
+            ) : null}
+            {/* 书里凡是要用大括号把几种词性并成一条的接续，都排成了图 —— 带图
+                的 149 条里有 136 条文字接续是空的，图就是这一栏的正文，不能
+                丢到页面最底下。N5 的助数词表、活用表也走这里。 */}
+            {images.length > 0 ? <GrammarImages images={images} pattern={grammar.pattern} /> : null}
+            {!grammar.connection && images.length === 0 ? (
+              <p className="muted">(空)</p>
+            ) : null}
           </div>
 
           <div className="card">
@@ -266,11 +289,19 @@ export function GrammarDetailPage() {
               <p className="muted">(空)</p>
             ) : (
               <ol style={{ paddingLeft: 20 }}>
-                {examples.map((jp, i) => (
+                {examples.map((ex, i) => (
                   <li key={i} style={{ marginBottom: 10 }}>
-                    <div>{jp}</div>
-                    {translations[i] ? (
-                      <div className="muted" style={{ fontSize: '0.9em' }}>{translations[i]}</div>
+                    <div>
+                      <JpText text={ex.jp} />
+                      {ex.tag ? (
+                        <span className="ml-1.5 align-middle text-[11px] text-muted">
+                          {ex.tag}
+                        </span>
+                      ) : null}
+                      <AudioButton src={ex.audio} label="朗读例句" />
+                    </div>
+                    {ex.zh ? (
+                      <div className="muted" style={{ fontSize: '0.9em' }}>{ex.zh}</div>
                     ) : null}
                   </li>
                 ))}
@@ -281,7 +312,9 @@ export function GrammarDetailPage() {
           {grammar.note ? (
             <div className="card">
               <h3 style={{ marginTop: 0 }}>注意点</h3>
-              <p style={{ whiteSpace: 'pre-line' }}>{grammar.note}</p>
+              <p style={{ whiteSpace: 'pre-line' }}>
+                <JpText text={grammar.note} />
+              </p>
             </div>
           ) : null}
 

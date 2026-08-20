@@ -1,5 +1,52 @@
 import { prisma } from '../lib/prisma'
+import { getEnv } from '../lib/env'
+import { CUSTOM_LEVEL, levelFilter } from '../lib/grammarLevel'
 import { AppError } from '../errors/AppError'
+
+// 蓝宝书的朗读和活用表图片跟题库共用 jlpt 桶，各挂各的前缀。
+const MEDIA_BASE_DEFAULT =
+  'https://pub-942012cb760d44d7a0c78abce8d4d0c5.r2.dev/grammar/'
+
+function mediaBase(): string {
+  const raw = getEnv('GRAMMAR_MEDIA_BASE') ?? MEDIA_BASE_DEFAULT
+  return raw.endsWith('/') ? raw : `${raw}/`
+}
+
+type StoredExample = { jp: string; zh: string; tag: string; audio: string }
+
+function parseJsonArray(raw: unknown): unknown[] {
+  if (typeof raw !== 'string' || !raw.trim()) return []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * 出库时把媒体文件名补成绝对地址 —— 库里存的是裸文件名，换 CDN 只要改环境变量。
+ * 手工建的条目这几个字段是空的，原样返回，前端拿到空串就不渲染播放按钮。
+ */
+export function withMediaUrls<
+  T extends { audioKey?: string; examples?: string; images?: string },
+>(grammar: T) {
+  const examples = (parseJsonArray(grammar.examples) as StoredExample[]).map((ex) => ({
+    jp: ex.jp ?? '',
+    zh: ex.zh ?? '',
+    tag: ex.tag ?? '',
+    audio: ex.audio ? `${mediaBase()}audio/${ex.audio}` : '',
+  }))
+  const images = (parseJsonArray(grammar.images) as string[])
+    .filter((name) => typeof name === 'string' && name)
+    .map((name) => `${mediaBase()}image/${name}`)
+  return {
+    ...grammar,
+    audioKey: grammar.audioKey ? `${mediaBase()}audio/${grammar.audioKey}` : '',
+    examples,
+    images,
+  }
+}
 
 type CreateGrammarInput = {
   pattern: string
@@ -53,7 +100,9 @@ export async function createGrammar(userId: string, input: CreateGrammarInput) {
         example: normalize(input.example),
         exampleZh: normalize(input.exampleZh),
         note: normalize(input.note),
-        level: normalize(input.level) || 'N1',
+        // 手工建的条目不带级别就是「自建」—— 建条目的只有语法页那个表单，它总会
+        // 传值，这里兜的是直接打接口的情况。
+        level: normalize(input.level) || CUSTOM_LEVEL,
         userId,
         // New rows get pinnedAt = now so they surface at the top of the
         // unified pinnedAt-desc timeline (same semantics as Word).
@@ -75,7 +124,7 @@ export async function getGrammars(
   return prisma.grammar.findMany({
     where: {
       userId,
-      ...(level ? { level } : {}),
+      ...levelFilter(level),
       ...(learned === 'learned' ? { isLearned: true } : {}),
       ...(learned === 'unlearned' ? { isLearned: false } : {}),
       ...(normalized
@@ -89,6 +138,10 @@ export async function getGrammars(
           }
         : {}),
     },
+    // 列表一次拉全量，不分页。装下整本蓝宝书之后这是 800 多行，带上结构化例句
+    // 就是 1.7MB 的响应 —— 而列表卡片根本不渲染它们（examples 和 images 只有
+    // 详情页读，note 只在详情页显示）。摘掉这三个字段，响应回到 300KB 上下。
+    omit: { examples: true, images: true, note: true },
     // Unified pinnedAt-desc timeline — same as Word. Most-recently created
     // or user-pinned items surface to the top.
     orderBy: [{ pinnedAt: 'desc' }, { createdAt: 'desc' }],
@@ -98,7 +151,7 @@ export async function getGrammars(
 export async function getGrammar(userId: string, id: string) {
   const grammar = await prisma.grammar.findFirst({ where: { id, userId } })
   if (!grammar) throw new AppError('grammar not found', 404)
-  return grammar
+  return withMediaUrls(grammar)
 }
 
 export async function updateGrammar(
@@ -142,6 +195,16 @@ export async function updateGrammar(
   // automatically set to true when LearnGrammarPage records first review.
   if (updates.isLearned !== undefined) {
     data.isLearned = updates.isLearned
+  }
+
+  // 例句一旦被手工改过，就以改出来的纯文本为准：把结构化的那份清空，让详情页
+  // 回落到 example / exampleZh。不清的话渲染优先读 examples，用户会发现自己改
+  // 完保存了却什么都没变。
+  if (
+    (data.example !== undefined && data.example !== existing.example) ||
+    (data.exampleZh !== undefined && data.exampleZh !== existing.exampleZh)
+  ) {
+    data.examples = '[]'
   }
 
   if (Object.keys(data).length === 0) return existing

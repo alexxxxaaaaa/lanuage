@@ -1,0 +1,303 @@
+/**
+ * 把蓝宝书语法条目灌进某个账号的 Grammar 表。
+ *
+ * 数据来自 scripts/convertBluebookApkg.py 生成的 data/bluebook/grammar.json。
+ * 这个脚本只负责「装进某个人的语法库」，所以每一条 SQL 都带 userId ——
+ * 库里其他账号的语法、复习进度、练习题一行都不碰。
+ *
+ * 用法:
+ *   node --import tsx scripts/importBluebookGrammar.ts --user noctus
+ *   node --import tsx scripts/importBluebookGrammar.ts --user noctus --replace --apply
+ *
+ * 选项:
+ *   --user <name>   目标账号的 username（必填，脚本自己去库里查 id）
+ *   --replace       先清空该账号现有的语法条目。清空前一定会先把它们连同练习题
+ *                   导出成备份 JSON，导不出来就不往下走。
+ *   --apply         直接打到线上 D1。不给就只生成分片和 apply.sh，等人工过目。
+ *   --local         对着本地 D1 模拟器跑，用来演练。
+ */
+import { execFileSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+type Example = {
+  jp: string
+  zh: string
+  tag: string
+  audio: string
+  origin?: string
+}
+
+// 蓝宝书那份字段是齐的；手工补录的那份（data/grammar-supplement.json）只写
+// examples，纯文本的 example / exampleZh 由 examples 现推。
+type BluebookRow = {
+  pattern: string
+  level: string
+  orderNo?: number
+  sourceId?: string
+  connection?: string
+  meaning?: string
+  note?: string
+  example?: string
+  exampleZh?: string
+  examples: Example[]
+  images?: string[]
+  audioKey?: string
+  honorific?: string
+}
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+const SERVER = join(HERE, '..')
+const SRC = join(SERVER, 'data', 'bluebook', 'grammar.json')
+const OUT_DIR = join(SERVER, 'd1_grammar')
+const BACKUP_DIR = join(SERVER, 'data', 'bluebook', 'backup')
+const DB = 'word-sprint-db'
+const MIGRATION = '20260804000000_grammar_bluebook'
+// 每片的 INSERT 条数。d1_dict 的分片在 600KB 上下跑得很稳，语法条目一条
+// 带 3 条例句的 JSON 大概 2KB，200 条正好落在同一量级。
+const SHARD_SIZE = 200
+
+const argv = process.argv.slice(2)
+const flag = (name: string) => argv.includes(name)
+const opt = (name: string) => {
+  const i = argv.indexOf(name)
+  return i >= 0 ? argv[i + 1] : undefined
+}
+
+const USERNAME = opt('--user')
+const REPLACE = flag('--replace')
+const APPLY = flag('--apply')
+const LOCAL = flag('--local')
+const TARGET = LOCAL ? '--local' : '--remote'
+const JSON_PATH = opt('--json') ?? SRC
+const SOURCE = opt('--source') ?? 'bluebook'
+
+if (!USERNAME) {
+  console.error('必须指定 --user <username>')
+  process.exit(2)
+}
+
+function sql(value: string) {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
+/** 跑一条 wrangler 查询，把 --json 的结果掏出来。 */
+function query<T>(command: string): T[] {
+  const out = execFileSync(
+    'npx',
+    ['wrangler', 'd1', 'execute', DB, TARGET, '--command', command, '--json'],
+    { cwd: SERVER, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 },
+  )
+  // wrangler 会在 JSON 前面打一段横幅，取第一个 [ 开始的部分。
+  const start = out.indexOf('[')
+  if (start < 0) throw new Error(`看不懂 wrangler 的输出:\n${out.slice(0, 400)}`)
+  const parsed = JSON.parse(out.slice(start)) as Array<{ results: T[] }>
+  return parsed[0]?.results ?? []
+}
+
+function run(file: string) {
+  execFileSync(
+    'npx',
+    ['wrangler', 'd1', 'execute', DB, TARGET, '--file', file, '-y'],
+    { cwd: SERVER, stdio: 'inherit' },
+  )
+}
+
+/** 例句的纯文本版：去掉高亮标记和 Anki 的注音括号。搜索查的是这一份。 */
+function plainJp(jp: string) {
+  return jp
+    .replace(/<\/?b>/gi, '')
+    .replace(/[ 　]?([^\s[\]]+?)\[([^\]]+?)\]/g, '$1')
+    .trim()
+}
+
+function main() {
+  const rows = JSON.parse(readFileSync(JSON_PATH, 'utf8')) as BluebookRow[]
+  if (!Array.isArray(rows) || rows.length === 0) {
+    throw new Error(`${JSON_PATH} 是空的，先跑 convertBluebookApkg.py`)
+  }
+  // (pattern, level) 是唯一键，重复的话后面的 INSERT 会静默丢掉。
+  const seen = new Set<string>()
+  for (const r of rows) {
+    if (!r.pattern?.trim()) throw new Error(`有条目没有 pattern: ${JSON.stringify(r).slice(0, 120)}`)
+    if (!/^N[1-5]$/.test(r.level)) throw new Error(`${r.pattern} 的 level 不对: ${r.level}`)
+    const key = `${r.pattern}\t${r.level}`
+    if (seen.has(key)) throw new Error(`(pattern, level) 重复: ${r.pattern} ${r.level}`)
+    seen.add(key)
+  }
+
+  const users = query<{ id: string; username: string }>(
+    `SELECT id, username FROM User WHERE username = ${sql(USERNAME!)};`,
+  )
+  if (users.length !== 1) {
+    throw new Error(`按 username=${USERNAME} 查到 ${users.length} 个账号，停下`)
+  }
+  const userId = users[0].id
+  console.log(`目标账号 ${USERNAME} (${userId})`)
+
+  // 先看清楚要动的是哪些行 —— 全部条件都锁在这个 userId 上。
+  const before = query<{ g: number; gq: number; gr: number; ev: number }>(
+    `SELECT
+       (SELECT count(*) FROM Grammar WHERE userId = ${sql(userId)}) AS g,
+       (SELECT count(*) FROM GrammarQuestion q JOIN Grammar g ON g.id = q.grammarId
+         WHERE g.userId = ${sql(userId)}) AS gq,
+       (SELECT count(*) FROM GrammarReview r JOIN Grammar g ON g.id = r.grammarId
+         WHERE g.userId = ${sql(userId)}) AS gr,
+       (SELECT count(*) FROM ReviewEvent WHERE userId = ${sql(userId)} AND kind = 'grammar') AS ev;`,
+  )[0]
+  console.log(
+    `现有 语法 ${before.g} / 练习题 ${before.gq} / 复习进度 ${before.gr} / 复习事件 ${before.ev}`,
+  )
+
+  mkdirSync(OUT_DIR, { recursive: true })
+  const files: string[] = []
+
+  if (REPLACE && before.g > 0) {
+    // 删之前先把要删的东西整份抄下来。GrammarReview 是 ON DELETE RESTRICT，
+    // 有进度就删不动 —— 与其让 wrangler 报一句外键错，不如在这里说清楚。
+    if (before.gr > 0) {
+      throw new Error(
+        `该账号有 ${before.gr} 条复习进度，Grammar 的外键是 RESTRICT，删不掉。` +
+          `要真删得先决定这些进度怎么办，本脚本不替你做这个决定。`,
+      )
+    }
+    mkdirSync(BACKUP_DIR, { recursive: true })
+    const grammars = query<Record<string, unknown>>(
+      `SELECT * FROM Grammar WHERE userId = ${sql(userId)};`,
+    )
+    const questions = query<Record<string, unknown>>(
+      `SELECT q.* FROM GrammarQuestion q JOIN Grammar g ON g.id = q.grammarId
+        WHERE g.userId = ${sql(userId)};`,
+    )
+    if (grammars.length !== before.g) {
+      throw new Error(`备份只导出了 ${grammars.length}/${before.g} 条，不敢往下走`)
+    }
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const backup = join(BACKUP_DIR, `${USERNAME}-grammar-${stamp}.json`)
+    writeFileSync(
+      backup,
+      JSON.stringify({ userId, username: USERNAME, grammars, questions }, null, 1),
+      'utf8',
+    )
+    console.log(
+      `备份 ${grammars.length} 条语法 + ${questions.length} 道题 → ${backup.replace(SERVER, 'server')}`,
+    )
+
+    const name = '00_wipe.sql'
+    writeFileSync(
+      resolve(OUT_DIR, name),
+      [
+        `-- 清空 ${USERNAME} 的语法条目。GrammarQuestion 走 ON DELETE CASCADE 一起走，`,
+        `-- 其余账号的行不在这个 WHERE 里，一行都不会动。`,
+        `DELETE FROM Grammar WHERE userId = ${sql(userId)};`,
+        '',
+      ].join('\n'),
+      'utf8',
+    )
+    files.push(name)
+  } else if (REPLACE) {
+    console.log('该账号本来就没有语法条目，跳过清空')
+  }
+
+  let shard = 0
+  for (let i = 0; i < rows.length; i += SHARD_SIZE) {
+    const slice = rows.slice(i, i + SHARD_SIZE)
+    shard += 1
+    const stmts = slice.map((r) => {
+      // origin 只是转换阶段用来追来源的，入库不需要。
+      const examples = r.examples.map(({ jp, zh, tag, audio }) => ({
+        jp,
+        zh,
+        tag: tag ?? '',
+        audio: audio ?? '',
+      }))
+      // 「敬語」这类标记书里是单独一栏，这里并进 note 的头一行。
+      const note = r.honorific ? `${r.honorific}\n${r.note ?? ''}`.trim() : r.note ?? ''
+      const cols = {
+        id: sql(randomUUID()),
+        pattern: sql(r.pattern),
+        connection: sql(r.connection ?? ''),
+        meaning: sql(r.meaning ?? ''),
+        example: sql(r.example ?? examples.map((e) => plainJp(e.jp)).join('\n')),
+        exampleZh: sql(r.exampleZh ?? examples.map((e) => e.zh).join('\n')),
+        note: sql(note),
+        level: sql(r.level),
+        source: sql(SOURCE),
+        sourceId: sql(r.sourceId ?? ''),
+        orderNo: String(r.orderNo ?? 0),
+        examples: sql(JSON.stringify(examples)),
+        images: sql(JSON.stringify(r.images ?? [])),
+        audioKey: sql(r.audioKey ?? ''),
+        userId: sql(userId),
+        // 列表是 pinnedAt desc 排的。全部落在同一时刻，页面上就按第二排序键
+        // createdAt 走，不至于让 811 条按导入顺序倒着铺开。
+        createdAt: 'CURRENT_TIMESTAMP',
+        updatedAt: 'CURRENT_TIMESTAMP',
+      }
+      const keys = Object.keys(cols).map((k) => `"${k}"`).join(', ')
+      const vals = Object.values(cols).join(', ')
+      return `INSERT OR IGNORE INTO "Grammar" (${keys}) VALUES (${vals});`
+    })
+    const name = `${String(shard).padStart(2, '0')}_grammar.sql`
+    writeFileSync(
+      resolve(OUT_DIR, name),
+      [`-- 第 ${shard} 片：${slice.length} 条`, ...stmts, ''].join('\n'),
+      'utf8',
+    )
+    files.push(name)
+    console.log(`  ${name}  ${slice.length} 条`)
+  }
+
+  const applySh = [
+    '#!/usr/bin/env bash',
+    `# 由 scripts/importBluebookGrammar.ts 生成：把蓝宝书灌进 ${USERNAME} 的语法库。`,
+    '#',
+    '# 每条语句都锁死 userId，其他账号的数据一行都不碰。INSERT 是 OR IGNORE，',
+    `# 唯一键 (userId, pattern, level) 挡重，重跑本脚本不会写出第二份。`,
+    'set -euo pipefail',
+    'cd "$(dirname "$0")/.."',
+    `D1="npx wrangler d1 execute ${DB} ${TARGET} --yes"`,
+    '',
+    '# 迁移跑过一次之后，ALTER TABLE 会报 duplicate column 并中断这个文件 ——',
+    '# 那正说明列已经在了，所以这一步失败不算数，继续往下灌。',
+    'echo "→ 迁移"',
+    `$D1 --file=./prisma/migrations/${MIGRATION}/migration.sql || true`,
+    '',
+    ...files.map((f) => `echo "→ ${f}"\n$D1 --file="./d1_grammar/${f}"`),
+    '',
+    `$D1 --command "SELECT level, count(*) n FROM Grammar WHERE userId = ${sql(userId)} GROUP BY level;"`,
+    '',
+  ].join('\n')
+  writeFileSync(resolve(OUT_DIR, 'apply.sh'), applySh, { mode: 0o755 })
+
+  console.log(`\n${files.length} 个分片 + apply.sh → server/d1_grammar/`)
+
+  if (!APPLY) {
+    console.log('没给 --apply，就到这儿。过目之后跑 bash server/d1_grammar/apply.sh')
+    return
+  }
+
+  console.log(`\n开灌 (${TARGET})…`)
+  try {
+    run(`./prisma/migrations/${MIGRATION}/migration.sql`)
+  } catch {
+    // 跑过一次了：ALTER TABLE 报 duplicate column 就是列已经在的意思。
+    // 真出别的问题，紧跟着的 INSERT 会因为列不存在而失败，跑不到静默的地步。
+    console.log('  迁移已应用过，跳过')
+  }
+  for (const f of files) run(`./d1_grammar/${f}`)
+
+  const after = query<{ level: string; n: number }>(
+    `SELECT level, count(*) n FROM Grammar WHERE userId = ${sql(userId)} GROUP BY level ORDER BY level;`,
+  )
+  console.log('\n导入后：', after.map((r) => `${r.level}=${r.n}`).join('  '))
+  const others = query<{ username: string; n: number }>(
+    `SELECT u.username, count(g.id) n FROM User u LEFT JOIN Grammar g ON g.userId = u.id
+      GROUP BY u.id ORDER BY u.username;`,
+  )
+  console.log('全部账号：', others.map((r) => `${r.username}=${r.n}`).join('  '))
+}
+
+main()

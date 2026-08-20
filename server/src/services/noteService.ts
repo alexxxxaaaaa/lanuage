@@ -10,24 +10,24 @@ const PREVIEW_LENGTH = 180
 const MAX_CONTENT_BYTES = 1024 * 1024
 
 const MAX_TITLE_LENGTH = 200
-const MAX_COURSE_LENGTH = 60
+const MAX_TAG_LENGTH = 60
 
 type NoteWriteInput = {
   title?: string
   content?: string
-  course?: string
-  lessonAt?: string | null
+  tag?: string
+  noteAt?: string | null
 }
 
 function normalizeText(input?: string) {
   return (input ?? '').trim()
 }
 
-function parseLessonAt(input: string | null | undefined): Date | undefined {
+function parseNoteAt(input: string | null | undefined): Date | undefined {
   if (input === undefined || input === null || input === '') return undefined
   const date = new Date(input)
   if (Number.isNaN(date.getTime())) {
-    throw new AppError('lessonAt is not a valid date', 400)
+    throw new AppError('noteAt is not a valid date', 400)
   }
   return date
 }
@@ -50,8 +50,8 @@ function normalizeContent(input: string | undefined) {
 export type NoteListItem = {
   id: string
   title: string
-  course: string
-  lessonAt: Date
+  tag: string
+  noteAt: Date
   createdAt: Date
   updatedAt: Date
   preview: string
@@ -60,75 +60,92 @@ export type NoteListItem = {
 
 export async function getNotes(
   userId: string,
-  filters: { course?: string; q?: string } = {},
+  filters: { tag?: string; q?: string } = {},
 ): Promise<NoteListItem[]> {
-  const course = normalizeText(filters.course)
+  const tag = normalizeText(filters.tag)
   const q = normalizeText(filters.q)
 
   const rows = await prisma.note.findMany({
     where: {
       userId,
-      ...(course ? { course } : {}),
+      ...(tag ? { tag } : {}),
       // 正文在库里是 JSON / HTML，LIKE 只能当粗筛：先把明显不含关键词的行挡在
       // D1 那边，再在下面用纯文本视图剔掉命中标签名、JSON 键这类的假阳性。
       ...(q
         ? {
             OR: [
               { title: { contains: q } },
-              { course: { contains: q } },
+              { tag: { contains: q } },
               { content: { contains: q } },
             ],
           }
         : {}),
     },
-    orderBy: [{ lessonAt: 'desc' }, { createdAt: 'desc' }],
+    orderBy: [{ noteAt: 'desc' }, { createdAt: 'desc' }],
     select: {
       id: true,
       title: true,
-      course: true,
+      tag: true,
       content: true,
-      lessonAt: true,
+      noteAt: true,
       createdAt: true,
       updatedAt: true,
-      _count: { select: { words: true } },
     },
   })
 
   const needle = q.toLowerCase()
 
-  return rows
-    .filter((row) => {
-      if (!needle) return true
-      const haystack = `${row.title}\n${row.course}\n${noteContentToText(row.content)}`
-      return haystack.toLowerCase().includes(needle)
-    })
-    .map((row) => ({
-      id: row.id,
-      title: row.title,
-      course: row.course,
-      // 这两列对老行才可能是 NULL，迁移已回填，这里只是兜底。
-      lessonAt: row.lessonAt ?? row.createdAt,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt ?? row.createdAt,
-      preview: noteContentToPreview(row.content, PREVIEW_LENGTH),
-      wordCount: row._count.words,
-    }))
+  const matched = rows.filter((row) => {
+    if (!needle) return true
+    const haystack = `${row.title}\n${row.tag}\n${noteContentToText(row.content)}`
+    return haystack.toLowerCase().includes(needle)
+  })
+
+  if (matched.length === 0) return []
+
+  // 词数单独一次 sourceNoteId IN 分组，走 @@index([sourceNoteId])。
+  //
+  // 写在上面 select 里的话 Prisma 会生成一条不带 where 的 GROUP BY 子查询，
+  // 每次列表都对整张 Word 表分组再 JOIN 回来 —— 读的行数只跟表多大有关，跟
+  // 这个用户有几条笔记无关（实测一次 11117 行）。而且放到过滤之后再统计，
+  // 带关键词搜索时只数真正要返回的那几条。
+  const countGroups = await prisma.word.groupBy({
+    by: ['sourceNoteId'],
+    where: { sourceNoteId: { in: matched.map((row) => row.id) } },
+    _count: { _all: true },
+  })
+  // D1 的聚合结果是 BigInt，收成 number 再交出去。
+  const countMap = new Map(
+    countGroups.map((row) => [row.sourceNoteId, Number(row._count._all)]),
+  )
+
+  return matched.map((row) => ({
+    id: row.id,
+    title: row.title,
+    tag: row.tag,
+    // 这两列对老行才可能是 NULL，迁移已回填，这里只是兜底。
+    noteAt: row.noteAt ?? row.createdAt,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt ?? row.createdAt,
+    preview: noteContentToPreview(row.content, PREVIEW_LENGTH),
+    wordCount: countMap.get(row.id) ?? 0,
+  }))
 }
 
-/** 课程标签选项，按用得多的排前面。新建笔记时的下拉就吃这个。 */
-export async function getCourses(userId: string) {
+/** 标签选项，按用得多的排前面。新建笔记时的下拉就吃这个。 */
+export async function getTags(userId: string) {
   const rows = await prisma.note.findMany({
-    where: { userId, course: { not: '' } },
-    select: { course: true },
+    where: { userId, tag: { not: '' } },
+    select: { tag: true },
   })
 
   const counts = new Map<string, number>()
   for (const row of rows) {
-    counts.set(row.course, (counts.get(row.course) ?? 0) + 1)
+    counts.set(row.tag, (counts.get(row.tag) ?? 0) + 1)
   }
 
-  return Array.from(counts, ([course, count]) => ({ course, count })).sort(
-    (a, b) => b.count - a.count || a.course.localeCompare(b.course),
+  return Array.from(counts, ([tag, count]) => ({ tag, count })).sort(
+    (a, b) => b.count - a.count || a.tag.localeCompare(b.tag),
   )
 }
 
@@ -162,7 +179,7 @@ export async function getNoteById(userId: string, id: string) {
     ...note,
     // 连接表摊平成词单数组，和 words 接口的形状一致（共用 wordShape）。
     words: note.words.map(flattenWord),
-    lessonAt: note.lessonAt ?? note.createdAt,
+    noteAt: note.noteAt ?? note.createdAt,
   }
 }
 
@@ -172,17 +189,17 @@ export async function getNoteById(userId: string, id: string) {
  */
 export async function createNote(userId: string, input: NoteWriteInput) {
   const title = normalizeText(input.title)
-  const course = normalizeText(input.course)
+  const tag = normalizeText(input.tag)
   assertWithin(title, MAX_TITLE_LENGTH, 'title')
-  assertWithin(course, MAX_COURSE_LENGTH, 'course')
+  assertWithin(tag, MAX_TAG_LENGTH, 'tag')
 
   return prisma.note.create({
     data: {
       title,
       content: normalizeContent(input.content),
-      course,
+      tag,
       // 选填，不给就是此刻 —— 也就是「默认为创建时间」。
-      lessonAt: parseLessonAt(input.lessonAt) ?? new Date(),
+      noteAt: parseNoteAt(input.noteAt) ?? new Date(),
       userId,
     },
   })
@@ -205,8 +222,8 @@ export async function updateNote(userId: string, id: string, input: NoteWriteInp
   const data: {
     title?: string
     content?: string
-    course?: string
-    lessonAt?: Date
+    tag?: string
+    noteAt?: Date
   } = {}
 
   if (input.title !== undefined) {
@@ -216,13 +233,13 @@ export async function updateNote(userId: string, id: string, input: NoteWriteInp
   if (input.content !== undefined) {
     data.content = normalizeContent(input.content)
   }
-  if (input.course !== undefined) {
-    data.course = normalizeText(input.course)
-    assertWithin(data.course, MAX_COURSE_LENGTH, 'course')
+  if (input.tag !== undefined) {
+    data.tag = normalizeText(input.tag)
+    assertWithin(data.tag, MAX_TAG_LENGTH, 'tag')
   }
-  if (input.lessonAt !== undefined) {
-    // 清空课程时间就退回创建时间 —— 这一列业务上不留空，排序全靠它。
-    data.lessonAt = parseLessonAt(input.lessonAt) ?? existing.createdAt
+  if (input.noteAt !== undefined) {
+    // 清空时间就退回创建时间 —— 这一列业务上不留空，排序全靠它。
+    data.noteAt = parseNoteAt(input.noteAt) ?? existing.createdAt
   }
 
   if (Object.keys(data).length === 0) {

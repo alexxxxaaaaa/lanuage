@@ -8,7 +8,7 @@ import {
   Spinner,
   TextField,
 } from '@heroui/react'
-import { AlertCircle, Lock, User } from 'lucide-react'
+import { AlertCircle, Eye, EyeOff, Lock, User } from 'lucide-react'
 import { useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router'
 
@@ -29,6 +29,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false)
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -57,7 +58,9 @@ export function LoginPage() {
     // the surface tokens are translucent washes now, and a gradient fading to
     // one would fade to whatever sits behind <main> instead of to a colour.
     <main className="relative flex h-full items-center justify-center overflow-hidden bg-linear-to-br from-background via-background to-background-tertiary px-4 py-12">
-      <div className="absolute top-4 right-4 z-20 flex items-center gap-1">
+      {/* PWA 全屏下这一角正好压在状态栏底下 —— 让开安全区，没有安全区时
+          （浏览器标签页里）env() 是 0，仍然是原来的 16px。 */}
+      <div className="absolute top-[max(1rem,env(safe-area-inset-top))] right-[max(1rem,env(safe-area-inset-right))] z-20 flex items-center gap-1">
         <ThemeToggle />
         <LocaleSwitcher />
       </div>
@@ -101,7 +104,11 @@ export function LoginPage() {
               >
                 <Label className="text-sm font-medium">{t('auth.username')}</Label>
                 <InputGroup fullWidth>
-                  <InputGroup.Prefix>
+                  {/* `.input-group__prefix` 自带一条 inline-end 边框当图标与输入区的
+                      分隔线。登录页要的是「图标贴着输入框」的干净外观，用 border-e-0
+                      抹掉——HeroUI 的组件样式在 components 层，工具类在 utilities 层，
+                      层级更高，不需要 `!` 强制覆盖。 */}
+                  <InputGroup.Prefix className="border-e-0">
                     <User className="size-4 text-muted" aria-hidden />
                   </InputGroup.Prefix>
                   <InputGroup.Input
@@ -122,14 +129,33 @@ export function LoginPage() {
               >
                 <Label className="text-sm font-medium">{t('auth.password')}</Label>
                 <InputGroup fullWidth>
-                  <InputGroup.Prefix>
+                  <InputGroup.Prefix className="border-e-0">
                     <Lock className="size-4 text-muted" aria-hidden />
                   </InputGroup.Prefix>
                   <InputGroup.Input
-                    type="password"
+                    type={isPasswordVisible ? 'text' : 'password'}
                     autoComplete="current-password"
                     placeholder={t('auth.passwordPlaceholder')}
+                    // Edge 自带的密码显示按钮会和下面这颗眼睛叠成两个，藏掉原生的。
+                    className="[&::-ms-reveal]:hidden"
                   />
+                  {/* 后缀那条分隔线同样抹掉，和前缀图标保持一致的贴边观感；
+                      pe-1 让按钮的图标中心离右边缘 20px，正好对上左边的锁图标。 */}
+                  <InputGroup.Suffix className="border-s-0 pe-1">
+                    <Button
+                      isIconOnly
+                      size="sm"
+                      variant="ghost"
+                      aria-label={t(isPasswordVisible ? 'auth.hidePassword' : 'auth.showPassword')}
+                      onPress={() => setIsPasswordVisible((visible) => !visible)}
+                    >
+                      {isPasswordVisible ? (
+                        <EyeOff className="size-4" aria-hidden />
+                      ) : (
+                        <Eye className="size-4" aria-hidden />
+                      )}
+                    </Button>
+                  </InputGroup.Suffix>
                 </InputGroup>
                 <FieldError className="text-xs text-danger" />
               </TextField>

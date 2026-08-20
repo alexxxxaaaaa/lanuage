@@ -101,7 +101,13 @@ export function Sidebar({
       <aside
         data-mobile
         aria-label={t('sidebar.primaryNav')}
-        className="flex h-full w-full flex-col bg-background px-4 pl-[max(1rem,env(safe-area-inset-left))]"
+        // 全屏菜单自己是一层 `fixed inset-0`，躲不到外层 shell 的安全区内缩
+        // 后面去，四条边都得自己让开。
+        className={
+          'flex h-full w-full flex-col bg-background px-4 ' +
+          'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] ' +
+          'pl-[max(1rem,env(safe-area-inset-left))]'
+        }
       >
         {rows}
       </aside>

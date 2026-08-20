@@ -17,14 +17,55 @@ import { reviewRouter } from './routes/review'
 import { settingsRouter } from './routes/settings'
 import { weeklyReviewRouter } from './routes/weeklyReview'
 import { wordsRouter } from './routes/words'
+import { getEnv } from './lib/env'
 import { handleError } from './middleware/errorHandler'
 import { requireAdmin } from './middleware/requireAdmin'
 import { requireAuth, type AppEnv } from './middleware/requireAuth'
 
+/**
+ * 不需要登录的接口。除了这里列出的，/api/* 一律要 token —— 默认拒绝，新加的
+ * 路由自动是受保护的。反过来（逐条 app.use(path, requireAuth)）漏一条就是一个
+ * 敞开的接口，而漏登记一条公开路由只会得到 401，错的方向是安全的那一侧。
+ */
+const PUBLIC_API_PATHS = ['/api/auth/login', '/api/health']
+
+const LOCAL_ORIGIN_RE = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
+
+let originCache: { raw: string; set: Set<string> } | null = null
+
+function isAllowedOrigin(origin: string): boolean {
+  // 注意不能在 createApp() 顶层读 env：Worker 里 createApp 是模块加载时跑的，
+  // 那会儿还没进 withEnv 的上下文。这个函数每次请求才调，是安全的。
+  const raw = getEnv('ALLOWED_ORIGINS') ?? ''
+  if (originCache?.raw !== raw) {
+    originCache = {
+      raw,
+      set: new Set(
+        raw
+          .split(',')
+          .map((s) => s.trim().replace(/\/$/, ''))
+          .filter(Boolean),
+      ),
+    }
+  }
+  // 没配就放行所有来源 —— 退回加固前的行为。这样「先部署代码、后补配置」不会把
+  // 线上前端锁在门外；真实的白名单跟着 wrangler.toml 一起发布，不靠人记得配。
+  if (originCache.set.size === 0) return true
+  return originCache.set.has(origin) || LOCAL_ORIGIN_RE.test(origin)
+}
+
 export function createApp() {
   const app = new Hono<AppEnv>()
 
-  app.use('*', cors())
+  app.use(
+    '*',
+    cors({
+      origin: (origin) => (origin && isAllowedOrigin(origin) ? origin : null),
+      allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+      allowHeaders: ['Content-Type', 'Authorization'],
+      maxAge: 86400,
+    }),
+  )
 
   app.get('/', (c) =>
     c.json({
@@ -33,55 +74,32 @@ export function createApp() {
     }),
   )
 
-  // Public
+  app.use('/api/*', async (c, next) => {
+    const path = c.req.path
+    const isPublic = PUBLIC_API_PATHS.some((p) => path === p || path.startsWith(`${p}/`))
+    return isPublic ? next() : requireAuth(c, next)
+  })
+
+  // Admin：认证已由上面的守卫做掉，requireAdmin 只再校验一次管理员身份。
+  // 用户名需在 ADMIN_USERNAMES（逗号分隔，小写）中。
+  app.use('/api/admin/*', requireAdmin)
+
   app.route('/api/auth', authRouter)
   app.route('/api/health', healthRouter)
-
-  // Protected
-  app.use('/api/folders/*', requireAuth)
   app.route('/api/folders', foldersRouter)
-
-  app.use('/api/words/*', requireAuth)
   app.route('/api/words', wordsRouter)
-
-  app.use('/api/review/*', requireAuth)
   app.route('/api/review', reviewRouter)
-
-  app.use('/api/settings/*', requireAuth)
   app.route('/api/settings', settingsRouter)
-
-  app.use('/api/notes/*', requireAuth)
   app.route('/api/notes', notesRouter)
-
-  app.use('/api/expressions/*', requireAuth)
   app.route('/api/expressions', expressionsRouter)
-
-  app.use('/api/grammar/*', requireAuth)
   app.route('/api/grammar', grammarRouter)
-
-  app.use('/api/grammar-questions/*', requireAuth)
   app.route('/api/grammar-questions', grammarQuestionsRouter)
-
-  app.use('/api/grammar-reviews/*', requireAuth)
   app.route('/api/grammar-reviews', grammarReviewRouter)
-
-  app.use('/api/podcasts/*', requireAuth)
   app.route('/api/podcasts', podcastsRouter)
-
-  app.use('/api/dictionary/*', requireAuth)
   app.route('/api/dictionary', dictionaryRouter)
-
-  app.use('/api/qbank/*', requireAuth)
   app.route('/api/qbank', qbankRouter)
-
-  app.use('/api/weekly-review/*', requireAuth)
   app.route('/api/weekly-review', weeklyReviewRouter)
-
-  app.use('/api/ai/*', requireAuth)
   app.route('/api/ai', aiRouter)
-
-  // Admin：用户名需在 ADMIN_USERNAMES（逗号分隔，小写）中
-  app.use('/api/admin/*', requireAdmin)
   app.route('/api/admin', adminRouter)
 
   app.onError((err, c) => handleError(err, c))
