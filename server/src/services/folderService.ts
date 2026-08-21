@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { flattenWord } from '../lib/wordShape'
 import { AppError } from '../errors/AppError'
@@ -209,25 +210,26 @@ export async function deleteFolder(userId: string, id: string) {
 
   // 删词单只解除归属；词本身只有在不属于任何别的词单时才跟着消失 —— 一个词
   // 同时在两个词单里，删掉其中一个不该把它连同复习进度一起带走。
-  const memberIds = (
-    await prisma.wordFolder.findMany({ where: { folderId: id }, select: { wordId: true } })
-  ).map((link) => link.wordId)
-
-  const stillElsewhere = new Set(
-    (
-      await prisma.wordFolder.findMany({
-        where: { wordId: { in: memberIds }, folderId: { not: id } },
-        select: { wordId: true },
-      })
-    ).map((link) => link.wordId),
-  )
-  const orphanIds = memberIds.filter((wordId) => !stillElsewhere.has(wordId))
-
+  //
+  // 全程集合式 SQL，绝不把 wordId 列表拉回来再拼 IN：D1 的绑定参数上限在 100
+  // 上下（同一条限制在 grammarQuestionService 里也记着），而一个词单动辄几千
+  // 个词 —— 实测「N1」有 3480 个，老写法在这里直接 500。
+  //
+  // 顺序有讲究：孤儿判定要读 WordFolder，所以这张表的清理必须排在孤儿删除
+  // 之后。删 Word 时它自己的 WordFolder 行会被级联带走（onDelete: Cascade）。
+  const orphanFilter = Prisma.sql`
+    SELECT wf.wordId FROM WordFolder wf
+    WHERE wf.folderId = ${id}
+      AND NOT EXISTS (
+        SELECT 1 FROM WordFolder other
+        WHERE other.wordId = wf.wordId AND other.folderId <> ${id}
+      )
+  `
   await prisma.$transaction([
-    prisma.wordFolder.deleteMany({ where: { folderId: id } }),
-    prisma.review.deleteMany({ where: { wordId: { in: orphanIds } } }),
-    prisma.word.deleteMany({ where: { id: { in: orphanIds } } }),
-    prisma.folder.delete({ where: { id } }),
+    prisma.$executeRaw`DELETE FROM Review WHERE wordId IN (${orphanFilter})`,
+    prisma.$executeRaw`DELETE FROM Word WHERE id IN (${orphanFilter})`,
+    prisma.$executeRaw`DELETE FROM WordFolder WHERE folderId = ${id}`,
+    prisma.$executeRaw`DELETE FROM Folder WHERE id = ${id}`,
   ])
 
   return { id }
