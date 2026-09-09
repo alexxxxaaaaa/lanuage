@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { flattenWord, WORD_FOLDERS } from '../lib/wordShape'
+import { chunkIds, sortByIdOrder, wordIdsInFolder } from '../lib/folderWords'
 import { AppError } from '../errors/AppError'
 
 /**
@@ -193,11 +194,21 @@ export async function getWords(userId: string, folderId?: string, query?: string
     return rows.map(flattenWord)
   }
 
+  // 指定词单时不能用 `folders: { some: { folderId } }` —— 那个 to-many 关系
+  // 过滤在 D1 adapter 上会绑错参数，理由和绕法见 lib/folderWords。
+  if (folderId) {
+    const ids = await wordIdsInFolder(folderId, userId)
+    if (ids.length === 0) return []
+    const fetchChunk = (chunk: string[]) =>
+      prisma.word.findMany({ where: { id: { in: chunk } }, include: WORD_INCLUDE })
+    const picked: Awaited<ReturnType<typeof fetchChunk>> = []
+    for (const chunk of chunkIds(ids)) picked.push(...(await fetchChunk(chunk)))
+    sortByIdOrder(picked, ids)
+    return picked.map(flattenWord)
+  }
+
   const rows = await prisma.word.findMany({
-    where: {
-      userId,
-      ...(folderId ? { folders: { some: { folderId } } } : {}),
-    },
+    where: { userId },
     // Unified timeline: every word has pinnedAt (set on creation, refreshed on
     // user pin), so a single descending sort puts the most recently created OR
     // pinned items at the top. Newer events always win.

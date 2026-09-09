@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma'
+import { chunkIds, wordIdsInFolder } from '../lib/folderWords'
 import { flattenWord, WORD_FOLDERS } from '../lib/wordShape'
 import { AppError } from '../errors/AppError'
 
@@ -102,26 +103,44 @@ export async function getTodayReviews(userId: string, folderId?: string) {
   const todayEnd = endOfDay(now)
   const trimmedFolderId = folderId?.trim()
 
-  const items = await prisma.review.findMany({
-    where: {
-      lastReviewedAt: {
-        not: null,
-      },
-      nextReviewDate: {
-        lte: todayEnd,
-      },
-      word: {
-        userId,
-        ...(trimmedFolderId ? { folders: { some: { folderId: trimmedFolderId } } } : {}),
-      },
-    },
-    orderBy: {
-      nextReviewDate: 'asc',
-    },
-    include: {
-      word: { include: WORD_FOLDERS },
-    },
-  })
+  // 限定词单时先把词 id 取出来，不能用 `folders: { some: { folderId } }`：
+  // 那个 to-many 关系过滤在 D1 adapter 上会绑错参数（词单详情就是这么 500
+  // 的），理由和绕法见 lib/folderWords。word.userId 这种 to-one 的没问题。
+  const folderWordIds = trimmedFolderId
+    ? await wordIdsInFolder(trimmedFolderId, userId)
+    : null
+  if (folderWordIds && folderWordIds.length === 0) return []
+
+  const baseWhere = {
+    lastReviewedAt: { not: null },
+    nextReviewDate: { lte: todayEnd },
+    word: { userId },
+  } as const
+  const include = { word: { include: WORD_FOLDERS } } as const
+
+  // 限定词单时按 id 分批查（D1 参数上限约 100，词单动辄几千个词），最后统一
+  // 按 nextReviewDate 排 —— 跨批之间 Prisma 的 orderBy 管不着。
+  const items = folderWordIds
+    ? await (async () => {
+        const fetchChunk = (chunk: string[]) =>
+          prisma.review.findMany({
+            where: { ...baseWhere, wordId: { in: chunk } },
+            include,
+          })
+        const acc: Awaited<ReturnType<typeof fetchChunk>> = []
+        for (const chunk of chunkIds(folderWordIds)) {
+          acc.push(...(await fetchChunk(chunk)))
+        }
+        return acc.sort(
+          (a, b) => a.nextReviewDate.getTime() - b.nextReviewDate.getTime(),
+        )
+      })()
+    : await prisma.review.findMany({
+        where: baseWhere,
+        orderBy: { nextReviewDate: 'asc' },
+        include,
+      })
+
   return items.map((item) => ({ ...item, word: flattenWord(item.word) }))
 }
 

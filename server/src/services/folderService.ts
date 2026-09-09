@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { flattenWord, WORD_FOLDERS } from '../lib/wordShape'
+import { chunkIds, sortByIdOrder, wordIdsInFolder } from '../lib/folderWords'
 import { AppError } from '../errors/AppError'
 
 const SUPPORTED_LANGUAGES = ['en', 'jp'] as const
@@ -141,56 +142,21 @@ export async function getFolderById(userId: string, id: string) {
     throw new AppError('folder not found', 404)
   }
 
-  // 排序必须放在原生 SQL 里，取回来之后在 JS 里按这个顺序重排 —— 不能给
-  // 下面那个 findMany 挂 orderBy。
-  //
-  // 原因：Prisma 的 D1 adapter 在「orderBy 可空列 + 关系 include」这个组合上
-  // 会炸，报的是
-  //   Missing data field (Value): 'id'; data: {"undefined":"<userId>"}
-  // 一句和真实原因毫无关系的内部错误。pinnedAt 正是可空列。同一个文件里
-  // getWords 的关键词分支早就是这么绕的（SQL 排序 + JS 重排），当初多半就是
-  // 撞上了同一个坑。
-  //
-  // 词 id 走集合式 SQL，只带一个绑定参数：词单动辄两千多个词，拼 IN 会撑爆
-  // D1 的参数上限（deleteFolder 就是这么炸过一次）。
-  const idRows = await prisma.$queryRaw<Array<{ id: string }>>`
-    SELECT w.id FROM Word w
-    JOIN WordFolder wf ON wf.wordId = w.id
-    WHERE wf.folderId = ${id} AND w.userId = ${userId}
-    ORDER BY w.pinnedAt DESC, w.createdAt DESC
-  `
-
-  if (idRows.length === 0) {
+  // 词 id 和顺序都在 SQL 里定好，再按 id IN 分批取——不能用
+  // `folders: { some: { folderId } }`，理由见 lib/folderWords。
+  const ids = await wordIdsInFolder(id, userId)
+  if (ids.length === 0) {
     return { ...folder, _count: { words: 0 }, words: [] }
   }
 
-  // 只能用 `id: { in: [...] }` 取，不能用 `folders: { some: { folderId } }`。
-  //
-  // 关系过滤在 Prisma 的 D1 adapter 上会绑错参数，报
-  //   Missing data field (Value): 'id'; data: {"undefined":"<userId>"}
-  // ——「undefined」那个键就是被吞掉的参数名。同一套 include 换成 id IN 就正常
-  // （getWords 的关键词分支一直这么用）。orderBy 和嵌套深度都排查过，不是原因。
-  //
-  // 分批是因为 D1 的绑定参数上限在 100 上下，而一个词单动辄两千多个词。
-  const CHUNK = 90
-  const rows: Awaited<ReturnType<typeof fetchChunk>> = []
-  async function fetchChunk(ids: string[]) {
-    return prisma.word.findMany({
-      where: { id: { in: ids } },
-      include: {
-        review: true,
-        sourceNote: true,
-        ...WORD_FOLDERS,
-      },
+  const fetchChunk = (chunk: string[]) =>
+    prisma.word.findMany({
+      where: { id: { in: chunk } },
+      include: { review: true, sourceNote: true, ...WORD_FOLDERS },
     })
-  }
-  for (let i = 0; i < idRows.length; i += CHUNK) {
-    const chunk = idRows.slice(i, i + CHUNK).map((row) => row.id)
-    rows.push(...(await fetchChunk(chunk)))
-  }
-
-  const rank = new Map(idRows.map((row, index) => [row.id, index]))
-  rows.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0))
+  const rows: Awaited<ReturnType<typeof fetchChunk>> = []
+  for (const chunk of chunkIds(ids)) rows.push(...(await fetchChunk(chunk)))
+  sortByIdOrder(rows, ids)
 
   // 连接表只是存储细节，对外还是一串词。
   //
