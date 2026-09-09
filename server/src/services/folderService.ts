@@ -141,18 +141,31 @@ export async function getFolderById(userId: string, id: string) {
     throw new AppError('folder not found', 404)
   }
 
-  // 词单和词分两次查，不做四层嵌套 include
-  // （folder → words → word → folders → folder）。那种深度在 D1 adapter 上
-  // 不稳，而且失败时报的错和真实原因对不上号。
+  // 排序必须放在原生 SQL 里，取回来之后在 JS 里按这个顺序重排 —— 不能给
+  // 下面那个 findMany 挂 orderBy。
   //
-  // 用关系过滤而不是 `id: { in: [...] }`：一个词单动辄两千多个词，拼 IN 会
-  // 撑爆 D1 的绑定参数上限（deleteFolder 就是这么炸过一次）。
-  const words = await prisma.word.findMany({
+  // 原因：Prisma 的 D1 adapter 在「orderBy 可空列 + 关系 include」这个组合上
+  // 会炸，报的是
+  //   Missing data field (Value): 'id'; data: {"undefined":"<userId>"}
+  // 一句和真实原因毫无关系的内部错误。pinnedAt 正是可空列。同一个文件里
+  // getWords 的关键词分支早就是这么绕的（SQL 排序 + JS 重排），当初多半就是
+  // 撞上了同一个坑。
+  //
+  // 词 id 走集合式 SQL，只带一个绑定参数：词单动辄两千多个词，拼 IN 会撑爆
+  // D1 的参数上限（deleteFolder 就是这么炸过一次）。
+  const idRows = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT w.id FROM Word w
+    JOIN WordFolder wf ON wf.wordId = w.id
+    WHERE wf.folderId = ${id} AND w.userId = ${userId}
+    ORDER BY w.pinnedAt DESC, w.createdAt DESC
+  `
+
+  if (idRows.length === 0) {
+    return { ...folder, _count: { words: 0 }, words: [] }
+  }
+
+  const rows = await prisma.word.findMany({
     where: { userId, folders: { some: { folderId: id } } },
-    // Unified pinnedAt-desc timeline (mirrors getWords / getTodayNewWords).
-    // Pinning a word refreshes pinnedAt = now, so it surfaces back to top.
-    // New words receive pinnedAt = createdAt at insertion.
-    orderBy: [{ pinnedAt: 'desc' }, { createdAt: 'desc' }],
     include: {
       review: true,
       sourceNote: true,
@@ -160,14 +173,17 @@ export async function getFolderById(userId: string, id: string) {
     },
   })
 
+  const rank = new Map(idRows.map((row, index) => [row.id, index]))
+  rows.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0))
+
   // 连接表只是存储细节，对外还是一串词。
   //
   // 词数直接数取回来的那串。原来这里挂着 include._count，等于为一个已经在手
   // 的数字额外让 D1 对整张 WordFolder 做一次 GROUP BY。
   return {
     ...folder,
-    _count: { words: words.length },
-    words: words.map(flattenWord),
+    _count: { words: rows.length },
+    words: rows.map(flattenWord),
   }
 }
 
