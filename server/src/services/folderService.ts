@@ -164,14 +164,30 @@ export async function getFolderById(userId: string, id: string) {
     return { ...folder, _count: { words: 0 }, words: [] }
   }
 
-  const rows = await prisma.word.findMany({
-    where: { userId, folders: { some: { folderId: id } } },
-    include: {
-      review: true,
-      sourceNote: true,
-      ...WORD_FOLDERS,
-    },
-  })
+  // 只能用 `id: { in: [...] }` 取，不能用 `folders: { some: { folderId } }`。
+  //
+  // 关系过滤在 Prisma 的 D1 adapter 上会绑错参数，报
+  //   Missing data field (Value): 'id'; data: {"undefined":"<userId>"}
+  // ——「undefined」那个键就是被吞掉的参数名。同一套 include 换成 id IN 就正常
+  // （getWords 的关键词分支一直这么用）。orderBy 和嵌套深度都排查过，不是原因。
+  //
+  // 分批是因为 D1 的绑定参数上限在 100 上下，而一个词单动辄两千多个词。
+  const CHUNK = 90
+  const rows: Awaited<ReturnType<typeof fetchChunk>> = []
+  async function fetchChunk(ids: string[]) {
+    return prisma.word.findMany({
+      where: { id: { in: ids } },
+      include: {
+        review: true,
+        sourceNote: true,
+        ...WORD_FOLDERS,
+      },
+    })
+  }
+  for (let i = 0; i < idRows.length; i += CHUNK) {
+    const chunk = idRows.slice(i, i + CHUNK).map((row) => row.id)
+    rows.push(...(await fetchChunk(chunk)))
+  }
 
   const rank = new Map(idRows.map((row, index) => [row.id, index]))
   rows.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0))
