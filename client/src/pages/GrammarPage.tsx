@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { JlptChips } from '../components/JlptChips'
 import { SelectField } from '../components/ui/SelectField'
+import { Pager } from '../components/ui/Pager'
 import { Button, Input, TextArea } from '@heroui/react'
 import { Search } from 'lucide-react'
 import { Link, useNavigate } from 'react-router'
@@ -44,9 +45,36 @@ function firstLine(text?: string) {
 // 在下拉框里不是个能选的键，所以另给一个哨兵值，落到 state 时再换回空串。
 const ALL_LEVELS = '__all__'
 
-// 一次铺多少张卡片。装进整本蓝宝书之后不筛选就是 800 多条，全渲染出来手机上
-// 要卡一下；200 这个数选得比手工整理的条目量高，所以没导过书的账号看不出区别。
-const PAGE_SIZE = 200
+// 一页 20 条。原来是 200 + 一个「显示更多」按钮，装进整本蓝宝书（800 多条）
+// 之后那个模式就不成立了：一页铺不完，翻起来也没有位置感。
+const PAGE_SIZE = 20
+
+/**
+ * 自测遮罩：模糊显示，点一下揭开。
+ *
+ * select-none 不是可选项 —— blur() 只是视觉滤镜，文字仍然在 DOM 里，不禁止
+ * 选中的话鼠标一拖就把答案拖蓝看见了，等于没遮。
+ */
+function BlurredAnswer({
+  children,
+  onReveal,
+  className,
+}: {
+  children: ReactNode
+  onReveal: () => void
+  className?: string
+}) {
+  return (
+    <button
+      type="button"
+      className={`cursor-pointer select-none border-none bg-transparent p-0 text-left font-[inherit] text-[length:inherit] leading-[inherit] blur-[5px] transition-[filter] duration-150 hover:blur-[3px] ${className ?? ''}`}
+      onClick={onReveal}
+      aria-label="显示"
+    >
+      {children}
+    </button>
+  )
+}
 
 export function GrammarPage() {
   const navigate = useNavigate()
@@ -67,7 +95,21 @@ export function GrammarPage() {
   })
   const [learnCount, setLearnCount] = useState<number | null>(10)
   const [learnedFilter, setLearnedFilter] = useState<'all' | 'learned' | 'unlearned'>('all')
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const [page, setPage] = useState(1)
+
+  // 自测：把「意思」和例句的中文翻译一起遮掉，看着句型、接续和日文例句先
+  // 自己想。两处必须同遮同显 —— 只遮意思的话，底下那句译文照样把答案说了。
+  // 默认全遮，每张卡片自己控制，这里记的是「哪几条被揭开了」。
+  const [shownAnswerIds, setShownAnswerIds] = useState<Set<string>>(new Set())
+
+  const toggleAnswer = (id: string) => {
+    setShownAnswerIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const pinToTop = async (g: Grammar) => {
     try {
@@ -100,12 +142,13 @@ export function GrammarPage() {
     void load()
   }, [])
 
-  const filtered = useMemo(() => {
+  // 级别 + 关键词筛过一遍，但**不含**已学/未学 —— 那三个按钮上的数字要在
+  // 这个范围里算，否则「已学 43」永远是全库的数，选了 N2 也不变，看不出
+  // 这个级别到底学了多少。
+  const scoped = useMemo(() => {
     const kw = keyword.trim().toLowerCase()
     return grammars.filter((g) => {
       if (level && toGrammarLevel(g.level) !== level) return false
-      if (learnedFilter === 'learned' && !g.isLearned) return false
-      if (learnedFilter === 'unlearned' && g.isLearned) return false
       if (!kw) return true
       return (
         g.pattern.toLowerCase().includes(kw) ||
@@ -114,25 +157,34 @@ export function GrammarPage() {
         g.exampleZh.toLowerCase().includes(kw)
       )
     })
-  }, [grammars, keyword, level, learnedFilter])
+  }, [grammars, keyword, level])
 
-  const learnedCount = useMemo(
-    () => grammars.filter((g) => g.isLearned).length,
-    [grammars],
+  const filtered = useMemo(() => {
+    if (learnedFilter === 'learned') return scoped.filter((g) => g.isLearned)
+    if (learnedFilter === 'unlearned') return scoped.filter((g) => !g.isLearned)
+    return scoped
+  }, [scoped, learnedFilter])
+
+  const scopedLearned = useMemo(
+    () => scoped.filter((g) => g.isLearned).length,
+    [scoped],
   )
+  const scopedUnlearned = scoped.length - scopedLearned
 
-  // 换了筛选条件就从头铺 —— 不然搜完一个词还留着上一次「显示更多」的进度。
+  // 换了筛选条件就回到第 1 页 —— 不然筛完只剩 20 条，却还停在第 3 页看空白。
   // 在渲染期间比对而不是塞进 effect：这是 React 说的「跟着输入调整 state」，
-  // 重渲染发生在提交之前，屏幕上不会先闪一帧旧的条数。
+  // 重渲染发生在提交之前，屏幕上不会先闪一帧旧内容。
   const filterKey = `${keyword}\0${level}\0${learnedFilter}`
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey)
   if (prevFilterKey !== filterKey) {
     setPrevFilterKey(filterKey)
-    setVisibleCount(PAGE_SIZE)
+    setPage(1)
   }
 
-  const visible = filtered.slice(0, visibleCount)
-  const rest = filtered.length - visible.length
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  // 删条目之后总页数可能缩到当前页之前，夹一下免得停在空页上。
+  const safePage = Math.min(page, pageCount)
+  const visible = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
   const toggleLearned = async (g: Grammar) => {
     try {
@@ -144,12 +196,19 @@ export function GrammarPage() {
   }
 
   // 筛选器只列真正有条目的级别。归一之后排序，'CUSTOM' 按字母序落在 N1 前面，
-  // 和新建表单里的顺序一致。
-  const levels = useMemo(() => {
-    const s = new Set<GrammarLevel>()
-    for (const g of grammars) s.add(toGrammarLevel(g.level))
-    return Array.from(s).sort()
+  // 和新建表单里的顺序一致。顺带数出每一级的条数，下拉框里直接显示。
+  const levelCounts = useMemo(() => {
+    const m = new Map<GrammarLevel, number>()
+    for (const g of grammars) {
+      const lv = toGrammarLevel(g.level)
+      m.set(lv, (m.get(lv) ?? 0) + 1)
+    }
+    return m
   }, [grammars])
+  const levels = useMemo(
+    () => Array.from(levelCounts.keys()).sort(),
+    [levelCounts],
+  )
 
   const handleAiFill = async () => {
     const pattern = form.pattern.trim()
@@ -240,7 +299,13 @@ export function GrammarPage() {
             }}
           >
             {t('grammar.learnNewBtn')}
-            {counts.unlearned > 0 ? <span className={`${BADGE} bg-accent-foreground/25`}>{counts.unlearned}</span> : null}
+            {/* 选了级别就显示该级别的未学数。原来一律显示服务端的全局
+              * unlearned，选了 N2 仍然是「191」，看起来像级别没生效。 */}
+            {(level ? scopedUnlearned : counts.unlearned) > 0 ? (
+              <span className={`${BADGE} bg-accent-foreground/25`}>
+                {level ? scopedUnlearned : counts.unlearned}
+              </span>
+            ) : null}
           </Button>
           <Button variant="outline"
             type="button"
@@ -286,8 +351,13 @@ export function GrammarPage() {
           onChange={(v) => setLevel(v === ALL_LEVELS ? '' : v)}
           className="min-w-[120px]"
           options={[
-            { value: ALL_LEVELS, label: t('grammar.levelAll') },
-            ...levels.map((lv) => ({ value: lv, label: levelLabel(lv) })),
+            { value: ALL_LEVELS, label: `${t('grammar.levelAll')} (${grammars.length})` },
+            // 每个级别后面带条数，不用切过去才知道这一级有多少。
+            ...levels.map((lv) => ({
+              value: lv,
+              label: `${levelLabel(lv)} (${levelCounts.get(lv) ?? 0})`,
+              textValue: levelLabel(lv),
+            })),
           ]}
         />
         <div className="flex flex-wrap gap-1.5">
@@ -297,7 +367,7 @@ export function GrammarPage() {
             variant={learnedFilter === 'all' ? 'primary' : 'outline'}
             onPress={() => setLearnedFilter('all')}
           >
-            {t('grammar.filterAll')} ({grammars.length})
+            {t('grammar.filterAll')} ({scoped.length})
           </Button>
           <Button
             type="button"
@@ -305,7 +375,7 @@ export function GrammarPage() {
             variant={learnedFilter === 'learned' ? 'primary' : 'outline'}
             onPress={() => setLearnedFilter('learned')}
           >
-            {t('grammar.filterLearned')} ({learnedCount})
+            {t('grammar.filterLearned')} ({scopedLearned})
           </Button>
           <Button
             type="button"
@@ -313,7 +383,7 @@ export function GrammarPage() {
             variant={learnedFilter === 'unlearned' ? 'primary' : 'outline'}
             onPress={() => setLearnedFilter('unlearned')}
           >
-            {t('grammar.filterUnlearned')} ({grammars.length - learnedCount})
+            {t('grammar.filterUnlearned')} ({scopedUnlearned})
           </Button>
         </div>
       </div>
@@ -440,6 +510,25 @@ export function GrammarPage() {
                 >
                   {g.isLearned ? t('grammar.unmarkLearned') : t('grammar.markLearned')}
                 </Button>
+                {/* 只有真有东西可遮的时候才出现这个按钮 */}
+                {g.meaning || firstLine(g.exampleZh) ? (
+                  <Button variant="outline" size="sm" className="shrink-0 rounded-full text-xs"
+                    type="button"
+                    onPress={() => toggleAnswer(g.id)}
+                    render={(props) => (
+                      <button
+                        {...props}
+                        title={
+                          shownAnswerIds.has(g.id)
+                            ? '遮住意思和例句翻译'
+                            : '显示意思和例句翻译'
+                        }
+                      />
+                    )}
+                  >
+                    {shownAnswerIds.has(g.id) ? '隐藏' : '显示'}
+                  </Button>
+                ) : null}
                 <Button variant="outline" size="sm" className="shrink-0 rounded-full text-xs"
                   type="button"
                   onPress={() => void pinToTop(g)}
@@ -458,7 +547,16 @@ export function GrammarPage() {
             {g.meaning ? (
               <p className="my-1.5 flex gap-2 text-sm/[1.6]">
                 <span className="min-w-16 shrink-0 pt-0.5 text-xs text-muted">{t('grammar.labelMeaning')}</span>
-                <span className="font-medium text-foreground">{g.meaning}</span>
+                {shownAnswerIds.has(g.id) ? (
+                  <span className="font-medium text-foreground">{g.meaning}</span>
+                ) : (
+                  <BlurredAnswer
+                    onReveal={() => toggleAnswer(g.id)}
+                    className="font-medium text-foreground"
+                  >
+                    {g.meaning}
+                  </BlurredAnswer>
+                )}
               </p>
             ) : null}
             {/* 只露第一句。装进整本蓝宝书之后一条能带十几句例句，全铺出来的话
@@ -466,8 +564,18 @@ export function GrammarPage() {
             {firstLine(g.example) ? (
               <div className="mt-2.5 flex flex-col gap-1 border-t border-separator pt-2.5 text-[13.5px]/[1.65]">
                 <p className="multiline-text">{firstLine(g.example)}</p>
+                {/* 日文例句照常显示，只遮译文 —— 遮了日文就没得自测了 */}
                 {firstLine(g.exampleZh) ? (
-                  <p className="muted multiline-text">{firstLine(g.exampleZh)}</p>
+                  shownAnswerIds.has(g.id) ? (
+                    <p className="muted multiline-text">{firstLine(g.exampleZh)}</p>
+                  ) : (
+                    <BlurredAnswer
+                      onReveal={() => toggleAnswer(g.id)}
+                      className="muted multiline-text"
+                    >
+                      {firstLine(g.exampleZh)}
+                    </BlurredAnswer>
+                  )
                 ) : null}
               </div>
             ) : null}
@@ -475,15 +583,18 @@ export function GrammarPage() {
         ))}
       </ul>
 
-      {rest > 0 ? (
-        <div className="mt-3 flex justify-center">
-          <Button
-            type="button"
-            variant="outline"
-            onPress={() => setVisibleCount((n) => n + PAGE_SIZE)}
-          >
-            {t('grammar.showMore', { rest })}
-          </Button>
+      {filtered.length > 0 ? (
+        <div className="mt-4">
+          <Pager
+            current={safePage}
+            pageSize={PAGE_SIZE}
+            total={filtered.length}
+            onChange={(next) => {
+              setPage(next)
+              scrollAppToTop()
+            }}
+            summary={`共 ${filtered.length} 条`}
+          />
         </div>
       ) : null}
     </section>
