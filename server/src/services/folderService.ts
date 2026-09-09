@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma'
-import { flattenWord } from '../lib/wordShape'
+import { flattenWord, WORD_FOLDERS } from '../lib/wordShape'
 import { AppError } from '../errors/AppError'
 
 const SUPPORTED_LANGUAGES = ['en', 'jp'] as const
@@ -129,33 +129,36 @@ export async function getFolders(userId: string) {
 }
 
 export async function getFolderById(userId: string, id: string) {
-  const folder = await prisma.folder.findFirst({
-    where: { id, userId },
-    include: {
-      words: {
-        // Unified pinnedAt-desc timeline (mirrors getWords / getTodayNewWords).
-        // Pinning a word refreshes pinnedAt = now, so it surfaces back to top.
-        // New words receive pinnedAt = createdAt at insertion.
-        orderBy: [
-          { word: { pinnedAt: 'desc' } },
-          { word: { createdAt: 'desc' } },
-        ],
-        include: {
-          word: {
-            include: {
-              review: true,
-              sourceNote: true,
-              folders: { include: { folder: true } },
-            },
-          },
-        },
-      },
-    },
-  })
+  // 路由层拿不到 :id 时会传上来空值。不挡住的话它会一路进到 Prisma，报一句
+  // 「Missing data field (Value): 'id'」——一个和真实原因毫无关系的内部错误，
+  // 查起来极其费劲。
+  if (!id?.trim()) {
+    throw new AppError('folder id is required', 400)
+  }
 
+  const folder = await prisma.folder.findFirst({ where: { id, userId } })
   if (!folder) {
     throw new AppError('folder not found', 404)
   }
+
+  // 词单和词分两次查，不做四层嵌套 include
+  // （folder → words → word → folders → folder）。那种深度在 D1 adapter 上
+  // 不稳，而且失败时报的错和真实原因对不上号。
+  //
+  // 用关系过滤而不是 `id: { in: [...] }`：一个词单动辄两千多个词，拼 IN 会
+  // 撑爆 D1 的绑定参数上限（deleteFolder 就是这么炸过一次）。
+  const words = await prisma.word.findMany({
+    where: { userId, folders: { some: { folderId: id } } },
+    // Unified pinnedAt-desc timeline (mirrors getWords / getTodayNewWords).
+    // Pinning a word refreshes pinnedAt = now, so it surfaces back to top.
+    // New words receive pinnedAt = createdAt at insertion.
+    orderBy: [{ pinnedAt: 'desc' }, { createdAt: 'desc' }],
+    include: {
+      review: true,
+      sourceNote: true,
+      ...WORD_FOLDERS,
+    },
+  })
 
   // 连接表只是存储细节，对外还是一串词。
   //
@@ -163,8 +166,8 @@ export async function getFolderById(userId: string, id: string) {
   // 的数字额外让 D1 对整张 WordFolder 做一次 GROUP BY。
   return {
     ...folder,
-    _count: { words: folder.words.length },
-    words: folder.words.map(({ word }) => flattenWord(word)),
+    _count: { words: words.length },
+    words: words.map(flattenWord),
   }
 }
 

@@ -118,6 +118,8 @@ export function FolderDetailPage() {
   // state means each FolderDetailPage instance keeps its own copy.
   const [folder, setFolder] = useState<FolderDetail | null>(null)
   const [isLoadingFolder, setIsLoadingFolder] = useState(false)
+  // 加载失败的原因。和 store 里那个 error 分开——这个只讲「词单没取回来」。
+  const [folderError, setFolderError] = useState<string | null>(null)
   // 出題基準只收日语词，英语词单不必为此下载那张表。
   const jlptLevels = useJlptLevels(folder?.language === 'jp')
   // Tracks the word id currently being pinned, so we can disable the button
@@ -130,6 +132,10 @@ export function FolderDetailPage() {
 
   const [editingWordId, setEditingWordId] = useState<string | null>(null)
   const [form, setForm] = useState<WordFormState | null>(null)
+  // 编辑弹框里那个「AI 补全」的状态。和列表里的 aiFillingId 分开：那个按词
+  // id 记，这个只服务当前打开的弹框。
+  const [isFormAiFilling, setIsFormAiFilling] = useState(false)
+  const [formAiHint, setFormAiHint] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'learned' | 'unlearned'>('all')
   const [searchKeyword, setSearchKeyword] = useState('')
   const [page, setPage] = useState(1)
@@ -172,9 +178,15 @@ export function FolderDetailPage() {
     let ignore = false
     async function loadFolder(folderId: string) {
       setIsLoadingFolder(true)
+      if (!ignore) setFolderError(null)
       try {
         const data = await getFolderById(folderId)
         if (!ignore) setFolder(data)
+      } catch (err) {
+        // 以前这里只有 finally 没有 catch：请求一失败 folder 就一直是 null，
+        // 页面把它当成「这个词单是空的」显示 0 条。故障被伪装成正常的空状态，
+        // 一个后端报错查了半天才定位到。宁可难看也要说清楚是加载失败。
+        if (!ignore) setFolderError(getErrorMessage(err, '加载词单失败'))
       } finally {
         if (!ignore) setIsLoadingFolder(false)
       }
@@ -314,11 +326,14 @@ export function FolderDetailPage() {
   const beginEdit = (word: Word) => {
     setEditingWordId(word.id)
     setForm(toFormState(word))
+    // 上一次编辑留下的「已补：…」不该跟到下一个词上
+    setFormAiHint(null)
   }
 
   const cancelEdit = () => {
     setEditingWordId(null)
     setForm(null)
+    setFormAiHint(null)
   }
 
   const handleSave = async (event: React.FormEvent, wordId: string) => {
@@ -427,6 +442,65 @@ export function FolderDetailPage() {
       })
     } finally {
       setAiFillingId(null)
+    }
+  }
+
+  /**
+   * 编辑弹框里的「AI 补全」。和列表那个 aiCompleteWord 有三点不同：
+   *
+   * 1. 只写进表单，不直接落库 —— 编辑态下人正看着这些字段，让他先过目再点
+   *    保存，比背着他改库合理。
+   * 2. 严格只补空：已经有内容的字段一个都不碰。用户来这儿是「补缺失的」，
+   *    不是「重新生成一遍」。
+   * 3. 传 normalize:false，并且丢掉 AI 回的 word —— 这是在编辑一个已存在的
+   *    词条，把词头改掉（語る→語り之类）等于把人家的词换了。
+   */
+  const aiFillForm = async () => {
+    if (!form || isFormAiFilling) return
+    const term = form.word.trim()
+    if (!term) {
+      setFormAiHint('先填单词')
+      return
+    }
+    const language = (folder?.language ?? 'jp') as 'en' | 'jp'
+    setIsFormAiFilling(true)
+    setFormAiHint(null)
+    try {
+      const filled = await fillWordByAi({
+        word: term,
+        sourceLanguage: language,
+        targetLanguage: language,
+        normalize: false,
+      })
+      const touched: string[] = []
+      setForm((prev) => {
+        if (!prev) return prev
+        const next = { ...prev }
+        const fill = (
+          key: 'reading' | 'partOfSpeech' | 'meaning' | 'example' | 'note',
+          value: string,
+          label: string,
+        ) => {
+          if (prev[key].trim() || !value.trim()) return
+          next[key] = value
+          touched.push(label)
+        }
+        fill('reading', filled.reading, t('folderDetail.formReading'))
+        fill('partOfSpeech', filled.partOfSpeech, t('folderDetail.formPartOfSpeech'))
+        fill('meaning', filled.meaning, t('folderDetail.formMeaning'))
+        fill('example', filled.example, t('folderDetail.formExample'))
+        fill('note', filled.note, t('folderDetail.formNote'))
+        return next
+      })
+      setFormAiHint(
+        touched.length
+          ? `已补：${touched.join('、')}${filled.cached ? '（命中缓存，没花 token）' : ''}`
+          : '没有空缺字段，什么都没改',
+      )
+    } catch (err) {
+      setFormAiHint(getErrorMessage(err, 'AI 补全失败'))
+    } finally {
+      setIsFormAiFilling(false)
     }
   }
 
@@ -721,7 +795,19 @@ export function FolderDetailPage() {
       {isLoadingFolder ? <div className="card">{t('folderDetail.loading')}</div> : null}
       {error ? <p className="error-text">{error}</p> : null}
 
-      {!isLoadingFolder && folder && filteredWords.length === 0 ? (
+      {/* 加载失败要说是失败，不能让它长得像「这个词单是空的」。 */}
+      {!isLoadingFolder && folderError ? (
+        <div className="card">
+          <p className="error-text" style={{ marginTop: 0 }}>
+            {folderError}
+          </p>
+          <Button variant="outline" type="button" onPress={reloadFolder}>
+            重新加载
+          </Button>
+        </div>
+      ) : null}
+
+      {!isLoadingFolder && !folderError && folder && filteredWords.length === 0 ? (
         <div className="card empty-state">
           <p>
             {words.length === 0
@@ -1008,6 +1094,21 @@ export function FolderDetailPage() {
               </label>
             </div>
             <div className="form-actions">
+              {/* mr-auto：推到左边，和「取消/保存」那组分开 —— 它不是提交
+                * 动作，只是往表单里填内容。 */}
+              <Button variant="outline"
+                type="button"
+                className="mr-auto"
+                onPress={() => void aiFillForm()}
+                isDisabled={isFormAiFilling || isSubmitting}
+              >
+                {isFormAiFilling ? 'AI 补全中…' : 'AI 补全空缺'}
+              </Button>
+              {formAiHint ? (
+                <span className="mr-auto self-center text-[13px] text-muted">
+                  {formAiHint}
+                </span>
+              ) : null}
               <Button variant="outline"
                 type="button"
                 onPress={cancelEdit}
