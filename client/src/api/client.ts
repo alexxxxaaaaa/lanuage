@@ -29,14 +29,50 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config
 })
 
+/**
+ * 边缘偶发不可用时的自动重试。
+ *
+ * 症状是一批请求同时 502/503，过几秒刷新就好了 —— 这类失败根本没到 Worker
+ * （`wrangler tail` 里连条记录都没有），是 Cloudflare 边缘那层回的，重试一次
+ * 基本就过去了。与其让用户自己刷新，不如这里悄悄再试。
+ *
+ * 只重试 GET：POST/PATCH/DELETE 重试等于有可能重复写一遍。超时也不重试 ——
+ * 掐掉的只是浏览器这头，服务端那次调用还在跑，AI 接口重试一次就是再花一次钱。
+ */
+const RETRYABLE_STATUS = new Set([502, 503, 504])
+const RETRY_DELAYS_MS = [400, 1200]
+
+type RetryableConfig = InternalAxiosRequestConfig & { __retryCount?: number }
+
+function isRetryable(error: AxiosError): boolean {
+  if ((error.config?.method ?? 'get').toLowerCase() !== 'get') return false
+  const status = error.response?.status
+  if (status !== undefined) return RETRYABLE_STATUS.has(status)
+  // 压根没拿到响应。ERR_NETWORK 是连接层断了，值得再试；ECONNABORTED（超时）
+  // 和 ERR_CANCELED（组件卸载时主动取消）不该重试。
+  return error.code === 'ERR_NETWORK'
+}
+
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => response,
-  (error: AxiosError) => {
+  async (error: AxiosError) => {
     const status = error?.response?.status
     const isAuthEndpoint = String(error?.config?.url ?? '').startsWith('/api/auth/')
     if (status === 401 && !isAuthEndpoint) {
       clearAuthAndRedirect()
+      return Promise.reject(error)
     }
+
+    const config = error.config as RetryableConfig | undefined
+    if (config && isRetryable(error)) {
+      const attempt = config.__retryCount ?? 0
+      if (attempt < RETRY_DELAYS_MS.length) {
+        config.__retryCount = attempt + 1
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt]))
+        return apiClient(config)
+      }
+    }
+
     return Promise.reject(error)
   },
 )

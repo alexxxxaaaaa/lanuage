@@ -35,3 +35,10 @@ QBANK_MEDIA_BASE = "https://pub-942012cb760d44d7a0c78abce8d4d0c5.r2.dev/qbank/"
 # 蓝宝书语法的句型/例句朗读和 N5 活用表图片，同一个桶的 grammar/ 前缀。
 # 上传见 server/scripts/uploadBluebookMedia.sh。
 GRAMMAR_MEDIA_BASE = "https://pub-942012cb760d44d7a0c78abce8d4d0c5.r2.dev/grammar/"
+
+# 把请求日志留在 Cloudflare 面板里（Workers → Logs）。不开的话只有 `wrangler
+# tail` 能看日志，而 tail 必须在出事的当口正开着 —— 偶发 503 基本抓不到。
+# 开了以后可以事后回查：日志里有这条请求 = 它到了 Worker，是代码的问题；
+# 日志里压根没有 = 请求在边缘就被挡了，跟后端无关。
+[observability]
+enabled = true
