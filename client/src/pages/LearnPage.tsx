@@ -11,6 +11,7 @@ import {
   usePageTitle,
 } from '../components/layout/pageContext'
 import { useI18n } from '../i18n'
+import { applyLearnOrder } from '../lib/learnOrder'
 import { useAppStore } from '../store/useAppStore'
 import { sessionPath, useReportSession } from '../store/useActiveSessions'
 import type { ReviewRating, Word } from '../types'
@@ -265,8 +266,11 @@ export function LearnPage() {
       const safeList = Array.isArray(list) ? list : []
       // Read the cap now instead of subscribing to it: changing 学习个数 on
       // the dashboard must not wipe a session that is already under way.
-      const limit = useAppStore.getState().sessionLimit
-      setAllWords(limit === null ? safeList : safeList.slice(0, limit))
+      // 学习顺序同理，而且必须在截断之前翻转 —— 否则「倒序 20 个」取到的还是
+      // 正序那 20 个，只是背的次序反了。
+      const { sessionLimit: limit, learnOrder } = useAppStore.getState()
+      const ordered = applyLearnOrder(safeList, learnOrder)
+      setAllWords(limit === null ? ordered : ordered.slice(0, limit))
       setBatchIdx(0)
       setPhase('study')
       setItemIdx(0)

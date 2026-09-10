@@ -13,6 +13,7 @@ import { alertDialog } from '../components/ui/dialog'
 import { getTodayLearnedStats, markWordMastered } from '../api/review'
 import { getTodayNewWords } from '../api/words'
 import { DATE_LOCALES } from '../lib/datetime'
+import { applyLearnOrder } from '../lib/learnOrder'
 import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
 import { sessionPath } from '../store/useActiveSessions'
@@ -103,6 +104,7 @@ export function HomePage() {
   const isLoadingFolders = useAppStore((state) => state.isLoadingFolders)
   const dueReviews = useAppStore((state) => state.dueReviews)
   const sessionLimit = useAppStore((state) => state.sessionLimit)
+  const learnOrder = useAppStore((state) => state.learnOrder)
   const isLoadingReviews = useAppStore((state) => state.isLoadingReviews)
   const error = useAppStore((state) => state.error)
   const folderList = Array.isArray(folders) ? folders : []
@@ -156,9 +158,11 @@ export function HomePage() {
     if (!learnFolderId) return [] as Word[]
     const filtered = todayNewWords.filter((w) => w.folderIds.includes(learnFolderId))
     // The modal previews exactly what the upcoming /learn session will cover,
-    // so it must respect the same `Learn Count` cap the learn page applies.
-    return sessionLimit === null ? filtered : filtered.slice(0, sessionLimit)
-  }, [todayNewWords, learnFolderId, sessionLimit])
+    // so it must respect the same `Learn Count` cap the learn page applies —
+    // and the same 学习顺序，翻转必须发生在截断之前，否则倒序取的还是同一批词。
+    const ordered = applyLearnOrder(filtered, learnOrder)
+    return sessionLimit === null ? ordered : ordered.slice(0, sessionLimit)
+  }, [todayNewWords, learnFolderId, sessionLimit, learnOrder])
 
   const learnFolderName = learnFolderId
     ? (folderList.find((f) => f.id === learnFolderId)?.name ?? '')
@@ -325,6 +329,22 @@ export function HomePage() {
                 value: limit === null ? 'all' : String(limit),
                 label: limit === null ? t('home.all') : `${limit}${t('home.unit')}`,
               }))}
+            />
+          </label>
+          {/* 和「学习个数」一样是个全局偏好：决定新学从词单的哪一头开始。 */}
+          <label className="session-inline">
+            <span>{t('home.learnOrder')}</span>
+            <SelectField
+              aria-label={t('home.learnOrder')}
+              className="min-w-[104px]"
+              value={learnOrder}
+              onChange={(value) =>
+                useAppStore.getState().setLearnOrder(value === 'reverse' ? 'reverse' : 'forward')
+              }
+              options={[
+                { value: 'forward', label: t('home.orderForward') },
+                { value: 'reverse', label: t('home.orderReverse') },
+              ]}
             />
           </label>
         </Card.Header>

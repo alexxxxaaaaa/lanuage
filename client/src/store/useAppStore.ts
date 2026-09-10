@@ -13,6 +13,7 @@ import {
   updateWord as updateWordApi,
 } from '../api/words'
 import { useWordIndex } from './useWordIndex'
+import type { LearnOrder } from '../lib/learnOrder'
 import type {
   CreateFolderPayload,
   CreateWordPayload,
@@ -41,6 +42,9 @@ type AppState = {
   hasLoadedReviews: boolean
   /** How many new words one learn session covers. `null` = no cap. */
   sessionLimit: number | null
+  /** 新学时从词单哪头开始。'forward' = 和词单里看到的顺序一致（置顶/最新在
+   *  前），'reverse' = 严格倒过来，从最下面那个词开始学。 */
+  learnOrder: LearnOrder
   isLoadingFolders: boolean
   isLoadingReviews: boolean
   isSubmitting: boolean
@@ -54,6 +58,7 @@ type AppState = {
   dropDueWords: (wordIds: readonly string[]) => void
   shuffleDueReviews: () => void
   setSessionLimit: (limit: number | null) => void
+  setLearnOrder: (order: LearnOrder) => void
   createWord: (payload: CreateWordPayload) => Promise<void>
   updateWord: (id: string, payload: UpdateWordPayload) => Promise<void>
   deleteWord: (id: string) => Promise<void>
@@ -62,6 +67,28 @@ type AppState = {
 
 const SESSION_LIMIT_KEY = 'word-sprint-session-limit'
 const DEFAULT_SESSION_LIMIT = 20
+
+const LEARN_ORDER_KEY = 'word-sprint-learn-order'
+
+function loadLearnOrder(): LearnOrder {
+  if (typeof window === 'undefined') return 'forward'
+  try {
+    return window.localStorage.getItem(LEARN_ORDER_KEY) === 'reverse'
+      ? 'reverse'
+      : 'forward'
+  } catch {
+    return 'forward'
+  }
+}
+
+function persistLearnOrder(order: LearnOrder) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(LEARN_ORDER_KEY, order)
+  } catch {
+    // Private mode / quota — the in-memory value still applies this session.
+  }
+}
 
 function loadSessionLimit(): number | null {
   if (typeof window === 'undefined') return DEFAULT_SESSION_LIMIT
@@ -93,6 +120,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   dueReviews: [],
   hasLoadedReviews: false,
   sessionLimit: loadSessionLimit(),
+  learnOrder: loadLearnOrder(),
   isLoadingFolders: false,
   isLoadingReviews: false,
   isSubmitting: false,
@@ -200,6 +228,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSessionLimit: (limit) => {
     persistSessionLimit(limit)
     set({ sessionLimit: limit })
+  },
+  setLearnOrder: (order) => {
+    persistLearnOrder(order)
+    set({ learnOrder: order })
   },
   createWord: async (payload) => {
     set({ isSubmitting: true, error: null })
