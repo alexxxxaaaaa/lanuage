@@ -448,11 +448,18 @@ model Podcast {
   //   { lines: [{ start: ms, dur: ms, text: string, zh?: string }] }
   transcript      String
   lastPositionSec Int      @default(0)
+  // 真题归类。一场考试由「级别 + 年 + 月」唯一确定，同一 (级别, 年) 的几场
+  // 就是前端说的一「套」——分组和组内排序都从这三个字段来，别去猜标题。
+  // 全部留空/0 表示未归类（英语播客、随手导的视频都落在这里）。
+  examLevel       String   @default("") // N1..N5
+  examYear        Int      @default(0)
+  examMonth       Int      @default(0) // JLPT 一年两场：7 / 12
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   @@unique([userId, youtubeId])
   @@index([userId])
+  @@index([userId, examLevel, examYear, examMonth])
 }
 
 // Per-rating event log. Powers weekly-review analytics (how many words

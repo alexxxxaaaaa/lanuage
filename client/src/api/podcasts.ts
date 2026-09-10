@@ -50,6 +50,20 @@ export async function importMp3Podcast(payload: {
   return r.data
 }
 
+/** 改标题 / 改真题归类。归类三个字段一起传（都传 0/'' 就是取消归类）。 */
+export async function updatePodcastMeta(
+  id: string,
+  patch: {
+    title?: string
+    examLevel?: string
+    examYear?: number
+    examMonth?: number
+  },
+) {
+  const r = await apiClient.patch<PodcastSummary>(`/api/podcasts/${id}`, patch)
+  return r.data
+}
+
 export async function deletePodcast(id: string) {
   const r = await apiClient.delete<{ id: string }>(`/api/podcasts/${id}`)
   return r.data

@@ -10,6 +10,7 @@ import {
   type CaptionTrack,
 } from './youtubeService'
 import { parseSubtitle } from './subtitleParser'
+import { normalizeExamTag, parseExamTag } from '../lib/examSeries'
 
 type SupportedPrimary = 'jp' | 'en'
 
@@ -167,6 +168,10 @@ export async function importPodcast(
     chineseTrack: chineseTrackInfo,
   }
 
+  // 标题里认得出是哪一场真题就直接归类，认不出就留空——列表页会把它放进
+  // 「未归类」，用户手动补。
+  const exam = parseExamTag(title)
+
   return prisma.podcast.create({
     data: {
       userId,
@@ -176,6 +181,9 @@ export async function importPodcast(
       thumbnail,
       durationSec,
       transcript: JSON.stringify(blob),
+      examLevel: exam.level,
+      examYear: exam.year,
+      examMonth: exam.month,
     },
   })
 }
@@ -234,6 +242,8 @@ export async function importMp3Podcast(
   // works. Prefixed so it's obviously not a real YouTube video.
   const syntheticId = `mp3-${crypto.randomUUID()}`
 
+  const exam = parseExamTag(title)
+
   return prisma.podcast.create({
     data: {
       userId,
@@ -244,6 +254,9 @@ export async function importMp3Podcast(
       thumbnail: input.thumbnail ?? '',
       durationSec,
       transcript: JSON.stringify(blob),
+      examLevel: exam.level,
+      examYear: exam.year,
+      examMonth: exam.month,
     },
   })
 }
@@ -264,11 +277,40 @@ export async function listPodcasts(userId: string) {
       thumbnail: true,
       durationSec: true,
       lastPositionSec: true,
+      examLevel: true,
+      examYear: true,
+      examMonth: true,
       createdAt: true,
       updatedAt: true,
     },
   })
   return rows
+}
+
+/** 同一套（级别 + 年）里的其它场次，按月份排。examYear 为 0（未归类）时
+ *  返回空数组——未归类的一堆东西凑不成一套。 */
+async function seriesSiblings(
+  userId: string,
+  row: { id: string; examLevel: string; examYear: number },
+) {
+  if (row.examYear === 0) return []
+  return prisma.podcast.findMany({
+    where: {
+      userId,
+      examLevel: row.examLevel,
+      examYear: row.examYear,
+    },
+    orderBy: [{ examMonth: 'asc' }, { createdAt: 'asc' }],
+    select: {
+      id: true,
+      title: true,
+      examLevel: true,
+      examYear: true,
+      examMonth: true,
+      durationSec: true,
+      lastPositionSec: true,
+    },
+  })
 }
 
 export async function getPodcast(userId: string, id: string) {
@@ -280,10 +322,75 @@ export async function getPodcast(userId: string, id: string) {
   } catch {
     parsed = { lines: [], primaryTrack: { languageCode: '', kind: '' } }
   }
+
+  // 同套的场次一并返回，详情页据此渲染「上一场 / 下一场」。一次多查一条
+  // 窄 select，省掉前端为了算前后场而去拉整个列表。
+  const siblings = await seriesSiblings(userId, row)
+  const index = siblings.findIndex((s) => s.id === row.id)
+
   return {
     ...row,
     transcript: parsed,
+    series:
+      index >= 0
+        ? {
+            items: siblings,
+            index,
+            prev: index > 0 ? siblings[index - 1] : null,
+            next: index < siblings.length - 1 ? siblings[index + 1] : null,
+          }
+        : null,
   }
+}
+
+/** 改标题 / 改真题归类。YouTube 元数据抓不到时标题会回落成 videoId，
+ *  年份也就无从解析——这个接口就是给那种情况收尾用的。 */
+export async function updatePodcastMeta(
+  userId: string,
+  id: string,
+  patch: {
+    title?: string
+    examLevel?: string | null
+    examYear?: number | null
+    examMonth?: number | null
+  },
+) {
+  const row = await prisma.podcast.findFirst({ where: { id, userId } })
+  if (!row) throw new AppError('podcast not found', 404)
+
+  const data: {
+    title?: string
+    examLevel?: string
+    examYear?: number
+    examMonth?: number
+  } = {}
+
+  if (patch.title !== undefined) {
+    const title = patch.title.trim()
+    if (!title) throw new AppError('title cannot be empty', 400)
+    data.title = title
+  }
+
+  // 三个归类字段一起给才动——只传一个就改一个的话，「清空归类」和「没传」
+  // 分不开。前端那个弹框本来就是三个一起提交的。
+  if (
+    patch.examLevel !== undefined ||
+    patch.examYear !== undefined ||
+    patch.examMonth !== undefined
+  ) {
+    const tag = normalizeExamTag({
+      level: patch.examLevel,
+      year: patch.examYear,
+      month: patch.examMonth,
+    })
+    data.examLevel = tag.level
+    data.examYear = tag.year
+    data.examMonth = tag.month
+  }
+
+  if (Object.keys(data).length === 0) return row
+
+  return prisma.podcast.update({ where: { id }, data })
 }
 
 export async function deletePodcast(userId: string, id: string) {

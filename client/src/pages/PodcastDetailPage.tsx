@@ -675,6 +675,16 @@ export function PodcastDetailPage() {
   }
 
   const lines = podcast.transcript.lines
+  // 套名跟列表页的组头保持一致：「N1 · 2010年」。后端只在归好类时才返回
+  // series，所以这里不用再判空年份。
+  const series = podcast.series
+    ? {
+        ...podcast.series,
+        label: podcast.examLevel
+          ? `${podcast.examLevel} · ${podcast.examYear}年`
+          : `${podcast.examYear}年`,
+      }
+    : null
   // MP3-backed podcasts have no video — the top "video" box is just a redundant
   // native <audio>; keep it mounted (it drives playback) but hide it, and drop
   // the 视频 toggles so tapping 视频 doesn't pop an empty frame.
@@ -689,9 +699,37 @@ export function PodcastDetailPage() {
           <p className="muted">
             {podcast.primaryLang.toUpperCase()} · {lines.length} 句
             {podcast.transcript.chineseTrack ? ' · 含中文字幕' : ''}
+            {series
+              ? ` · ${series.label} 第 ${series.index + 1}/${series.items.length} 场`
+              : ''}
           </p>
         </div>
       </div>
+
+      {/* 同一套（级别 + 年）里的前后场次。一场听完直接进下一场，不用回列表。 */}
+      {series ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {series.prev ? (
+            <Link
+              className="rounded-lg bg-surface px-3 py-1.5 text-[13px] text-foreground no-underline shadow-card hover:text-accent"
+              to={`/podcasts/${series.prev.id}`}
+            >
+              ← 上一场{series.prev.examMonth ? ` · ${series.prev.examMonth}月` : ''}
+            </Link>
+          ) : null}
+          {series.next ? (
+            <Link
+              className="rounded-lg bg-surface px-3 py-1.5 text-[13px] text-foreground no-underline shadow-card hover:text-accent"
+              to={`/podcasts/${series.next.id}`}
+            >
+              下一场{series.next.examMonth ? ` · ${series.next.examMonth}月` : ''} →
+            </Link>
+          ) : null}
+          <Link className="muted text-[13px] no-underline hover:text-accent" to="/podcasts">
+            全部场次
+          </Link>
+        </div>
+      ) : null}
 
       {/* Keep the iframe MOUNTED even when "hidden" — display:none causes
         * YouTube to freeze the iframe and it wakes up in a stale "ended"

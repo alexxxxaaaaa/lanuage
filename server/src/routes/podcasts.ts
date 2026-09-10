@@ -7,6 +7,7 @@ import {
   inspectYoutubeUrl,
   listPodcasts,
   updatePodcastLine,
+  updatePodcastMeta,
   updatePodcastPosition,
 } from '../services/podcastService'
 import { getUserId, type AppEnv } from '../middleware/requireAuth'
@@ -72,6 +73,18 @@ podcastsRouter.post('/mp3', async (c) => {
 
 podcastsRouter.get('/:id', async (c) => {
   const row = await getPodcast(getUserId(c), c.req.param('id'))
+  return c.json(row)
+})
+
+/** Edit title / 真题归类（级别·年·月）。归类三个字段一起提交。 */
+podcastsRouter.patch('/:id', async (c) => {
+  const body = await c.req.json<{
+    title?: string
+    examLevel?: string | null
+    examYear?: number | null
+    examMonth?: number | null
+  }>()
+  const row = await updatePodcastMeta(getUserId(c), c.req.param('id'), body)
   return c.json(row)
 })
 

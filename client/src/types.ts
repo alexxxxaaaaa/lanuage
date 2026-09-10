@@ -225,6 +225,11 @@ export type PodcastSummary = {
   thumbnail: string
   durationSec: number
   lastPositionSec?: number
+  // 真题归类。同一 (examLevel, examYear) 的几场算一「套」，列表页按它分组。
+  // 空串 / 0 表示未归类。
+  examLevel?: string
+  examYear?: number
+  examMonth?: number
   createdAt?: string
   // Last time the row was touched. Since `lastPositionSec` is PATCHed during
   // playback, this serves as a "last watched at" timestamp.
@@ -238,12 +243,30 @@ export type TranscriptLine = {
   zh?: string
 }
 
+export type PodcastSeriesItem = {
+  id: string
+  title: string
+  examLevel: string
+  examYear: number
+  examMonth: number
+  durationSec: number
+  lastPositionSec: number
+}
+
 export type Podcast = PodcastSummary & {
   transcript: {
     lines: TranscriptLine[]
     primaryTrack: { languageCode: string; kind: string }
     chineseTrack?: { languageCode: string; kind: string } | null
   }
+  /** 同一套（级别 + 年）里的场次，用来渲染「上一场 / 下一场」。
+   *  未归类的播客是 null。 */
+  series?: {
+    items: PodcastSeriesItem[]
+    index: number
+    prev: PodcastSeriesItem | null
+    next: PodcastSeriesItem | null
+  } | null
 }
 
 export type YoutubeCaptionTrack = {
