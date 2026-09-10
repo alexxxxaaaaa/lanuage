@@ -29,7 +29,26 @@ export function createNodePrismaClient(): PrismaClient {
   })
 }
 
-const requestStorage = new AsyncLocalStorage<PrismaClient>()
+/**
+ * 请求作用域的客户端槽位。存的是「怎么造」而不是「已经造好的」——Workers 上
+ * 的 Prisma 是 WASM 查询引擎，`new PrismaClient()` 是实打实的 CPU 开销，实测
+ * 光是读一行设置的请求也要 15ms 左右。以前在 worker.ts 的 fetch 顶上无条件
+ * 造一个，等于每个请求都先交这笔钱，哪怕它压根不查库；一簇并发请求撞上来就
+ * 有人被 Cloudflare 以 `exceededCpu` 杀掉（实测 560 个请求里 30 个）。
+ *
+ * 现在推迟到第一次真正用到 prisma 时才造。走原生 D1 的那几条热路径（见
+ * lib/d1）从此完全不碰这个引擎。
+ */
+export type PrismaSlot = {
+  readonly factory: () => PrismaClient
+  client: PrismaClient | null
+}
+
+export function createPrismaSlot(factory: () => PrismaClient): PrismaSlot {
+  return { factory, client: null }
+}
+
+const requestStorage = new AsyncLocalStorage<PrismaSlot>()
 
 let nodeSingleton: PrismaClient | null = null
 
@@ -41,8 +60,11 @@ function getNodeSingleton(): PrismaClient {
 }
 
 function resolveClient(): PrismaClient {
-  const requestPrisma = requestStorage.getStore()
-  if (requestPrisma) return requestPrisma
+  const slot = requestStorage.getStore()
+  if (slot) {
+    if (!slot.client) slot.client = slot.factory()
+    return slot.client
+  }
   return getNodeSingleton()
 }
 
@@ -54,6 +76,6 @@ export const prisma = new Proxy({} as PrismaClient, {
   },
 })
 
-export function withPrisma<T>(client: PrismaClient, fn: () => Promise<T>): Promise<T> {
-  return requestStorage.run(client, fn)
+export function withPrisma<T>(slot: PrismaSlot, fn: () => Promise<T>): Promise<T> {
+  return requestStorage.run(slot, fn)
 }

@@ -1,8 +1,9 @@
 import { PrismaD1 } from '@prisma/adapter-d1'
 import { PrismaClient } from '@prisma/client'
 import { createApp } from './app'
-import { withPrisma } from './lib/prisma'
+import { createPrismaSlot, withPrisma } from './lib/prisma'
 import { withEnv } from './lib/env'
+import { withD1 } from './lib/d1'
 
 export type WorkerBindings = {
   DB: D1Database
@@ -35,8 +36,12 @@ export default {
     env: WorkerBindings,
     ctx: ExecutionContext,
   ): Promise<Response> {
-    const adapter = new PrismaD1(env.DB)
-    const prisma = new PrismaClient({ adapter })
+    // 按需构造：Prisma 的 WASM 引擎每次实例化都要十几毫秒 CPU，无条件建一个
+    // 等于每个请求都先交这笔钱。走原生 D1 的热路径（播放进度保存）从此完全
+    // 不碰它。槽位在 finally 里检查，没造出来就不用 disconnect。
+    const slot = createPrismaSlot(
+      () => new PrismaClient({ adapter: new PrismaD1(env.DB) }),
+    )
 
     const envBag: Record<string, string | undefined> = {
       JWT_SECRET: env.JWT_SECRET,
@@ -53,10 +58,12 @@ export default {
 
     try {
       return await withEnv(envBag, async () =>
-        withPrisma(prisma, async () => app.fetch(request, env, ctx)),
+        withD1(env.DB, async () =>
+          withPrisma(slot, async () => app.fetch(request, env, ctx)),
+        ),
       )
     } finally {
-      ctx.waitUntil(prisma.$disconnect())
+      if (slot.client) ctx.waitUntil(slot.client.$disconnect())
     }
   },
 }

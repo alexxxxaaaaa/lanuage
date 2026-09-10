@@ -56,6 +56,15 @@ declare global {
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
+/**
+ * 播放中保存进度的最小间隔。YouTube 和 mp3 两条路径共用一个值。
+ *
+ * 原来是 5 秒 —— 一集 46 分钟就是五百多次写，是全站最热的写请求，实测有 14%
+ * 被 Cloudflare 以 exceededCpu 杀掉。拉到 15 秒后请求量降到三分之一；暂停、
+ * 播完、关页面都有各自的保存兜底，最坏情况也就丢十几秒进度。
+ */
+const POSITION_SAVE_MS = 15_000
+
 // The two inline-edit textareas for fixing a wrong auto-caption.
 const EDIT_BOX =
   'w-full resize-y rounded-lg border border-field-border bg-field px-2 py-1.5 font-[inherit] text-sm/[1.5] focus:border-accent focus:outline-none'
@@ -262,9 +271,12 @@ export function PodcastDetailPage() {
               if (next !== currentIdxRef.current) {
                 setCurrentIdx(next)
               }
-              // Throttle PATCH to once every 5s during playback.
+              // Throttle the PATCH during playback. 5s 太密了 —— 一集 46 分钟
+              // 五百多次写，而这个接口是全站最热的写请求，实测有 14% 被
+              // Cloudflare 以 exceededCpu 杀掉。暂停 / 关页面都有各自的保存，
+              // 拉到 15s 最多丢十几秒进度。
               const now = Date.now()
-              if (sec > 5 && now - lastSavedAt > 5000) {
+              if (sec > 5 && now - lastSavedAt > POSITION_SAVE_MS) {
                 void savePodcastPosition(podcast.id, sec).catch(() => {})
                 lastSavedAt = now
               }
@@ -384,7 +396,7 @@ export function PodcastDetailPage() {
       }
       if (next !== currentIdxRef.current) setCurrentIdx(next)
       const now = Date.now()
-      if (sec > 5 && now - lastSavedAt > 5000) {
+      if (sec > 5 && now - lastSavedAt > POSITION_SAVE_MS) {
         void savePodcastPosition(pod.id, sec).catch(() => {})
         lastSavedAt = now
       }

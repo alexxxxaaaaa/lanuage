@@ -11,6 +11,7 @@ import {
 } from './youtubeService'
 import { parseSubtitle } from './subtitleParser'
 import { normalizeExamTag, parseExamTag } from '../lib/examSeries'
+import { getD1, prismaNow } from '../lib/d1'
 
 type SupportedPrimary = 'jp' | 'en'
 
@@ -409,6 +410,26 @@ export async function updatePodcastPosition(
   sec: number,
 ) {
   const clean = Number.isFinite(sec) ? Math.max(0, Math.floor(sec)) : 0
+
+  // 全站最热的写请求：播放时每 5 秒一次，一集 46 分钟就是五百多次，而它做的
+  // 只是一条单行 UPDATE。走 Prisma 的话光建 WASM 引擎就要十几毫秒 CPU，实测
+  // 这个接口 14% 的请求被 Cloudflare 以 exceededCpu 杀掉。直接用 D1 绑定，
+  // 引擎根本不用造。
+  //
+  // updatedAt 必须自己写：@updatedAt 是 Prisma 的行为，原生 SQL 不会触发它，
+  // 而列表页拿它当「最近听过」排序。格式见 lib/d1.prismaNow。
+  const db = getD1()
+  if (db) {
+    await db
+      .prepare(
+        'UPDATE Podcast SET lastPositionSec = ?, updatedAt = ? WHERE id = ? AND userId = ?',
+      )
+      .bind(clean, prismaNow(), id, userId)
+      .run()
+    return { ok: true, sec: clean }
+  }
+
+  // 本地开发没有 D1 绑定，走 Prisma 的等价实现。
   await prisma.podcast.updateMany({
     where: { id, userId },
     data: { lastPositionSec: clean },
