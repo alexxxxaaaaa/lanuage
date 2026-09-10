@@ -30,6 +30,10 @@ export function getD1(): D1Database | null {
  * 原生 SQL 写时间戳必须用同一种写法，否则 Prisma 那头读回来会对不上。
  * （`CURRENT_TIMESTAMP` 给的是 `2026-06-04 06:28:32`，格式不对，别用。）
  */
+export function toPrismaDate(date: Date): string {
+  return date.toISOString().replace('Z', '+00:00')
+}
+
 export function prismaNow(): string {
-  return new Date().toISOString().replace('Z', '+00:00')
+  return toPrismaDate(new Date())
 }
