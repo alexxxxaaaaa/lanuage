@@ -151,24 +151,51 @@ export function pickSpeakableText(
   return text
 }
 
-export function speak(text: string, lang: SpeechLang = 'en', rate = 0.95) {
-  if (!text || !isSpeechSupported()) return
+/** 同语言里挑一个本地合成的音色，排除掉刚失败的那个。 */
+function pickLocalVoice(
+  lang: SpeechLang,
+  excludeName?: string,
+): SpeechSynthesisVoice | undefined {
+  const local = getVoicesForLang(lang).filter(
+    (voice) => voice.localService && voice.name !== excludeName,
+  )
+  if (local.length === 0) return undefined
+  return [...local].sort((a, b) => scoreVoice(b) - scoreVoice(a))[0]
+}
 
-  const synth = window.speechSynthesis
-  synth.cancel()
-
+function speakWith(
+  text: string,
+  lang: SpeechLang,
+  rate: number,
+  voice: SpeechSynthesisVoice | undefined,
+  allowFallback: boolean,
+) {
   const utterance = new SpeechSynthesisUtterance(text)
-  utterance.lang = resolveBcp47(lang)
+  utterance.lang = voice?.lang ?? resolveBcp47(lang)
   utterance.rate = rate
   utterance.pitch = 1
+  if (voice) utterance.voice = voice
 
-  const voice = pickVoice(lang)
-  if (voice) {
-    utterance.voice = voice
-    utterance.lang = voice.lang
+  utterance.onerror = (event) => {
+    // cancel() 会给上一条发 canceled/interrupted —— 那是我们自己打断的，
+    // 不是失败，重播的话等于把刚取消的内容再念一遍。
+    if (event.error === 'canceled' || event.error === 'interrupted') return
+    if (!allowFallback) return
+    // 首选音色念不出来，换一个本地合成的再试一次。最常见的情况是选中的是
+    // Google 那类联网音色（localService === false）—— 它要连 Google 的服务器，
+    // 连不上时整个调用悄无声息，用户看到的就是「点了没反应」。
+    const fallback = pickLocalVoice(lang, voice?.name)
+    if (!fallback) return
+    speakWith(text, lang, rate, fallback, false)
   }
 
-  synth.speak(utterance)
+  window.speechSynthesis.speak(utterance)
+}
+
+export function speak(text: string, lang: SpeechLang = 'en', rate = 0.95) {
+  if (!text || !isSpeechSupported()) return
+  window.speechSynthesis.cancel()
+  speakWith(text, lang, rate, pickVoice(lang), true)
 }
 
 export function stopSpeaking() {

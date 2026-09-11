@@ -58,9 +58,11 @@ export function VoicePicker({ lang, sampleText }: VoicePickerProps) {
         className="min-w-[220px] flex-1"
         options={[
           { value: '', label: '自动(推荐)' },
+          // 标出本地 / 联网：联网音色（Google 那类）要连它自己的服务器，
+          // 连不上时是彻底静默的，标出来才好排查「点了没声音」。
           ...voices.map((voice) => ({
             value: voice.name,
-            label: `${voice.name} · ${voice.lang}`,
+            label: `${voice.name} · ${voice.lang} · ${voice.localService ? '本地' : '联网'}`,
           })),
         ]}
         value={selected}
