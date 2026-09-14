@@ -967,11 +967,13 @@ export function ReviewPage() {
 
         {currentStep.key !== 'recall' ? (
         <>
-        <button
-          type="button"
-          className={`flip-card ${isCardFlipped ? 'is-flipped' : ''}`}
+        {/* 卡片本身不能是 <button>：它里面还装着「听音」按钮和 SpeakButton，
+            button 套 button 是非法 HTML。翻卡的键盘入口由全局的空格快捷键
+            提供（卡面上也写着「空格翻卡看答案」），所以这里不挂 role/tabIndex，
+            避免再次把可交互元素嵌套进可交互元素。 */}
+        <div
+          className={`flip-card cursor-pointer ${isCardFlipped ? 'is-flipped' : ''}`}
           onClick={() => setIsCardFlipped((prev) => !prev)}
-          aria-label="翻转单词卡片"
         >
           <span className="flip-card-face flip-card-front">
             <span className="card-label">{t('review.cardFront')}</span>
@@ -1042,7 +1044,7 @@ export function ReviewPage() {
               </>
             ) : null}
           </span>
-        </button>
+        </div>
 
         <div className="actions rating-actions">
           <div className="rating-action">
