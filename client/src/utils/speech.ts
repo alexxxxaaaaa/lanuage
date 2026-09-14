@@ -151,13 +151,39 @@ export function pickSpeakableText(
   return text
 }
 
+/**
+ * 本次会话里已经证实「点了不出声」的音色。
+ *
+ * 联网合成的音色（Google 那类）要连它自己的服务器，连不上时 Chrome 既不报错
+ * 也不发声，就是纯粹的静默 —— 连 onerror 都没有，只能靠下面的看门狗发现。
+ * 发现一次就记下来，之后直接跳过，否则每念一个词都要先白等一次超时。
+ *
+ * 只存在内存里：网络是会恢复的，刷新页面就重新给它机会。
+ */
+const deadVoices = new Set<string>()
+
+/** 从 speak() 到引擎真正开口的容忍时间。cancel() 之后队列是空的，
+ *  正常情况几十毫秒就 onstart 了，给到 1.2 秒足够宽松。 */
+const START_TIMEOUT_MS = 1200
+
+function markVoiceDead(voice: SpeechSynthesisVoice | undefined, reason: string) {
+  if (!voice) return
+  if (deadVoices.has(voice.name)) return
+  deadVoices.add(voice.name)
+  console.warn(
+    `[speech] 音色「${voice.name}」${reason}，本次会话不再使用。` +
+      `${voice.localService ? '' : '（这是联网合成的音色，需要能连上它的服务器）'}`,
+  )
+}
+
 /** 同语言里挑一个本地合成的音色，排除掉刚失败的那个。 */
 function pickLocalVoice(
   lang: SpeechLang,
   excludeName?: string,
 ): SpeechSynthesisVoice | undefined {
   const local = getVoicesForLang(lang).filter(
-    (voice) => voice.localService && voice.name !== excludeName,
+    (voice) =>
+      voice.localService && voice.name !== excludeName && !deadVoices.has(voice.name),
   )
   if (local.length === 0) return undefined
   return [...local].sort((a, b) => scoreVoice(b) - scoreVoice(a))[0]
@@ -176,25 +202,57 @@ function speakWith(
   utterance.pitch = 1
   if (voice) utterance.voice = voice
 
-  utterance.onerror = (event) => {
-    // cancel() 会给上一条发 canceled/interrupted —— 那是我们自己打断的，
-    // 不是失败，重播的话等于把刚取消的内容再念一遍。
-    if (event.error === 'canceled' || event.error === 'interrupted') return
+  let settled = false
+  let watchdog: number | undefined
+
+  const stopWatchdog = () => {
+    settled = true
+    if (watchdog !== undefined) window.clearTimeout(watchdog)
+  }
+
+  const fallBackToLocal = (reason: string) => {
+    markVoiceDead(voice, reason)
     if (!allowFallback) return
-    // 首选音色念不出来，换一个本地合成的再试一次。最常见的情况是选中的是
-    // Google 那类联网音色（localService === false）—— 它要连 Google 的服务器，
-    // 连不上时整个调用悄无声息，用户看到的就是「点了没反应」。
     const fallback = pickLocalVoice(lang, voice?.name)
     if (!fallback) return
+    window.speechSynthesis.cancel()
     speakWith(text, lang, rate, fallback, false)
   }
 
+  utterance.onstart = stopWatchdog
+  utterance.onend = stopWatchdog
+
+  utterance.onerror = (event) => {
+    // cancel() 会给上一条发 canceled/interrupted —— 那是我们自己打断的，
+    // 不是失败，重播的话等于把刚取消的内容再念一遍。
+    if (event.error === 'canceled' || event.error === 'interrupted') {
+      stopWatchdog()
+      return
+    }
+    stopWatchdog()
+    fallBackToLocal(`报错 ${event.error}`)
+  }
+
   window.speechSynthesis.speak(utterance)
+
+  // 看门狗：光靠 onerror 不够。联网音色连不上服务器时，Chrome 既不发 error
+  // 也不发 start，就是彻底静默 —— 那种情况只能靠「迟迟没有 onstart」发现。
+  if (allowFallback) {
+    watchdog = window.setTimeout(() => {
+      if (settled) return
+      fallBackToLocal('迟迟没有开口（既没 onstart 也没 onerror）')
+    }, START_TIMEOUT_MS)
+  }
 }
 
 export function speak(text: string, lang: SpeechLang = 'en', rate = 0.95) {
   if (!text || !isSpeechSupported()) return
-  window.speechSynthesis.cancel()
+  const synth = window.speechSynthesis
+  synth.cancel()
+  // 引擎可能停在 paused 状态（标签页切到后台、或上一条播到一半被掐）。
+  // paused 的时候 speak() 只会往队列里堆，一声不响，看起来就是「坏了」。
+  // resume() 对没暂停的引擎是无害的空操作，所以无条件调。
+  if (synth.paused) synth.resume()
   speakWith(text, lang, rate, pickVoice(lang), true)
 }
 
@@ -219,10 +277,18 @@ export function primeSpeechOnFirstGesture() {
   const onGesture = () => {
     if (isPrimed) return
     isPrimed = true
-    const utterance = new SpeechSynthesisUtterance(' ')
-    utterance.volume = 0
     try {
-      synth.speak(utterance)
+      // 解锁动作只用 cancel() + resume()，不再去播一条哑 utterance。
+      //
+      // 原来播的是 `new SpeechSynthesisUtterance(' ')` 且 volume = 0 ——
+      // 「空白文本 + 零音量」是 Chrome 语音引擎出了名的会卡住的组合：那条
+      // utterance 可能既不 start 也不 end 地挂在队列头上，后面所有朗读都排在
+      // 它后面永远出不来，表现就是全站静默、本地音色也一样。
+      //
+      // cancel() 同样是「在用户手势里碰过 speechSynthesis」，解锁效果一致，
+      // 但不会往队列里塞任何东西。
+      synth.cancel()
+      synth.resume()
     } catch {
       // ignore
     }
