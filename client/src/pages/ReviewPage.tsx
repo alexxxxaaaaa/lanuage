@@ -12,6 +12,12 @@ import {
   usePageTitle,
 } from '../components/layout/pageContext'
 import { useI18n } from '../i18n'
+import {
+  loadStepOrder,
+  moveStep,
+  saveStepOrder,
+  type ReviewStepKey,
+} from '../lib/reviewStepOrder'
 import { useAppStore } from '../store/useAppStore'
 import { sessionPath, useReportSession } from '../store/useActiveSessions'
 import type { ReviewItem, ReviewRating } from '../types'
@@ -37,6 +43,9 @@ const RATING_TONE = {
 const STEP_PILL =
   'inline-flex items-center rounded-full border px-2.5 py-1.5 text-xs font-bold'
 const STEP_ACTIVE = 'border-accent bg-accent text-accent-foreground'
+// 排序箭头。贴在药丸内侧，只在本轮还没答题时出现。
+const STEP_ARROW =
+  'mx-0.5 inline-flex size-4 cursor-pointer items-center justify-center rounded-full border-none bg-current/15 p-0 text-sm leading-none opacity-70 transition-opacity hover:opacity-100'
 const STEP_DONE = 'border-success/25 bg-success-soft text-success-soft-foreground'
 
 type AgainEntry = {
@@ -46,7 +55,6 @@ type AgainEntry = {
   snapshot: ReviewSnapshot
 }
 
-type ReviewStepKey = 'recognition' | 'recall' | 'pronunciation'
 
 /**
  * Reviews one wordlist's due words.
@@ -62,26 +70,35 @@ export function ReviewPage() {
   const { t } = useI18n()
   const { id: folderId = '' } = useParams<{ id: string }>()
   const isActive = usePageActive()
-  const REVIEW_STEPS = useMemo(
+  // 这个词单的步骤顺序。一轮 session 内不能改 —— 重做队列存的是下标，中途
+  // 换顺序会让它指向另一步，所以下面的排序入口在开始答题后就锁死。
+  const [stepOrder, setStepOrder] = useState<ReviewStepKey[]>(() =>
+    loadStepOrder(folderId),
+  )
+  const STEP_DEFS = useMemo(
     () =>
-      [
-        {
+      ({
+        pronunciation: {
           key: 'pronunciation' as const,
           label: t('review.stepPronunciation'),
           hint: t('review.stepPronunciationHint'),
         },
-        {
+        recognition: {
           key: 'recognition' as const,
           label: t('review.stepRecognition'),
           hint: t('review.stepRecognitionHint'),
         },
-        {
+        recall: {
           key: 'recall' as const,
           label: t('review.stepRecall'),
           hint: t('review.stepRecallHint'),
         },
-      ],
+      }) satisfies Record<ReviewStepKey, { key: ReviewStepKey; label: string; hint: string }>,
     [t],
+  )
+  const REVIEW_STEPS = useMemo(
+    () => stepOrder.map((key) => STEP_DEFS[key]),
+    [stepOrder, STEP_DEFS],
   )
   const dueReviews = useAppStore((state) => state.dueReviews)
   const hasLoadedReviews = useAppStore((state) => state.hasLoadedReviews)
@@ -187,6 +204,22 @@ export function ReviewPage() {
   const currentReview = reviews[currentIndex]
   const currentWord = currentReview?.word
   const completedWords = Math.max(0, total - reviews.length)
+
+  // 排序只在「本轮一题都还没答」时开放。开始之后再改会让 retryStagesByWord
+  // 里存的下标指向另一步 —— 那是数据错乱，不是显示问题。
+  const canReorderSteps =
+    completedWords === 0 &&
+    stepIndex === 0 &&
+    currentIndex === 0 &&
+    Object.keys(stepRatings).length === 0
+
+  const handleMoveStep = (index: number, direction: -1 | 1) => {
+    if (!canReorderSteps) return
+    const next = moveStep(stepOrder, index, direction)
+    if (next === stepOrder) return
+    setStepOrder(next)
+    saveStepOrder(folderId, next)
+  }
 
   // Coming back to a finished session that has fresh due words (an `again`
   // rating resurfaces the word later the same day) starts the next round
@@ -816,7 +849,7 @@ export function ReviewPage() {
           </div>
         </div>
 
-        <div className="my-1 mb-1.5 flex flex-wrap justify-center gap-2">
+        <div className="my-1 mb-1.5 flex flex-wrap items-center justify-center gap-2">
           {REVIEW_STEPS.map((step, idx) => (
             <span
               key={step.key}
@@ -828,10 +861,37 @@ export function ReviewPage() {
                     : 'border-border bg-surface text-muted'
               }`}
             >
+              {canReorderSteps && idx > 0 ? (
+                <button
+                  type="button"
+                  className={STEP_ARROW}
+                  onClick={() => handleMoveStep(idx, -1)}
+                  aria-label={`把「${step.label}」往前挪`}
+                  title="往前挪"
+                >
+                  ‹
+                </button>
+              ) : null}
               {idx + 1}. {step.label}
+              {canReorderSteps && idx < REVIEW_STEPS.length - 1 ? (
+                <button
+                  type="button"
+                  className={STEP_ARROW}
+                  onClick={() => handleMoveStep(idx, 1)}
+                  aria-label={`把「${step.label}」往后挪`}
+                  title="往后挪"
+                >
+                  ›
+                </button>
+              ) : null}
             </span>
           ))}
         </div>
+        {canReorderSteps ? (
+          <p className="muted m-0 text-center text-xs">
+            用 ‹ › 调整本词单的复习顺序，会记住；开始答题后锁定
+          </p>
+        ) : null}
         <p className="muted mx-0 mt-0 mb-3.5 text-[13px]">{currentStep.hint}</p>
 
         <VoicePicker
