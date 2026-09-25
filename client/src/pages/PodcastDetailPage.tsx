@@ -19,7 +19,7 @@ import {
 import { AddWordFromSubtitleDialog } from '../components/AddWordFromSubtitleDialog'
 import { useAppStore } from '../store/useAppStore'
 import type { Podcast } from '../types'
-import { Button } from '@heroui/react'
+import { Button, toast } from '@heroui/react'
 
 // Minimal YouTube IFrame Player types — pulled in just for the methods we use.
 type YTPlayer = {
@@ -540,8 +540,11 @@ export function PodcastDetailPage() {
         })
       }
       cancelEditLine()
-    } catch {
-      // Leave the edit panel open so the user can retry. Don't trash their text.
+    } catch (err) {
+      // 编辑框留在原地让用户重试、不动他打的字 —— 但光留着不说话，看起来
+      // 和「点了没反应」没区别。这条路径绕开了 store，页面上也没有兜底的
+      // 错误行，不弹一下就真的什么都看不到。
+      toast.danger(getErrorMessage(err, '字幕保存失败'))
     } finally {
       setIsSavingEdit(false)
     }

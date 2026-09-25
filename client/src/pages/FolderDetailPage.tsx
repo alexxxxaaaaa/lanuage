@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Chip, Input, TextArea } from '@heroui/react'
+import { Button, Chip, Input, TextArea, toast } from '@heroui/react'
 import { Sparkles } from 'lucide-react'
 import { Modal } from '../components/ui/Modal'
 import { Pager } from '../components/ui/Pager'
@@ -362,15 +362,25 @@ export function FolderDetailPage() {
           content: t('folderDetail.duplicateContent', { word: nextWord }),
           okText: t('folderDetail.gotIt'),
         })
+        return
       }
+      // 重复词以外的失败原来被整个吞掉：编辑框留在原地，但不说为什么没保存上。
+      toast.danger(getErrorMessage(error, '保存失败'))
     }
   }
 
   const handleDelete = async (word: Word) => {
     const confirmed = window.confirm(t('folderDetail.deleteConfirm', { word: word.word }))
     if (!confirmed) return
-    await useAppStore.getState().deleteWord(word.id)
-    reloadFolder()
+    // store 的 deleteWord 会在失败时 rethrow。原来这里不接，失败就成了一个
+    // 没人处理的 rejected promise：词还在列表里，但没有任何说明。
+    try {
+      await useAppStore.getState().deleteWord(word.id)
+      toast.success(`已删除「${word.word}」`)
+      reloadFolder()
+    } catch (err) {
+      toast.danger(getErrorMessage(err, '删除失败'))
+    }
   }
 
   // Sort comparator matching the server's orderBy on /api/folders/:id —
@@ -401,6 +411,14 @@ export function FolderDetailPage() {
           .sort(sortByPinThenCreated)
         return { ...prev, words: nextWords }
       })
+      // 必须给成功提示：这个词可能本来就排在靠前的位置，置顶前后看不出差别；
+      // 在长列表里往下翻着点的时候，列表顶部发生了什么也完全在视线之外。
+      toast.success(`已置顶「${word.word}」`)
+    } catch (err) {
+      // 这里绕开了 store，所以错误进不了页面顶部那行红字（见 store 的
+      // updateWord：它会把错误写进 error 再 rethrow）。原来连 catch 都没有，
+      // 失败就是一个没人处理的 rejected promise —— 用户什么都看不到。
+      toast.danger(getErrorMessage(err, '置顶失败'))
     } finally {
       setPinningId(null)
     }
