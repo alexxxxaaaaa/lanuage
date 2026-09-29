@@ -14,6 +14,7 @@ import {
   toast,
 } from '@heroui/react'
 import { Plus, RotateCcw, Sparkles, Trash2 } from 'lucide-react'
+import { Link } from 'react-router'
 
 import { DictEntryResults } from './DictEntryResults'
 import { JlptChips } from './JlptChips'
@@ -264,7 +265,18 @@ export function WordLookupCard({
             <TagGroup.List items={currentFolders} className="gap-1.5">
               {(folder) => (
                 <Tag key={folder.id} id={folder.id} textValue={folder.name}>
-                  {folder.name}
+                  {/* 点词单名跳到那个词单里这个词的位置。`#word-<id>` 这个形式
+                      词单详情页已经认得：它会清掉可能把词藏起来的筛选、翻到
+                      对应那一页、滚过去并高亮（见 FolderDetailPage 里读
+                      location.hash 的那段）。所以这里只要给个链接。
+                      叉号仍然是移除，两者互不影响。 */}
+                  <Link
+                    className="text-inherit no-underline hover:underline"
+                    to={`/folders/${folder.id}#word-${existingWord?.id ?? ''}`}
+                    title={`在「${folder.name}」里查看`}
+                  >
+                    {folder.name}
+                  </Link>
                 </Tag>
               )}
             </TagGroup.List>
