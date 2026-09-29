@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Button, EmptyState, Table, Tooltip, toast } from '@heroui/react'
 import { RotateCcw } from 'lucide-react'
 import { Link, useNavigate } from 'react-router'
@@ -14,7 +14,8 @@ import { getErrorMessage } from '../../api/error'
 import { confirm } from '../../components/ui/dialog'
 import { useOnPageReactivated } from '../../components/layout/pageContext'
 import { useSettings } from '../../store/useSettings'
-import { examModeLabel, paperLabel } from './constants'
+import { paperLabel } from './constants'
+import { useI18n } from '../../i18n'
 import {
   ACTION_LINK,
   CELL_ACTIONS,
@@ -29,26 +30,32 @@ import {
  * 一套卷同时只有一份考试记录，「重置」就是把它删掉重来 —— 所以重置要弹确认。
  */
 
-const PHASE_TEXT: Record<ExamPhase, string> = {
-  written: '笔试中',
-  listening: '听力中',
-  done: '已完成',
-}
-
 export function ExamPaperList() {
+  const { t } = useI18n()
+  // 阶段名原来是模块级常量，拿不到 t —— 挪进组件里按当前语言取。
+  const phaseText: Record<ExamPhase, string> = {
+    written: t('jlpt.phase.written'),
+    listening: t('jlpt.phase.listening'),
+    done: t('jlpt.phase.done'),
+  }
   const navigate = useNavigate()
   const mode = useSettings((s) => s.settings.examMode)
   const [papers, setPapers] = useState<ExamPaper[] | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
-  const load = () =>
-    getExamPapers()
-      .then(setPapers)
-      .catch((e) => toast.danger(getErrorMessage(e, '加载考试列表失败')))
+  // useCallback 是因为它闭包了 t：不包住的话每次渲染都是新函数，effect 依赖
+  // 里挂不住。t 只随界面语言变，所以实际只会在切语言时重建一次。
+  const load = useCallback(
+    () =>
+      getExamPapers()
+        .then(setPapers)
+        .catch((e) => toast.danger(getErrorMessage(e, t('jlpt.loadPapersFailed')))),
+    [t],
+  )
 
   useEffect(() => {
     void load()
-  }, [])
+  }, [load])
 
   // JLPT 页是 keep-alive 的，考完试回来这份列表还是旧的，重新对一次分数和进度。
   useOnPageReactivated(() => void load())
@@ -62,7 +69,7 @@ export function ExamPaperList() {
       await startExam(paper.year, paper.month, mode)
       navigate(examHref(paper))
     } catch (e) {
-      toast.danger(getErrorMessage(e, '开考失败'))
+      toast.danger(getErrorMessage(e, t('jlpt.startFailed')))
     } finally {
       setBusy(null)
     }
@@ -70,10 +77,10 @@ export function ExamPaperList() {
 
   const reset = async (paper: ExamPaper) => {
     const ok = await confirm({
-      title: `重置 ${paperLabel(paper.year, paper.month)}？`,
-      content: '这套卷子的作答和成绩会被清空，可以重新开考。已收进错题本的题不受影响。',
-      okText: '重置',
-      cancelText: '取消',
+      title: t('jlpt.resetTitle', { paper: paperLabel(paper.year, paper.month) }),
+      content: t('jlpt.resetContent'),
+      okText: t('jlpt.reset'),
+      cancelText: t('common.cancel'),
       status: 'warning',
     })
     if (!ok) return
@@ -86,9 +93,9 @@ export function ExamPaperList() {
           p.year === paper.year && p.month === paper.month ? { ...p, attempt: null } : p,
         ),
       )
-      toast.success('已重置')
+      toast.success(t('jlpt.resetDone'))
     } catch (e) {
-      toast.danger(getErrorMessage(e, '重置失败'))
+      toast.danger(getErrorMessage(e, t('jlpt.resetFailed')))
     } finally {
       setBusy(null)
     }
@@ -97,26 +104,28 @@ export function ExamPaperList() {
   return (
     <div className="grid gap-3">
       <p className="muted m-0 text-[13px]">
-        整卷计时开考：笔试（文字・語彙 / 文法 / 読解）限时 110 分，交卷后才能进听力，听力整段连着播完。
-        当前考试模式 <b className="text-foreground">{examModeLabel(mode)}</b>，
+        {t('jlpt.examIntro')}{' '}
+        {t('jlpt.examModeCurrent')}{' '}
+        <b className="text-foreground">{t(`jlpt.examMode.${mode}`)}</b>
+        {t('jlpt.examModeSuffix')}
+        {' · '}
         <Link className="text-accent underline-offset-2 hover:underline" to="/settings">
-          去设置里改
+          {t('jlpt.goSettings')}
         </Link>
-        。
       </p>
 
       <Table>
         <Table.ScrollContainer>
-          <Table.Content aria-label="模拟考试卷次" className={TABLE_DENSE}>
+          <Table.Content aria-label={t('jlpt.papersLabel')} className={TABLE_DENSE}>
             <Table.Header>
-              <Table.Column isRowHeader>卷次</Table.Column>
-              <Table.Column>进度</Table.Column>
-              <Table.Column className="text-end">操作</Table.Column>
+              <Table.Column isRowHeader>{t('jlpt.colPaper')}</Table.Column>
+              <Table.Column>{t('jlpt.colProgress')}</Table.Column>
+              <Table.Column className="text-end">{t('jlpt.colAction')}</Table.Column>
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (
                 <EmptyState className="py-10 text-center text-sm text-muted">
-                  {papers ? '题库还没导入。' : '加载中…'}
+                  {papers ? t('jlpt.notImported') : t('jlpt.loading')}
                 </EmptyState>
               )}
             >
@@ -129,7 +138,7 @@ export function ExamPaperList() {
                     <Table.Cell>
                       <div className={CELL_MAIN}>{paperLabel(paper.year, paper.month)}</div>
                       <div className={CELL_SUB}>
-                        {paper.writtenTotal + paper.listeningTotal} 题
+                        {t('jlpt.questionCount', { count: paper.writtenTotal + paper.listeningTotal })}
                       </div>
                     </Table.Cell>
 
@@ -137,7 +146,7 @@ export function ExamPaperList() {
                     <Table.Cell>
                       {attempt ? (
                         <>
-                          <div className={CELL_MAIN}>{PHASE_TEXT[attempt.phase]}</div>
+                          <div className={CELL_MAIN}>{phaseText[attempt.phase]}</div>
                           {attempt.score ? (
                             // 着色只落在得分那个数上：满分是常量，染了也没多告诉一句。
                             <div className={CELL_SUB}>
@@ -151,11 +160,11 @@ export function ExamPaperList() {
                               / 180
                             </div>
                           ) : (
-                            <div className={CELL_SUB}>已答 {attempt.answered}</div>
+                            <div className={CELL_SUB}>{t('jlpt.answeredCount', { count: attempt.answered })}</div>
                           )}
                         </>
                       ) : (
-                        <span className="text-muted">未开始</span>
+                        <span className="text-muted">{t('jlpt.notStarted')}</span>
                       )}
                     </Table.Cell>
 
@@ -163,7 +172,7 @@ export function ExamPaperList() {
                       <div className={CELL_ACTIONS}>
                         {attempt ? (
                           <Link className={ACTION_LINK} to={examHref(paper)}>
-                            {attempt.phase === 'done' ? '看成绩' : '继续'}
+                            {attempt.phase === 'done' ? t('jlpt.viewScore') : t('jlpt.resume')}
                           </Link>
                         ) : (
                           <Button
@@ -171,7 +180,7 @@ export function ExamPaperList() {
                             size="sm"
                             onPress={() => void start(paper)}
                           >
-                            开始考试
+                            {t('jlpt.startExam')}
                           </Button>
                         )}
                         {/* 没考过就没得重置 —— 与其摆一个永远灰着的按钮，不如不占这一格。 */}
@@ -179,7 +188,7 @@ export function ExamPaperList() {
                           <Tooltip delay={300}>
                             <Button
                               isIconOnly
-                              aria-label="重置这套卷"
+                              aria-label={t('jlpt.resetPaper')}
                               isDisabled={isBusy}
                               size="sm"
                               variant="ghost"
@@ -187,7 +196,7 @@ export function ExamPaperList() {
                             >
                               <RotateCcw className="size-4" aria-hidden />
                             </Button>
-                            <Tooltip.Content>重置这套卷</Tooltip.Content>
+                            <Tooltip.Content>{t('jlpt.resetPaper')}</Tooltip.Content>
                           </Tooltip>
                         ) : null}
                       </div>

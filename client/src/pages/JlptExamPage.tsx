@@ -12,6 +12,7 @@ import {
   type ExamState,
 } from '../api/qbankExam'
 import { getErrorMessage } from '../api/error'
+import { useI18n } from '../i18n'
 import { confirm } from '../components/ui/dialog'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import {
@@ -25,7 +26,6 @@ import { ExamListeningPlayer, type ListeningSegment } from './jlpt/ExamListening
 import { ExamQuestionList } from './jlpt/ExamQuestionList'
 import { ExamScoreCard } from './jlpt/ExamScoreCard'
 import {
-  examModeLabel,
   formatClock,
   isAcceptedAnswer,
   paperLabel,
@@ -234,13 +234,15 @@ function ExamHeader({
   subtitle: string
   extra?: string
 }) {
+  const { t } = useI18n()
   return (
     <header className="section-header">
       <div>
         <h2>{paperLabel(state.year, state.month)} 模拟考试</h2>
         <p className="muted mt-1 mb-0 text-[13px]">
           {subtitle}
-          {extra ? ` · ${extra}` : ''} · {examModeLabel(state.mode)}模式
+          {extra ? ` · ${extra}` : ''} · {t(`jlpt.examMode.${state.mode}`)}
+          {t('jlpt.examModeSuffix')}
         </p>
       </div>
       <Link className="button button--outline button--sm shrink-0" to="/jlpt">

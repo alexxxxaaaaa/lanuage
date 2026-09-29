@@ -101,7 +101,7 @@ export function SettingsPage() {
             aria-label={t('settings.examMode')}
             value={examMode}
             onChange={(mode) => update({ examMode: mode })}
-            options={EXAM_MODES.map((m) => ({ value: m.value, label: m.label }))}
+            options={EXAM_MODES.map((m) => ({ value: m.value, label: t(`jlpt.examMode.${m.value}`) }))}
           />
           <ul className="m-0 grid list-none gap-1.5 p-0">
             {EXAM_MODES.map((m) => (
@@ -111,7 +111,9 @@ export function SettingsPage() {
                 }`}
                 key={m.value}
               >
-                <b>{m.label}</b>：{m.desc}
+                <b>{t(`jlpt.examMode.${m.value}`)}</b>
+                {t('jlpt.descSeparator')}
+                {t(`jlpt.examModeDesc.${m.value}`)}
               </li>
             ))}
           </ul>
