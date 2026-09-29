@@ -14,7 +14,8 @@ import {
 } from '../api/qbank'
 import { getErrorMessage } from '../api/error'
 import { usePageActive } from '../components/layout/pageContext'
-import { CATEGORIES, categoryLabel, mondaiLabel, mondaiMeta, paperLabel } from './jlpt/constants'
+import { CATEGORIES, mondaiLabel, mondaiMeta, paperLabel } from './jlpt/constants'
+import { useI18n } from '../i18n'
 import { ExamPaperList } from './jlpt/ExamPaperList'
 import {
   ACTION_LINK,
@@ -82,6 +83,7 @@ function toNodes(groups: QbankOverviewGroup[]): PracticeNode[] {
  * `renderRow`，靠 <Table.Collection> 递归下去，展开态由表格自己管。
  */
 function PracticeTable({ groups }: { groups: QbankOverviewGroup[] }) {
+  const { t } = useI18n()
   const [expandedKeys, setExpandedKeys] = useState<Selection>(() => new Set())
   const items = useMemo(() => toNodes(groups), [groups])
 
@@ -94,7 +96,7 @@ function PracticeTable({ groups }: { groups: QbankOverviewGroup[] }) {
               hasChildItems ? (
                 <Button
                   isIconOnly
-                  aria-label="展开卷次"
+                  aria-label={t('jlpt.expandPapers')}
                   size="sm"
                   slot="chevron"
                   variant="ghost"
@@ -125,7 +127,7 @@ function PracticeTable({ groups }: { groups: QbankOverviewGroup[] }) {
       <Table.Cell>
         <div className={CELL_ACTIONS}>
           <Link className={ACTION_LINK} to={node.href}>
-            练习
+            {t('jlpt.practice')}
           </Link>
         </div>
       </Table.Cell>
@@ -137,7 +139,7 @@ function PracticeTable({ groups }: { groups: QbankOverviewGroup[] }) {
     <Table>
       <Table.ScrollContainer>
         <Table.Content
-          aria-label="精练目录"
+          aria-label={t('jlpt.catalogLabel')}
           className={TABLE_DENSE}
           expandedKeys={expandedKeys}
           treeColumn="mondai"
@@ -145,18 +147,18 @@ function PracticeTable({ groups }: { groups: QbankOverviewGroup[] }) {
         >
           <Table.Header>
             <Table.Column id="mondai" isRowHeader>
-              題型
+              {t('jlpt.colType')}
             </Table.Column>
-            <Table.Column id="progress">已答</Table.Column>
+            <Table.Column id="progress">{t('jlpt.colAnswered')}</Table.Column>
             <Table.Column className="text-end" id="actions">
-              操作
+              {t('jlpt.colAction')}
             </Table.Column>
           </Table.Header>
           <Table.Body
             items={items}
             renderEmptyState={() => (
               <EmptyState className="px-4 py-10 text-center text-sm text-muted">
-                这个大类还没导入题目。
+                {t('jlpt.emptyCategory')}
               </EmptyState>
             )}
           >
@@ -170,6 +172,7 @@ function PracticeTable({ groups }: { groups: QbankOverviewGroup[] }) {
 
 /** 收藏 / 错题：题目不按考卷排，只按題型聚合，好挑着重练。 */
 function MarkedPanel({ overview }: { overview: QbankOverview }) {
+  const { t } = useI18n()
   const [scope, setScope] = useState<Exclude<QbankScope, 'all'>>('favorite')
   const [groups, setGroups] = useState<Array<{ category: string; mondaiNo: number; count: number }> | null>(
     null,
@@ -192,7 +195,7 @@ function MarkedPanel({ overview }: { overview: QbankOverview }) {
         }
         setGroups([...byGroup.values()])
       } catch (e) {
-        if (!ignore) toast.danger(getErrorMessage(e, '加载失败'))
+        if (!ignore) toast.danger(getErrorMessage(e, t('jlpt.loadFailed')))
       } finally {
         if (!ignore) setIsLoading(false)
       }
@@ -201,7 +204,7 @@ function MarkedPanel({ overview }: { overview: QbankOverview }) {
     return () => {
       ignore = true
     }
-  }, [scope, overview])
+  }, [scope, overview, t])
 
   const total = groups?.reduce((sum, g) => sum + g.count, 0) ?? 0
 
@@ -212,33 +215,33 @@ function MarkedPanel({ overview }: { overview: QbankOverview }) {
           value={scope}
           onChange={(v) => setScope(v as 'favorite' | 'wrong')}
           options={[
-            { label: `收藏 ${overview.favoriteCount}`, value: 'favorite' },
-            { label: `错题 ${overview.wrongCount}`, value: 'wrong' },
+            { label: t('jlpt.statFavorite', { count: overview.favoriteCount }), value: 'favorite' },
+            { label: t('jlpt.statWrong', { count: overview.wrongCount }), value: 'wrong' },
           ]}
         />
         {total > 0 ? (
           <Link className="button button--primary button--sm shrink-0" to={practiceHref({ scope })}>
-            全部练习（{total}）
+            {t('jlpt.practiceAll', { total })}
           </Link>
         ) : null}
       </div>
 
       <Table>
         <Table.ScrollContainer>
-          <Table.Content aria-label={scope === 'favorite' ? '收藏的题' : '错题'} className={TABLE_DENSE}>
+          <Table.Content aria-label={scope === 'favorite' ? t('jlpt.favoriteQuestions') : t('jlpt.wrongQuestions')} className={TABLE_DENSE}>
             <Table.Header>
-              <Table.Column isRowHeader>題型</Table.Column>
-              <Table.Column>题数</Table.Column>
-              <Table.Column className="text-end">操作</Table.Column>
+              <Table.Column isRowHeader>{t('jlpt.colType')}</Table.Column>
+              <Table.Column>{t('jlpt.colCount')}</Table.Column>
+              <Table.Column className="text-end">{t('jlpt.colAction')}</Table.Column>
             </Table.Header>
             <Table.Body
               renderEmptyState={() => (
                 <EmptyState className="px-4 py-10 text-center text-sm text-muted">
                   {isLoading
-                    ? '加载中…'
+                    ? t('jlpt.loading')
                     : scope === 'favorite'
-                      ? '还没有收藏的题。做题时点题目下面的星标就能收进来。'
-                      : '还没有错题——答错的题会自动进这里，答对后自动移出。'}
+                      ? t('jlpt.emptyFavorite')
+                      : t('jlpt.emptyWrong')}
                 </EmptyState>
               )}
             >
@@ -249,7 +252,7 @@ function MarkedPanel({ overview }: { overview: QbankOverview }) {
                     <Table.Cell>
                       <div className={CELL_MAIN}>{mondaiLabel(g.category, g.mondaiNo)}</div>
                       <div className={CELL_SUB}>
-                        {categoryLabel(g.category)} · {mondaiMeta(g.category, g.mondaiNo).type}
+                        {t(`jlpt.cat.${g.category}`)} · {mondaiMeta(g.category, g.mondaiNo).type}
                       </div>
                     </Table.Cell>
                     <Table.Cell className={CELL_NUM}>{g.count}</Table.Cell>
@@ -259,7 +262,7 @@ function MarkedPanel({ overview }: { overview: QbankOverview }) {
                           className={ACTION_LINK}
                           to={practiceHref({ category: g.category, mondaiNo: g.mondaiNo, scope })}
                         >
-                          练习
+                          {t('jlpt.practice')}
                         </Link>
                       </div>
                     </Table.Cell>
@@ -279,6 +282,7 @@ function MarkedPanel({ overview }: { overview: QbankOverview }) {
  * → 年份」三级精练目录，每一级都能直接开练，題型级是「该題型全部年份连着做」。
  */
 export function JlptPage() {
+  const { t } = useI18n()
   const isActive = usePageActive()
   const [overview, setOverview] = useState<QbankOverview | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -290,9 +294,11 @@ export function JlptPage() {
     if (!isActive) return
     getQbankOverview()
       .then(setOverview)
-      .catch((e) => toast.danger(getErrorMessage(e, '加载题库失败')))
+      .catch((e) => toast.danger(getErrorMessage(e, t('jlpt.loadBankFailed'))))
       .finally(() => setIsLoading(false))
-  }, [isActive])
+    // t 进依赖只会在切换界面语言时多拉一次 overview —— 无副作用，
+    // 换来的是报错 toast 跟着界面语言走。
+  }, [isActive, t])
 
   const byCategory = useMemo(() => {
     const map = new Map<string, QbankOverviewGroup[]>()
@@ -312,10 +318,9 @@ export function JlptPage() {
     <section className="page">
       <div className="section-header">
         <div>
-          <h2>N1 题库</h2>
+          <h2>{t('jlpt.title')}</h2>
           <p className="muted">
-            2010–2025 共 31 套真题。整卷计时考是「模拟考试」，单题精练按題型和年份来 ——
-            精练选完选项立刻出答案和解析，做过的题记在答题卡里。
+            {t('jlpt.intro')}
           </p>
         </div>
       </div>
@@ -326,23 +331,23 @@ export function JlptPage() {
         </div>
       ) : !overview ? (
         <div className="card state-card">
-          <p className="muted">题库还没导入。</p>
+          <p className="muted">{t('jlpt.notImported')}</p>
         </div>
       ) : (
         <>
           <div className="-mt-2 flex flex-wrap gap-1.5">
-            <Chip>全库 {totalQuestions} 题</Chip>
+            <Chip>{t('jlpt.statTotal', { count: totalQuestions })}</Chip>
             <Chip color="accent" variant="soft">
-              已做 {totalAnswered}
+              {t('jlpt.statAnswered', { count: totalAnswered })}
             </Chip>
             {overview.wrongCount > 0 ? (
               <Chip color="danger" variant="soft">
-                错题 {overview.wrongCount}
+                {t('jlpt.statWrong', { count: overview.wrongCount })}
               </Chip>
             ) : null}
             {overview.favoriteCount > 0 ? (
               <Chip color="warning" variant="soft">
-                收藏 {overview.favoriteCount}
+                {t('jlpt.statFavorite', { count: overview.favoriteCount })}
               </Chip>
             ) : null}
           </div>
@@ -354,20 +359,27 @@ export function JlptPage() {
             // 超出时 Tabs.ListContainer 自带横向滑动 + 渐隐箭头兜底。
             className="max-md:**:data-[slot=tabs-tab]:px-2 max-md:**:data-[slot=tabs-tab]:text-[13px]"
             items={[
-              { key: 'mock', label: '模拟考试', children: <ExamPaperList /> },
-              ...CATEGORIES.map((c) => ({
+              { key: 'mock', label: t('jlpt.tabMock'), children: <ExamPaperList /> },
+              ...CATEGORIES.map((c) => {
+                const label = t(`jlpt.cat.${c.key}`)
+                return {
                 key: c.key,
                 label: (
                   <>
-                    {c.label}
-                    <span className="max-md:hidden"> {c.section}</span>
+                    {label}
+                    {/* 日文界面下 label 本身就是分区名（読解 等），再挂一次
+                        c.section 就重复了，所以只在两者不同的时候显示。 */}
+                    {label === c.section ? null : (
+                      <span className="max-md:hidden"> {c.section}</span>
+                    )}
                   </>
                 ),
                 children: <PracticeTable groups={byCategory.get(c.key) ?? []} />,
-              })),
+                }
+              }),
               {
                 key: 'marked',
-                label: '收藏 / 错题',
+                label: t('jlpt.tabMarked'),
                 children: <MarkedPanel overview={overview} />,
               },
             ]}
