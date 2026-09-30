@@ -633,6 +633,27 @@ export function PodcastDetailPage() {
     }
   }, [isActive, wordDraft])
 
+  // 离开这一页就暂停。
+  //
+  // 路由是 keep-alive 的：切走时组件不卸载，播放器照常在后台跑。所以点返回
+  // 之后声音还在，再开另一集就是两个实例同时响，叠在一起。
+  //
+  // 只按暂停，不销毁播放器 —— 播放器本来就是刻意保活的（见上面 iframe 那段
+  // 注释：display:none 会让 YouTube 冻结 iframe，醒来时停在过期的 ended 状态）。
+  // 进度不用在这里存：暂停会触发 YouTube 的 onStateChange(PAUSED) 和 <audio>
+  // 的 pause 事件，那两个 handler 各自都会落一次进度。
+  useEffect(() => {
+    if (isActive) return
+    const player = playerRef.current
+    if (!player) return
+    try {
+      // 1 = playing（YT 的枚举，mp3 适配器也按这个返）
+      if (player.getPlayerState() === 1) player.pauseVideo()
+    } catch {
+      // 播放器还没就绪或已销毁 —— 那本来也就没有声音要停。
+    }
+  }, [isActive])
+
   // 存完词后的一句提示，2.5 秒自动收。
   useEffect(() => {
     if (!savedWordToast) return
