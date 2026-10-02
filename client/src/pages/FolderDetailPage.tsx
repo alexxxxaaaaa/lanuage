@@ -97,6 +97,34 @@ function isEmptyContent(word: Word) {
   return !word.meaning.trim() && !word.example.trim()
 }
 
+/**
+ * 批量添加输入框的草稿，按词单分开存。
+ *
+ * 弹窗本身已经禁掉了「点外部 / Esc」关闭，但那只挡住误触这一种丢法 ——
+ * 误点「取消」、刷新页面、浏览器崩溃照样会清空。粘了几十个词再丢一次就够
+ * 难受的，所以多存一份。提交成功后清掉，下次打开是干净的。
+ */
+const BATCH_DRAFT_PREFIX = 'folder-batch-draft:'
+
+function loadBatchDraft(folderId: string | undefined): string {
+  if (typeof window === 'undefined' || !folderId) return ''
+  try {
+    return window.localStorage.getItem(BATCH_DRAFT_PREFIX + folderId) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function saveBatchDraft(folderId: string | undefined, value: string) {
+  if (typeof window === 'undefined' || !folderId) return
+  try {
+    if (value.trim()) window.localStorage.setItem(BATCH_DRAFT_PREFIX + folderId, value)
+    else window.localStorage.removeItem(BATCH_DRAFT_PREFIX + folderId)
+  } catch {
+    // 隐私模式 / 配额满 —— 本次会话内存里的输入照常可用。
+  }
+}
+
 export function FolderDetailPage() {
   const { t } = useI18n()
   const PAGE_SIZE = 12
@@ -523,7 +551,8 @@ export function FolderDetailPage() {
   }
 
   const openBatchModal = () => {
-    setBatchInput('')
+    // 上次没提交完的内容接着用，而不是一进来就清空。
+    setBatchInput(loadBatchDraft(id))
     setBatchResults([])
     setIsBatchOpen(true)
   }
@@ -1151,6 +1180,10 @@ export function FolderDetailPage() {
           if (batchRunning) return
           setIsBatchOpen(false)
         }}
+        // 点外部和 Esc 都不关：这里面可能粘了几十个词，误触一下全没了。
+        // 只能走右上角的 × 或下面的「取消」——那两个都是明确的关闭动作。
+        isDismissable={false}
+        isKeyboardDismissDisabled
         size="md"
       >
         {batchResults.length === 0 ? (
@@ -1160,7 +1193,10 @@ export function FolderDetailPage() {
             </p>
             <TextArea
               value={batchInput}
-              onChange={(e) => setBatchInput(e.target.value)}
+              onChange={(e) => {
+                setBatchInput(e.target.value)
+                saveBatchDraft(id, e.target.value)
+              }}
               placeholder={'例如:\n勉強\n頑張る、励まし'}
               rows={8}
             />
@@ -1240,6 +1276,7 @@ export function FolderDetailPage() {
                     setIsBatchOpen(false)
                     setBatchInput('')
                     setBatchResults([])
+                    saveBatchDraft(id, '')
                   }}
                 >
                   完成
