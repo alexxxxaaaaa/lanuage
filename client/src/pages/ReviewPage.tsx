@@ -48,6 +48,9 @@ const STEP_ARROW =
   'mx-0.5 inline-flex size-4 cursor-pointer items-center justify-center rounded-full border-none bg-current/15 p-0 text-sm leading-none opacity-70 transition-opacity hover:opacity-100'
 const STEP_DONE = 'border-success/25 bg-success-soft text-success-soft-foreground'
 
+/** 同一个词当天最多重做几轮 —— 到顶就提交，不再往回排。 */
+const MAX_REPEATS_PER_DAY = 3
+
 type AgainEntry = {
   wordId: string
   word: string
@@ -243,9 +246,11 @@ export function ReviewPage() {
   // ONLY see recall on retry (not pronunciation/recognition again).
   const currentRetryStages =
     currentReview ? retryStagesByWord[currentReview.wordId] : undefined
+  // 过滤越界下标：改过步骤顺序、或者老会话残留的队列可能指到不存在的位置，
+  // REVIEW_STEPS[越界] 是 undefined，再往下读 currentStep.key 就直接白屏。
   const retryStep =
     currentRetryStages && currentRetryStages.length > 0
-      ? currentRetryStages[0]
+      ? (currentRetryStages.find((idx) => idx >= 0 && idx < REVIEW_STEPS.length) ?? null)
       : null
   const effectiveStepIndex = retryStep ?? stepIndex
   const currentStep = REVIEW_STEPS[effectiveStepIndex]
@@ -374,7 +379,12 @@ export function ReviewPage() {
     const nextDebt = Math.max(0, currentDebt - 1 + cycleDelta)
     const repeatCount = repeatCountByWord[wordId] ?? 0
     const hasAgainInCycle = allRatings.includes('again')
-    const shouldRepeatToday = hasAgainInCycle || (nextDebt >= 2 && repeatCount < 3)
+    // 两条触发重做的路收同一个上限。原来 again 这条是无上限的 —— 只要这一轮
+    // 评过 again 就必定再来一轮，一个词理论上能在当天无限循环。到达上限后照常
+    // 提交，而 repeatPenalty >= 2 会把最终评级压成 again，FSRS 那边本来就会把
+    // 它排到很近的时间，并不是「放过」这个词。
+    const shouldRepeatToday =
+      repeatCount < MAX_REPEATS_PER_DAY && (hasAgainInCycle || nextDebt >= 2)
 
     setDebtByWord((prev) => ({
       ...prev,
@@ -391,11 +401,19 @@ export function ReviewPage() {
       // retry = [0, 2]. If the debt threshold triggered a retry without any
       // explicit 'again' rating (rare), fall back to all-three so the user
       // gets a full re-round.
+      //
+      // 下标必须按 REVIEW_STEPS 的当前顺序算，不能写死 0/1/2。
+      // 队列里存的是「第几步」，而 REVIEW_STEPS 是按用户排的顺序生成的 ——
+      // 一旦调过顺序，写死的语义下标就指到别的步骤上：失败的那一步的 again
+      // 永远没人覆盖，hasAgainInCycle 恒为真，这个词就无限循环，用户评 easy
+      // 也出不去（评的是另一步）。
       const failedStages: number[] = []
-      if (allRatings[0] === 'again') failedStages.push(0)
-      if (allRatings[1] === 'again') failedStages.push(1)
-      if (allRatings[2] === 'again') failedStages.push(2)
-      if (failedStages.length === 0) failedStages.push(0, 1, 2)
+      REVIEW_STEPS.forEach((step, idx) => {
+        if ((stages[step.key] ?? 'easy') === 'again') failedStages.push(idx)
+      })
+      if (failedStages.length === 0) {
+        failedStages.push(...REVIEW_STEPS.map((_, idx) => idx))
+      }
       setRetryStagesByWord((prev) => ({ ...prev, [wordId]: failedStages }))
       // Keep stepRatings intact — retry stages will overwrite their own
       // slots, non-failed stages keep their previous non-again ratings.
