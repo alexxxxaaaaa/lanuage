@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma'
+import { fillWordByAi } from './aiService'
 import { flattenWord, WORD_FOLDERS } from '../lib/wordShape'
 import { chunkIds, sortByIdOrder, wordIdsInFolder } from '../lib/folderWords'
 import { AppError } from '../errors/AppError'
@@ -81,6 +82,53 @@ async function loadOwnedFolders(userId: string, folderIds: string[], language: s
   return folders
 }
 
+/**
+ * 建词前补全缺失的释义 / 例句。
+ *
+ * 「不管从哪条路加进来的词都必须完整」—— 所以这件事放在 createWord 里做，
+ * 而不是在每个调用方各写一遍。入口有好几个（批量添加、查词页加入词单、
+ * 播客划词、手动新增），以后还会有，逐个打补丁迟早漏。实测库里有 906 个
+ * 词有释义但没例句，就是从没走 AI 的那条路进来的。
+ *
+ * 几条约束：
+ * - 只填空字段，用户自己写的一个字都不动。
+ * - 走 fillWordByAi，它是 cache-first 的：之前生成过的词零 token 秒回。
+ *   批量添加的客户端本来就先调过一次 AI，到这里字段已经满了，直接跳过，
+ *   不会重复花钱。
+ * - normalize: false —— 词头由调用方决定。上面的查重已经按 input.word 做过
+ *   了，这里再让 AI 把「食べました」改成「食べる」，建出来的行就和查重结果
+ *   对不上。filled.word 一律忽略。
+ * - 失败绝不阻断建词：没配 key、超日预算、模型抽风，都只是少补几个字段，
+ *   不能让用户加不进词。
+ */
+async function fillMissingContent(
+  userId: string,
+  word: string,
+  language: string,
+  fields: { meaning: string; example: string; note: string; partOfSpeech: string },
+) {
+  if (fields.meaning && fields.example) return fields
+  if (language !== 'en' && language !== 'jp') return fields
+
+  try {
+    const filled = await fillWordByAi({
+      word,
+      sourceLanguage: language,
+      targetLanguage: language,
+      normalize: false,
+      userId,
+    })
+    return {
+      meaning: fields.meaning || normalizeText(filled.meaning),
+      example: fields.example || normalizeText(filled.example),
+      note: fields.note || normalizeText(filled.note),
+      partOfSpeech: fields.partOfSpeech || normalizeText(filled.partOfSpeech),
+    }
+  } catch {
+    return fields
+  }
+}
+
 export async function createWord(userId: string, input: CreateWordInput) {
   const word = normalizeText(input.word)
   const language = normalizeText(input.language)
@@ -128,16 +176,23 @@ export async function createWord(userId: string, input: CreateWordInput) {
     return flattenWord(updated)
   }
 
+  const content = await fillMissingContent(userId, word, language, {
+    meaning: normalizeText(input.meaning),
+    example: normalizeText(input.example),
+    note: normalizeText(input.note),
+    partOfSpeech: normalizeText(input.partOfSpeech),
+  })
+
   try {
     const created = await prisma.word.create({
       data: {
         userId,
         word,
         reading: normalizeText(input.reading),
-        meaning: normalizeText(input.meaning),
-        example: normalizeText(input.example),
-        note: normalizeText(input.note),
-        partOfSpeech: normalizeText(input.partOfSpeech),
+        meaning: content.meaning,
+        example: content.example,
+        note: content.note,
+        partOfSpeech: content.partOfSpeech,
         sourceNoteId: sourceNoteId || null,
         language,
         // Every word gets a pinnedAt at birth — the list is sorted by
