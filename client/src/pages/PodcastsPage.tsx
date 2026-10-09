@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@heroui/react'
 import { Modal } from '../components/ui/Modal'
 import { SelectField } from '../components/ui/SelectField'
-import { Input, TextArea, toast } from '@heroui/react'
+import { Input, toast } from '@heroui/react'
 import { confirm } from '../components/ui/dialog'
 import { Link, useNavigate } from 'react-router'
 import {
@@ -14,6 +14,7 @@ import {
   updatePodcastMeta,
 } from '../api/podcasts'
 import { getErrorMessage } from '../api/error'
+import { SubtitleFileInput } from '../components/SubtitleFileInput'
 import type { PodcastSummary, YoutubeInspectResult } from '../types'
 
 function formatDuration(sec: number) {
@@ -210,18 +211,6 @@ export function PodcastsPage() {
     }
   }
 
-  const handleMp3SrtFile = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    setter: (v: string) => void,
-  ) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => setter(String(reader.result ?? ''))
-    reader.readAsText(file)
-    e.target.value = ''
-  }
-
   // 归类编辑弹框——标题和级别/年/月一起改。
   const [editing, setEditing] = useState<PodcastSummary | null>(null)
   const [editTitle, setEditTitle] = useState('')
@@ -328,17 +317,6 @@ export function PodcastsPage() {
     }
   }
 
-  const handleSrtFile = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-    setter: (s: string) => void,
-  ) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const text = await file.text()
-    setter(text)
-    // Reset input so picking the same file again still fires change.
-    e.target.value = ''
-  }
 
   const handleDelete = async (id: string, title: string) => {
     const ok = await confirm({
@@ -496,42 +474,17 @@ export function PodcastsPage() {
             手动上传字幕(YouTube 抓不到时用)
           </summary>
           <div style={{ marginTop: 10, display: 'grid', gap: 12 }}>
-            <label style={{ display: 'grid', gap: 4 }}>
-              <span className="muted">
-                主要语言字幕(.srt / .vtt)
-                <input
-                  type="file"
-                  accept=".srt,.vtt,text/plain"
-                  onChange={(e) => void handleSrtFile(e, setPrimarySrt)}
-                  style={{ marginLeft: 8 }}
-                />
-              </span>
-              <TextArea
-                rows={4}
-                value={primarySrt}
-                onChange={(e) => setPrimarySrt(e.target.value)}
-                placeholder="把 .srt 或 .vtt 文件内容粘到这里"
-                style={{ fontFamily: 'monospace', fontSize: 12 }}
-              />
-            </label>
-            <label style={{ display: 'grid', gap: 4 }}>
-              <span className="muted">
-                中文字幕(可选)
-                <input
-                  type="file"
-                  accept=".srt,.vtt,text/plain"
-                  onChange={(e) => void handleSrtFile(e, setZhSrt)}
-                  style={{ marginLeft: 8 }}
-                />
-              </span>
-              <TextArea
-                rows={4}
-                value={zhSrt}
-                onChange={(e) => setZhSrt(e.target.value)}
-                placeholder="如有中文字幕也粘进来,按时间区间对齐到主语言行"
-                style={{ fontFamily: 'monospace', fontSize: 12 }}
-              />
-            </label>
+            <SubtitleFileInput
+              label="主要语言字幕"
+              value={primarySrt}
+              onChange={setPrimarySrt}
+            />
+            <SubtitleFileInput
+              label="中文字幕"
+              hint="(可选，按时间区间对齐到主语言行)"
+              value={zhSrt}
+              onChange={setZhSrt}
+            />
             <p className="muted" style={{ margin: 0, fontSize: 12 }}>
               填了主要语言字幕,导入时就不再向 YouTube 拉字幕;留空则走自动抓取。
             </p>
@@ -710,42 +663,17 @@ export function PodcastsPage() {
               className="max-w-[160px]"
             />
           </label>
-          <label style={{ display: 'grid', gap: 4 }}>
-            <span className="muted">
-              主语言字幕(.srt) *
-              <input
-                type="file"
-                accept=".srt,.vtt,text/plain"
-                onChange={(e) => handleMp3SrtFile(e, setMp3PrimarySrt)}
-                style={{ marginLeft: 8 }}
-              />
-            </span>
-            <TextArea
-              rows={5}
-              value={mp3PrimarySrt}
-              onChange={(e) => setMp3PrimarySrt(e.target.value)}
-              placeholder="粘贴 .srt 或 .vtt 内容"
-              style={{ fontFamily: 'monospace', fontSize: 12 }}
-            />
-          </label>
-          <label style={{ display: 'grid', gap: 4 }}>
-            <span className="muted">
-              中文字幕(可选)
-              <input
-                type="file"
-                accept=".srt,.vtt,text/plain"
-                onChange={(e) => handleMp3SrtFile(e, setMp3ZhSrt)}
-                style={{ marginLeft: 8 }}
-              />
-            </span>
-            <TextArea
-              rows={4}
-              value={mp3ZhSrt}
-              onChange={(e) => setMp3ZhSrt(e.target.value)}
-              placeholder="如有中文字幕也粘进来,会按时间对齐到主语言行"
-              style={{ fontFamily: 'monospace', fontSize: 12 }}
-            />
-          </label>
+          <SubtitleFileInput
+            label="主语言字幕 *"
+            value={mp3PrimarySrt}
+            onChange={setMp3PrimarySrt}
+          />
+          <SubtitleFileInput
+            label="中文字幕"
+            hint="(可选，按时间对齐到主语言行)"
+            value={mp3ZhSrt}
+            onChange={setMp3ZhSrt}
+          />
         </div>
       </Modal>
     </section>
