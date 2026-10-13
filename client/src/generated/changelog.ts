@@ -6,6 +6,19 @@ export type ChangelogEntry = { date: string; items: ChangelogItem[] }
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    "date": "2026-10-13",
+    "items": [
+      {
+        "sha": "f0109b8",
+        "subject": "词单可以暂停：不再往今日复习 / 新词里送词"
+      },
+      {
+        "sha": "f883532",
+        "subject": "加更新历史页：看得到「多久没更新了」和每天改了什么"
+      }
+    ]
+  },
+  {
     "date": "2026-10-09",
     "items": [
       {
@@ -604,24 +617,6 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         "sha": "049a4a6",
         "subject": "语法选择题库 + 2011.7 真题(含音频/字幕) + 播客 mp3 导入 + 周回顾"
-      }
-    ]
-  },
-  {
-    "date": "2026-07-03",
-    "items": [
-      {
-        "sha": "58a2217",
-        "subject": "批量添加失败重试 + 语法已学分类 + 播客字幕原地改 + 若干体验修复"
-      }
-    ]
-  },
-  {
-    "date": "2026-06-10",
-    "items": [
-      {
-        "sha": "0dec338",
-        "subject": "语法置顶 + 列表卡片化 + 批量添加重复项支持置顶"
       }
     ]
   }
