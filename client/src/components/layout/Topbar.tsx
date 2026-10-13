@@ -13,7 +13,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const { t } = useI18n()
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-2 px-4 pr-[max(1rem,env(safe-area-inset-right))]">
+    <header className="flex h-14 shrink-0 items-center justify-between gap-2 px-4 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
       <div className="flex min-w-0 items-center gap-2">
         <Button
           isIconOnly
