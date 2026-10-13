@@ -984,10 +984,10 @@ export function PodcastDetailPage() {
         </div>
       ) : null}
 
-      <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-overlay py-2 pr-3.5 pl-2 text-[13px] whitespace-nowrap shadow-overlay [&>*]:shrink-0 [&>*]:whitespace-nowrap max-sm:bottom-3 max-sm:max-w-[calc(100vw-1rem)] max-sm:gap-1.5 max-sm:py-1.5 max-sm:pr-2.5 max-sm:pl-1.5">
+      <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 flex-wrap items-center gap-2 rounded-full border border-border bg-overlay py-2 pr-3.5 pl-2 text-[13px] whitespace-nowrap shadow-overlay [&>*]:shrink-0 [&>*]:whitespace-nowrap max-sm:bottom-3 max-sm:w-[calc(100vw-1.5rem)] max-sm:gap-x-1.5 max-sm:gap-y-2 max-sm:rounded-3xl max-sm:px-3 max-sm:py-2">
         <button
           type="button"
-          className="inline-flex size-10 min-h-0 cursor-pointer items-center justify-center rounded-full border-none bg-accent p-0 text-sm leading-none text-accent-foreground transition-[filter] duration-150 hover:brightness-110 active:scale-[0.96]"
+          className="inline-flex size-10 min-h-0 cursor-pointer items-center justify-center rounded-full border-none bg-accent p-0 text-sm leading-none text-accent-foreground transition-[filter] duration-150 hover:brightness-110 active:scale-[0.96] max-sm:order-5"
           onClick={togglePlay}
           aria-label={isPlaying ? '暂停' : '播放'}
           title={isPlaying ? '暂停 (Space)' : '播放 (Space)'}
@@ -995,10 +995,10 @@ export function PodcastDetailPage() {
           <span aria-hidden>{isPlaying ? '❚❚' : '▶'}</span>
         </button>
 
-        <span className="min-w-9 text-center text-xs tabular-nums text-muted">{formatTime(currentSec * 1000)}</span>
+        <span className="min-w-9 text-center text-xs tabular-nums text-muted max-sm:order-1">{formatTime(currentSec * 1000)}</span>
         <input
           type="range"
-          className="podcast-progress !shrink max-sm:min-w-[40px] max-sm:flex-[1_1_40px]"
+          className="podcast-progress !shrink max-sm:order-2 max-sm:!min-w-0 max-sm:!flex-1"
           min={0}
           max={Math.max(1, podcast.durationSec)}
           step={1}
@@ -1027,10 +1027,16 @@ export function PodcastDetailPage() {
           }}
           aria-label="进度"
         />
-        <span className="min-w-9 text-center text-xs tabular-nums text-muted">{formatTime(podcast.durationSec * 1000)}</span>
+        <span className="min-w-9 text-center text-xs tabular-nums text-muted max-sm:order-3">{formatTime(podcast.durationSec * 1000)}</span>
+
+        {/* 零高度的换行占位：手机上把进度条那一行和控件那一行分开。
+            order 把 DOM 顺序重排成「时间·进度条·时间 ／ 播放·倍速·视频·假名」，
+            这个 basis-full 卡在中间强制断行。sm 以上整个隐藏，order 也全部
+            失效，版式回到原来的单行。 */}
+        <div className="hidden basis-full max-sm:order-4 max-sm:block" aria-hidden />
 
         <SelectField
-          className="min-w-[80px]"
+          className="min-w-[80px] max-sm:order-6"
           value={playbackRate}
           onChange={(v) => setPlaybackRate(Number(v))}
           aria-label="播放速度"
@@ -1040,7 +1046,7 @@ export function PodcastDetailPage() {
         {!isMp3 ? (
           <button
             type="button"
-            className={`h-8 min-h-0 cursor-pointer rounded-full border px-3.5 text-[13px] font-medium disabled:cursor-not-allowed disabled:opacity-45 ${
+            className={`h-8 min-h-0 cursor-pointer rounded-full border px-3.5 text-[13px] font-medium disabled:cursor-not-allowed disabled:opacity-45 max-sm:order-7 ${
               videoHidden
                 ? 'border-border bg-surface text-muted hover:bg-foreground/4'
                 : 'border-accent/25 bg-accent/10 text-accent'
@@ -1055,7 +1061,7 @@ export function PodcastDetailPage() {
         {podcast.primaryLang === 'jp' ? (
           <button
             type="button"
-            className={`h-8 min-h-0 cursor-pointer rounded-full border px-3.5 text-[13px] font-medium disabled:cursor-not-allowed disabled:opacity-45 ${
+            className={`h-8 min-h-0 cursor-pointer rounded-full border px-3.5 text-[13px] font-medium disabled:cursor-not-allowed disabled:opacity-45 max-sm:order-8 ${
               showFurigana
                 ? 'border-accent/25 bg-accent/10 text-accent'
                 : 'border-border bg-surface text-muted not-disabled:hover:bg-foreground/4'
