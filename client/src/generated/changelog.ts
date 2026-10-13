@@ -9,6 +9,14 @@ export const CHANGELOG: ChangelogEntry[] = [
     "date": "2026-10-13",
     "items": [
       {
+        "sha": "c23f0d3",
+        "subject": "播客播放条在手机上拆成两行，进度条拿回全宽"
+      },
+      {
+        "sha": "ea04cdd",
+        "subject": "更新历史：收进移动端适配的两处修复"
+      },
+      {
         "sha": "126dc36",
         "subject": "手机顶栏：面包屑只留当前页，补上左侧安全区"
       },
@@ -604,19 +612,6 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         "sha": "b2982bd",
         "subject": "移除 mp3 播客临时诊断标记 + console 日志"
-      },
-      {
-        "sha": "2f15807",
-        "subject": "修 mp3 播客控制失效: adapter 改命令式 ref-callback (+临时诊断标记)"
-      }
-    ]
-  },
-  {
-    "date": "2026-07-23",
-    "items": [
-      {
-        "sha": "b21c188",
-        "subject": "mp3 podcast: audio ref → state 避免时序问题"
       }
     ]
   }
