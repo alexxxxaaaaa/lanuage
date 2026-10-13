@@ -4,6 +4,11 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  // 构建时间。更新历史页用它回答「这一版是什么时候上线的」—— 提交日期只说明
+  // 代码什么时候写的，和部署时间可以差好几天。
+  define: {
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     tailwindcss(),

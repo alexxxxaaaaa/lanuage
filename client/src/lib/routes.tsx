@@ -13,6 +13,7 @@ import {
 import type { ReactElement } from 'react'
 
 import { AddWordPage } from '../pages/AddWordPage'
+import { ChangelogPage } from '../pages/ChangelogPage'
 import { AnalyzePage } from '../pages/AnalyzePage'
 import { AskAiPage } from '../pages/AskAiPage'
 import { ExpressionFolderDetailPage } from '../pages/ExpressionFolderDetailPage'
@@ -254,6 +255,13 @@ export const ROUTES: readonly RouteDefinition[] = [
     element: <SettingsPage />,
     icon: Settings,
     showInSidebar: true,
+  },
+  {
+    // 不进侧边栏 —— 入口在设置页底部，不值得占一个常驻位置。
+    path: '/changelog',
+    titleKey: 'changelog',
+    element: <ChangelogPage />,
+    parent: '/settings',
   },
 ]
 

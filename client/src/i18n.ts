@@ -45,6 +45,7 @@ export const messages: Record<UiLanguage, DictNode> = {
       podcasts: '播客',
       podcastDetail: '播客详情',
       settings: '设置',
+      changelog: '更新历史',
     },
     sidebar: {
       primaryNav: '主导航',
@@ -721,6 +722,7 @@ export const messages: Record<UiLanguage, DictNode> = {
       podcasts: 'Podcasts',
       podcastDetail: 'Podcast',
       settings: 'Settings',
+      changelog: 'Changelog',
     },
     sidebar: {
       primaryNav: 'Primary navigation',
@@ -1401,6 +1403,7 @@ export const messages: Record<UiLanguage, DictNode> = {
       podcasts: 'ポッドキャスト',
       podcastDetail: 'ポッドキャスト詳細',
       settings: '設定',
+      changelog: '更新履歴',
     },
     sidebar: {
       primaryNav: 'メインナビゲーション',

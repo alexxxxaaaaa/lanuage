@@ -1,3 +1,4 @@
+import { Link } from 'react-router'
 import { Card, Switch } from '@heroui/react'
 import { Moon, Sun } from 'lucide-react'
 
@@ -119,6 +120,14 @@ export function SettingsPage() {
           </ul>
         </Card.Content>
       </Card>
+
+      {/* 更新历史：不占侧边栏位置，从这里进。 */}
+      <Link
+        className="muted mt-1 self-start text-[13px] no-underline hover:text-accent"
+        to="/changelog"
+      >
+        {t('routes.changelog')} →
+      </Link>
     </section>
   )
 }
