@@ -9,6 +9,18 @@ export const CHANGELOG: ChangelogEntry[] = [
     "date": "2026-10-13",
     "items": [
       {
+        "sha": "126dc36",
+        "subject": "手机顶栏：面包屑只留当前页，补上左侧安全区"
+      },
+      {
+        "sha": "dad1a6f",
+        "subject": "手机上「学习个数」和「学习顺序」不再分家"
+      },
+      {
+        "sha": "dba6f1b",
+        "subject": "更新历史：收进词单暂停和更新历史页本身"
+      },
+      {
         "sha": "f0109b8",
         "subject": "词单可以暂停：不再往今日复习 / 新词里送词"
       },
@@ -561,10 +573,6 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         "sha": "1a03674",
         "subject": "引入 language-admin 管理后台到 dashboard 目录"
-      },
-      {
-        "sha": "75bb6d6",
-        "subject": "真题模块 + 全站 antd 输入框 + 复习正确率 + 若干体验"
       }
     ]
   },
@@ -609,14 +617,6 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         "sha": "b21c188",
         "subject": "mp3 podcast: audio ref → state 避免时序问题"
-      },
-      {
-        "sha": "27cc110",
-        "subject": "修播客底部工具栏播放键对 mp3 podcast 无效"
-      },
-      {
-        "sha": "049a4a6",
-        "subject": "语法选择题库 + 2011.7 真题(含音频/字幕) + 播客 mp3 导入 + 周回顾"
       }
     ]
   }
