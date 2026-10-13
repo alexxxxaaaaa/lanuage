@@ -313,7 +313,11 @@ export function HomePage() {
             </Card.Description>
           </div>
           {/* One control for every card: the cap is a single global setting,
-              so showing it per folder only suggested otherwise. */}
+              so showing it per folder only suggested otherwise.
+              两个控件捆成一组：不捆的话它们和标题是平级的 flex 子项，窄屏下
+              标题占满第一行、第一个控件勉强挤上去、第二个被甩到第二行左边，
+              看着像两个不相干的东西。w-full 让整组在手机上独占一行。 */}
+          <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
           <label className="session-inline">
             <span>{t('home.learnLimit')}</span>
             <SelectField
@@ -347,6 +351,7 @@ export function HomePage() {
               ]}
             />
           </label>
+          </div>
         </Card.Header>
 
         <Card.Content>
