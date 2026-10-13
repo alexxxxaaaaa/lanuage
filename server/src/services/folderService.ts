@@ -161,14 +161,19 @@ export async function getFolderById(userId: string, id: string) {
 export async function updateFolder(
   userId: string,
   id: string,
-  updates: { name?: string; language?: string },
+  updates: { name?: string; language?: string; isPaused?: boolean },
 ) {
   const existing = await prisma.folder.findFirst({ where: { id, userId } })
   if (!existing) {
     throw new AppError('folder not found', 404)
   }
 
-  const data: { name?: string; language?: string } = {}
+  const data: { name?: string; language?: string; pausedAt?: Date | null } = {}
+
+  if (updates.isPaused !== undefined) {
+    // 存时刻而不是布尔：顺带知道停了多久。恢复就是置回 null。
+    data.pausedAt = updates.isPaused ? new Date() : null
+  }
 
   if (updates.name !== undefined) {
     if (!updates.name.trim()) {

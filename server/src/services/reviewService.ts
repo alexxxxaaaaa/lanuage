@@ -141,7 +141,24 @@ export async function getTodayReviews(userId: string, folderId?: string) {
         include,
       })
 
-  return items.map((item) => ({ ...item, word: flattenWord(item.word) }))
+  // 暂停的词单不再送词。判定是「这个词有没有任何一个没暂停的词单」——
+  // 一个词同时在暂停的 A 和正常的 B 里时，B 还要它，所以不能丢。
+  //
+  // 在内存里筛而不是写进 where：WORD_FOLDERS 已经把整个 folder 行带出来了，
+  // 不用多查一次；而且 to-many 的关系过滤在 D1 adapter 上会绑错参数（词单
+  // 详情就是这么 500 的，见 lib/folderWords）。
+  //
+  // 限定词单时不筛：那是用户点开某个词单主动要复习，意图明确，UI 那边按钮
+  // 本来就禁用了。一个词都不挂的孤儿词也留着 —— 没有词单就无从暂停。
+  const visible = folderWordIds
+    ? items
+    : items.filter(
+        (item) =>
+          item.word.folders.length === 0 ||
+          item.word.folders.some((link) => link.folder.pausedAt === null),
+      )
+
+  return visible.map((item) => ({ ...item, word: flattenWord(item.word) }))
 }
 
 export async function updateReview(userId: string, wordId: string, rating: string) {

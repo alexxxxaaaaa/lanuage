@@ -1,10 +1,11 @@
-import { Button, Card, Chip, Input } from '@heroui/react'
+import { Button, Card, Chip, Input, toast } from '@heroui/react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
 import { SelectField } from '../components/ui/SelectField'
 import { usePageActive } from '../components/layout/pageContext'
 import { getTodayNewWords } from '../api/words'
+import { getErrorMessage } from '../api/error'
 import { useI18n } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
 import { sessionPath, useActiveSessions } from '../store/useActiveSessions'
@@ -107,6 +108,26 @@ export function FoldersPage() {
     if (folder) {
       setForm(INITIAL_FORM)
       setIsCreating(false)
+    }
+  }
+
+  /**
+   * 暂停 / 恢复一个词单。
+   *
+   * 暂停之后它的词不再进「今日复习」和「今日新词」—— 判定在服务端，规则是
+   * 「这个词有没有任何一个没暂停的词单」：一个词同时在暂停的 A 和正常的 B 里
+   * 时 B 还要它，不会被一起停掉。
+   *
+   * 改完要把复习池重拉一次，否则首页的「今日待复习」还是停之前的数。
+   */
+  const togglePause = async (folder: Folder) => {
+    const next = !folder.pausedAt
+    try {
+      await useAppStore.getState().updateFolder(folder.id, { isPaused: next })
+      await useAppStore.getState().fetchTodayReviews()
+      toast.success(next ? `已暂停「${folder.name}」` : `已继续「${folder.name}」`)
+    } catch (err) {
+      toast.danger(getErrorMessage(err, next ? '暂停失败' : '恢复失败'))
     }
   }
 
@@ -245,6 +266,7 @@ export function FoldersPage() {
             ? (dueByFolder[folder.id] ?? 0)
             : (folder.dueCount ?? 0)
           const newCount = newWordCounts[folder.id] ?? 0
+          const isPaused = Boolean(folder.pausedAt)
           const mastered = folder.masteredCount ?? 0
           const masteredPercent =
             wordCount === 0 ? 0 : Math.round((mastered / wordCount) * 100)
@@ -293,7 +315,10 @@ export function FoldersPage() {
           }
 
           return (
-            <Card key={folder.id} className="gap-3">
+            <Card
+              key={folder.id}
+              className={`gap-3 ${isPaused ? 'opacity-60' : ''}`}
+            >
               <Card.Header className="flex-row items-start gap-2">
                 <div className="min-w-0 flex-1">
                   <Link
@@ -306,9 +331,16 @@ export function FoldersPage() {
                     {t('folders.wordCount', { count: wordCount })}
                   </Card.Description>
                 </div>
-                <Chip size="sm" variant="secondary">
-                  {folder.language.toUpperCase()}
-                </Chip>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <Chip size="sm" variant="secondary">
+                    {folder.language.toUpperCase()}
+                  </Chip>
+                  {isPaused ? (
+                    <Chip size="sm" variant="soft" color="warning">
+                      {t('folders.paused')}
+                    </Chip>
+                  ) : null}
+                </div>
               </Card.Header>
 
               <Card.Content className="flex flex-col gap-2.5">
@@ -352,7 +384,7 @@ export function FoldersPage() {
                 <Button
                   size="sm"
                   variant={learnSession ? 'primary' : 'secondary'}
-                  isDisabled={!learnSession && newCount === 0}
+                  isDisabled={isPaused || (!learnSession && newCount === 0)}
                   onPress={() => navigate(sessionPath('learn', folder.id))}
                 >
                   {learnSession
@@ -367,7 +399,7 @@ export function FoldersPage() {
                 <Button
                   size="sm"
                   variant={reviewSession ? 'primary' : 'outline'}
-                  isDisabled={!reviewSession && due === 0}
+                  isDisabled={isPaused || (!reviewSession && due === 0)}
                   onPress={() => navigate(sessionPath('review', folder.id))}
                 >
                   {reviewSession
@@ -380,6 +412,15 @@ export function FoldersPage() {
                       : t('folders.review')}
                 </Button>
                 <div className="ml-auto flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    isDisabled={isSubmitting}
+                    onPress={() => void togglePause(folder)}
+                  >
+                    {isPaused ? t('folders.resume') : t('folders.pause')}
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"

@@ -30,11 +30,16 @@ foldersRouter.get('/:id', async (c) => {
 })
 
 foldersRouter.patch('/:id', async (c) => {
-  const { name, language } = await c.req.json<{
+  const { name, language, isPaused } = await c.req.json<{
     name?: string
     language?: string
+    isPaused?: boolean
   }>()
-  const folder = await updateFolder(getUserId(c), c.req.param('id'), { name, language })
+  const folder = await updateFolder(getUserId(c), c.req.param('id'), {
+    name,
+    language,
+    isPaused,
+  })
   return c.json(folder)
 })
 

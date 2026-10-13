@@ -67,6 +67,11 @@ model Folder {
   name      String
   language  String
   userId    String
+  /// 暂停学习的时刻；null = 正常。暂停的词单不再往「今日复习」和「今日新词」
+  /// 里送词 —— 一个词同时在暂停和正常两个词单里时仍然照常出现，判定是「它有没
+  /// 有任何一个没暂停的词单」，不是「它的某个词单暂停了」。
+  /// 用时刻而不是布尔，顺带知道停了多久（和 Word.pinnedAt 一个路子）。
+  pausedAt  DateTime?
   createdAt DateTime     @default(now())
   user      User         @relation(fields: [userId], references: [id])
   words     WordFolder[]

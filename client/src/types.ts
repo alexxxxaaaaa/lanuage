@@ -2,6 +2,8 @@ export type Folder = {
   id: string
   name: string
   language: 'en' | 'jp'
+  /** 暂停学习的时刻；null/缺省 = 正常。暂停的词单不再往今日复习 / 新词里送词。 */
+  pausedAt?: string | null
   dueCount?: number
   masteredCount?: number
   reviewedTodayCount?: number
@@ -70,6 +72,7 @@ export type CreateFolderPayload = {
 export type UpdateFolderPayload = {
   name?: string
   language?: 'en' | 'jp'
+  isPaused?: boolean
 }
 
 export type UpdateWordPayload = {

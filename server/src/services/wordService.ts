@@ -368,6 +368,18 @@ export async function getTodayNewWords(userId: string, folderId?: string) {
           : Prisma.empty
       }
       AND (r.id IS NULL OR r.lastReviewedAt IS NULL)
+      ${
+        folderId
+          ? Prisma.empty
+          : Prisma.sql`AND (
+              NOT EXISTS (SELECT 1 FROM WordFolder wf2 WHERE wf2.wordId = w.id)
+              OR EXISTS (
+                SELECT 1 FROM WordFolder wf3
+                JOIN Folder f ON f.id = wf3.folderId
+                WHERE wf3.wordId = w.id AND f.pausedAt IS NULL
+              )
+            )`
+      }
     ORDER BY
       CASE WHEN w.pinnedAt IS NULL THEN 1 ELSE 0 END,
       w.pinnedAt DESC,
