@@ -9,6 +9,14 @@ export const CHANGELOG: ChangelogEntry[] = [
     "date": "2026-10-14",
     "items": [
       {
+        "sha": "5a4d4a0",
+        "subject": "JLPT 加「复制给 AI」：一键拼好整题"
+      },
+      {
+        "sha": "0ba399c",
+        "subject": "更新历史：收进 JLPT 选项可复制"
+      },
+      {
         "sha": "5c38fb0",
         "subject": "JLPT 选项答完题后可以选中复制"
       }
@@ -594,19 +602,6 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         "sha": "1a03674",
         "subject": "引入 language-admin 管理后台到 dashboard 目录"
-      }
-    ]
-  },
-  {
-    "date": "2026-07-31",
-    "items": [
-      {
-        "sha": "2d823b3",
-        "subject": "skill: 上传真题后把读解拆成「精读」独立篇(步骤5 + 可复用脚本)"
-      },
-      {
-        "sha": "cc0c69b",
-        "subject": "精读板块:真题阅读拆篇 + 题库去语法提示 + 真题上传 skill"
       }
     ]
   }
