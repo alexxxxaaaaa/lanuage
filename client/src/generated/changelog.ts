@@ -6,8 +6,21 @@ export type ChangelogEntry = { date: string; items: ChangelogItem[] }
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    "date": "2026-10-14",
+    "items": [
+      {
+        "sha": "5c38fb0",
+        "subject": "JLPT 选项答完题后可以选中复制"
+      }
+    ]
+  },
+  {
     "date": "2026-10-13",
     "items": [
+      {
+        "sha": "0eeed71",
+        "subject": "更新历史：收进播客播放条的移动端修复"
+      },
       {
         "sha": "c23f0d3",
         "subject": "播客播放条在手机上拆成两行，进度条拿回全宽"
@@ -594,24 +607,6 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         "sha": "cc0c69b",
         "subject": "精读板块:真题阅读拆篇 + 题库去语法提示 + 真题上传 skill"
-      }
-    ]
-  },
-  {
-    "date": "2026-07-30",
-    "items": [
-      {
-        "sha": "3b005d1",
-        "subject": "2011.12 N1 真题听力字幕"
-      }
-    ]
-  },
-  {
-    "date": "2026-07-28",
-    "items": [
-      {
-        "sha": "b2982bd",
-        "subject": "移除 mp3 播客临时诊断标记 + console 日志"
       }
     ]
   }
