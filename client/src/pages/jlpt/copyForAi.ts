@@ -18,6 +18,8 @@ export type CopyableQuestion = {
   passage?: { content: string } | null
   /** 用户选的选项（1-based）。 */
   selected?: number | null
+  /** 答案是否已揭晓。false 时不往文本里写答案，见下面的说明。 */
+  revealed?: boolean
 }
 
 /**
@@ -51,17 +53,25 @@ export function buildAiQuestionText(q: CopyableQuestion): string {
 
   parts.push('', ...q.options.map((opt, i) => `${i + 1}. ${opt}`))
 
+  // 还没揭晓就不写答案，提问也换成「该选哪个」—— 这个按钮在答题前也能点，
+  // 那时的用途是「跟 AI 一起做这道题」，先把答案抄过去等于自己剧透，AI 也
+  // 只会顺着给定答案倒推理由。
   const answers = [q.answer, q.altAnswer].filter((n): n is number => !!n && n > 0)
-  parts.push('', `正确答案：${answers.join(' 或 ')}`)
-  if (q.selected) {
-    parts.push(`我选的：${q.selected}${q.selected === q.answer ? '（对）' : '（错）'}`)
+  if (q.revealed && answers.length > 0) {
+    parts.push('', `正确答案：${answers.join(' 或 ')}`)
+    if (q.selected) {
+      parts.push(`我选的：${q.selected}${q.selected === q.answer ? '（对）' : '（错）'}`)
+    }
   }
 
 
   parts.push(
     '',
-    '请详细讲解这道题：正确答案为什么对、其余选项分别错在哪里、涉及的语法点或词汇辨析，' +
-      '以及下次遇到同类题该怎么判断。',
+    q.revealed
+      ? '请详细讲解这道题：正确答案为什么对、其余选项分别错在哪里、涉及的语法点或词汇辨析，' +
+        '以及下次遇到同类题该怎么判断。'
+      : '请讲解这道题该选哪个、为什么，其余选项分别错在哪里，涉及的语法点或词汇辨析，' +
+        '以及下次遇到同类题该怎么判断。',
   )
 
   return parts.join('\n')

@@ -691,23 +691,25 @@ export function JlptPracticePage() {
                   </Button>
                   {/* 题库自带的解析常常不够细，实际用法是把题目丢给外部 AI 细讲。
                       手动复制要一块块选（题干、四个选项、哪个是答案、自己选了
-                      什么、原有解析），阅读题还得连原文一起 —— 一键拼好，末尾
-                      附一句现成的提问，粘过去直接发。 */}
-                  {showAnswer ? (
-                    <Button
-                      onPress={() => {
-                        void copyText(buildAiQuestionText(question)).then((ok) =>
-                          ok
-                            ? toast.success('已复制整题，可以粘给 AI 细讲')
-                            : toast.danger('复制失败，请手动选中'),
-                        )
-                      }}
-                    >
-                      <ButtonGroup.Separator />
-                      <Copy aria-hidden />
-                      复制给 AI
-                    </Button>
-                  ) : null}
+                      什么），阅读题还得连原文一起 —— 一键拼好，末尾附一句现成
+                      的提问，粘过去直接发。
+                      答题前也能点：那时拼出来的文本不含答案，提问换成「该选
+                      哪个」，用途是跟 AI 一起做这道题而不是对答案。 */}
+                  <Button
+                    onPress={() => {
+                      void copyText(
+                        buildAiQuestionText({ ...question, revealed: showAnswer }),
+                      ).then((ok) =>
+                        ok
+                          ? toast.success('已复制整题，可以粘给 AI')
+                          : toast.danger('复制失败，请手动选中'),
+                      )
+                    }}
+                  >
+                    <ButtonGroup.Separator />
+                    <Copy aria-hidden />
+                    复制给 AI
+                  </Button>
                   {/* 只有听力题才有文字稿，笔试题不给入口。 */}
                   {transcriptUrl ? (
                     <Button

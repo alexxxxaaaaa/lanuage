@@ -273,7 +273,7 @@ function QuestionCard({
               size="sm"
               variant="outline"
               onPress={() => {
-                void copyText(buildAiQuestionText({ ...question, passage, selected })).then((ok) =>
+                void copyText(buildAiQuestionText({ ...question, passage, selected, revealed: true })).then((ok) =>
                   ok
                     ? toast.success('已复制整题，可以粘给 AI 细讲')
                     : toast.danger('复制失败，请手动选中'),
