@@ -178,26 +178,38 @@ function QuestionCard({
             : !isReview && selected === num
               ? OPTION_TONE.picked
               : OPTION_TONE.idle
+          const body = (
+            <>
+              <span className={OPTION_NUM}>{num}</span>
+              {hasPlaceholderOptions(question.options) ? (
+                <span className="muted">（选项由音频念出）</span>
+              ) : (
+                <QbankText className="min-w-0 flex-1 [overflow-wrap:anywhere]" text={option} />
+              )}
+              {role ? (
+                <Chip className={OPTION_TAG} color={OPTION_ROLE_COLOR[role]} variant="soft">
+                  {OPTION_ROLE_LABEL[role]}
+                </Chip>
+              ) : null}
+            </>
+          )
           return (
             <li key={i}>
-              <Button
-                variant="outline"
-                className={`${OPTION} ${tone}`}
-                isDisabled={isReview}
-                onPress={() => onPick?.(question.id, num)}
-              >
-                <span className={OPTION_NUM}>{num}</span>
-                {hasPlaceholderOptions(question.options) ? (
-                  <span className="muted">（选项由音频念出）</span>
-                ) : (
-                  <QbankText className="min-w-0 flex-1 [overflow-wrap:anywhere]" text={option} />
-                )}
-                {role ? (
-                  <Chip className={OPTION_TAG} color={OPTION_ROLE_COLOR[role]} variant="soft">
-                    {OPTION_ROLE_LABEL[role]}
-                  </Chip>
-                ) : null}
-              </Button>
+              {/* 讲评态不再是按钮 —— 在 <button> 上按下鼠标是「触发按钮」不是
+                  「开始选词」，文字拖不出选区、复制不了。理由同 JlptPracticePage。 */}
+              {isReview ? (
+                <div className={`button button--outline cursor-default ${OPTION} ${tone}`}>
+                  {body}
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  className={`${OPTION} ${tone}`}
+                  onPress={() => onPick?.(question.id, num)}
+                >
+                  {body}
+                </Button>
+              )}
             </li>
           )
         })}

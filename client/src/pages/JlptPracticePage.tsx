@@ -570,33 +570,51 @@ export function JlptPracticePage() {
                             selected: question.selected,
                           })
                         : null
+                      const tone = role ? OPTION_TONE[role] : OPTION_TONE.idle
+                      const body = (
+                        <>
+                          <span className={OPTION_NUM}>{num}</span>
+                          {hasPlaceholderOptions(question.options) ? (
+                            <span className="muted">（选项由音频念出）</span>
+                          ) : (
+                            <QbankText
+                              className="min-w-0 flex-1 [overflow-wrap:anywhere]"
+                              text={option}
+                            />
+                          )}
+                          {role ? (
+                            <Chip
+                              className={OPTION_TAG}
+                              color={OPTION_ROLE_COLOR[role]}
+                              variant="soft"
+                            >
+                              {OPTION_ROLE_LABEL[role]}
+                            </Chip>
+                          ) : null}
+                        </>
+                      )
                       return (
                         <li key={i}>
-                          <Button
-                            variant="outline"
-                            className={`${OPTION} ${role ? OPTION_TONE[role] : OPTION_TONE.idle}`}
-                            isDisabled={revealed}
-                            onPress={() => void pick(num)}
-                          >
-                            <span className={OPTION_NUM}>{num}</span>
-                            {hasPlaceholderOptions(question.options) ? (
-                              <span className="muted">（选项由音频念出）</span>
-                            ) : (
-                              <QbankText
-                                className="min-w-0 flex-1 [overflow-wrap:anywhere]"
-                                text={option}
-                              />
-                            )}
-                            {role ? (
-                              <Chip
-                                className={OPTION_TAG}
-                                color={OPTION_ROLE_COLOR[role]}
-                                variant="soft"
-                              >
-                                {OPTION_ROLE_LABEL[role]}
-                              </Chip>
-                            ) : null}
-                          </Button>
+                          {/* 揭晓之后不再是按钮。
+                              在 <button> 上按下鼠标是「触发按钮」而不是「开始选词」，
+                              所以选项文字拖不出选区、复制不了 —— 而答完题恰恰是最想
+                              把答案复制出去的时候。这时它也确实不需要可点了（原来是
+                              isDisabled），换成 div 就能正常选中。
+                              类名照抄 HeroUI 的 .button / .button--outline，外观和
+                              作答态逐像素一致。 */}
+                          {revealed ? (
+                            <div className={`button button--outline cursor-default ${OPTION} ${tone}`}>
+                              {body}
+                            </div>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              className={`${OPTION} ${tone}`}
+                              onPress={() => void pick(num)}
+                            >
+                              {body}
+                            </Button>
+                          )}
                         </li>
                       )
                     })}
