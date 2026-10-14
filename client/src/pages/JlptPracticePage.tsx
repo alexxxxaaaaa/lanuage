@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, ButtonGroup, Card, Chip, ProgressCircle, Spinner, toast } from '@heroui/react'
 import { confirm } from '../components/ui/dialog'
+import { buildAiQuestionText, copyText } from './jlpt/copyForAi'
 import { Link, useSearchParams } from 'react-router'
-import { ChevronLeft, ChevronRight, Eye, EyeOff, FileText, Star } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Copy, Eye, EyeOff, FileText, Star } from 'lucide-react'
 import {
   clearQbankAttempts,
   getQbankQuestions,
@@ -688,6 +689,25 @@ export function JlptPracticePage() {
                     {isPeeking ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
                     {isPeeking ? '收起答案' : '答案'}
                   </Button>
+                  {/* 题库自带的解析常常不够细，实际用法是把题目丢给外部 AI 细讲。
+                      手动复制要一块块选（题干、四个选项、哪个是答案、自己选了
+                      什么、原有解析），阅读题还得连原文一起 —— 一键拼好，末尾
+                      附一句现成的提问，粘过去直接发。 */}
+                  {showAnswer ? (
+                    <Button
+                      onPress={() => {
+                        void copyText(buildAiQuestionText(question)).then((ok) =>
+                          ok
+                            ? toast.success('已复制整题，可以粘给 AI 细讲')
+                            : toast.danger('复制失败，请手动选中'),
+                        )
+                      }}
+                    >
+                      <ButtonGroup.Separator />
+                      <Copy aria-hidden />
+                      复制给 AI
+                    </Button>
+                  ) : null}
                   {/* 只有听力题才有文字稿，笔试题不给入口。 */}
                   {transcriptUrl ? (
                     <Button

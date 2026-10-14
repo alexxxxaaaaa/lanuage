@@ -1,9 +1,11 @@
 import { Fragment } from 'react'
-import { Button, Card, Chip } from '@heroui/react'
+import { Button, Card, Chip, toast } from '@heroui/react'
 
 import { QbankText } from '../../components/QbankText'
 import type { ExamPassage, ExamQuestion } from '../../api/qbankExam'
+import { Copy } from 'lucide-react'
 import { AiExplainBlock, AiExplainButton } from './AiExplain'
+import { buildAiQuestionText, copyText } from './copyForAi'
 import { useAiExplain, type AiExplainStore } from './useAiExplain'
 import {
   hasPlaceholderOptions,
@@ -111,6 +113,9 @@ export function ExamQuestionList({
               canAiExplain={
                 question.category !== 'listening' && !isImageOnlyPassage(passage?.content ?? '')
               }
+              // 复制给 AI 时要把原文一起带上 —— 考试页的原文挂在卷子上，
+              // 不在题上，只有这一层拿得到。
+              passage={passage ?? null}
               onPick={onPick}
             />
           </Fragment>
@@ -125,6 +130,7 @@ function QuestionCard({
   question,
   number,
   selected,
+  passage,
   isReview,
   isActive,
   canAiExplain,
@@ -134,6 +140,7 @@ function QuestionCard({
   question: ExamQuestion
   number: number
   selected: number | null
+  passage: ExamPassage | null
   isReview: boolean
   isActive: boolean
   canAiExplain: boolean
@@ -259,6 +266,24 @@ function QuestionCard({
               />
             </div>
           ) : null}
+          {/* 和单题精练同一个入口：题库解析不够细时，一键把整题（含原文、
+              四个选项、正确答案、自己选了什么）拼成一段丢给外部 AI。 */}
+          <div className="justify-self-start">
+            <Button
+              size="sm"
+              variant="outline"
+              onPress={() => {
+                void copyText(buildAiQuestionText({ ...question, passage, selected })).then((ok) =>
+                  ok
+                    ? toast.success('已复制整题，可以粘给 AI 细讲')
+                    : toast.danger('复制失败，请手动选中'),
+                )
+              }}
+            >
+              <Copy aria-hidden />
+              复制给 AI
+            </Button>
+          </div>
         </div>
       ) : null}
     </Card>
