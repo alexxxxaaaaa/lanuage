@@ -65,6 +65,10 @@ const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]
  */
 const POSITION_SAVE_MS = 15_000
 
+// ↑ / ↓ 一次快进／快退的秒数。←/→ 是按句跳，这个是按时间跳，
+// 用来对付一句话很长、或者字幕断点不在想听的位置的情况。
+const SEEK_STEP_SEC = 5
+
 // The two inline-edit textareas for fixing a wrong auto-caption.
 const EDIT_BOX =
   'w-full resize-y rounded-lg border border-field-border bg-field px-2 py-1.5 font-[inherit] text-sm/[1.5] focus:border-accent focus:outline-none'
@@ -565,6 +569,27 @@ export function PodcastDetailPage() {
     setCurrentIdx(idx)
   }
 
+  // 按时间快进／快退。seek 完立刻把时间和当前行推过去，不等轮询 ——
+  // 否则连按几下，进度条和高亮要隔一拍才动，手感像没响应。
+  const seekBySeconds = (delta: number) => {
+    if (!podcast) return
+    const player = playerRef.current
+    if (!player) return
+    const dur = podcast.durationSec
+    const raw = player.getCurrentTime() + delta
+    const sec = Math.max(0, dur > 0 ? Math.min(raw, dur) : raw)
+    player.seekTo(sec, true)
+    setCurrentSec(sec)
+    const ms = sec * 1000
+    const lines = linesRef.current
+    let next = -1
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].start <= ms) next = i
+      else break
+    }
+    if (next !== currentIdxRef.current) setCurrentIdx(next)
+  }
+
   const togglePlay = () => {
     const player = playerRef.current
     if (!player) return
@@ -577,7 +602,8 @@ export function PodcastDetailPage() {
     else player.playVideo()
   }
 
-  // Keyboard: Space → play/pause, ← / → → prev/next sentence. Gated on
+  // Keyboard: Space → play/pause, ← / → → prev/next sentence,
+  // ↑ / ↓ → 快进／快退 5 秒。Gated on
   // isActive so hotkeys don't fire while the podcast tab is hidden — without
   // this, pressing Space while viewing a folder/search tab toggles podcast
   // play because the listener is on window.
@@ -594,6 +620,8 @@ export function PodcastDetailPage() {
       ) {
         return
       }
+      // Cmd+Space（Spotlight／输入法）、Cmd+←/→（浏览器前进后退）都归系统。
+      if (e.metaKey || e.ctrlKey || e.altKey) return
       if (e.key === ' ') {
         e.preventDefault()
         togglePlay()
@@ -603,6 +631,13 @@ export function PodcastDetailPage() {
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault()
         seekToLine(Math.max(0, currentIdxRef.current - 1))
+      } else if (e.key === 'ArrowUp') {
+        // 默认行为是滚页面，必须拦掉。
+        e.preventDefault()
+        seekBySeconds(SEEK_STEP_SEC)
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        seekBySeconds(-SEEK_STEP_SEC)
       }
     }
     window.addEventListener('keydown', handler)
