@@ -593,6 +593,8 @@ export function LearnPage() {
         // input handles its own Enter via onKeyDown
         return
       }
+      // Cmd/Ctrl/Alt + Enter 不是本页的「下一步」。
+      if (event.metaKey || event.ctrlKey || event.altKey) return
       if (event.key === 'Enter') onEnterPressed(event)
     }
     window.addEventListener('keydown', handleKeyDown)

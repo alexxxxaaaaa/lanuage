@@ -554,6 +554,9 @@ export function ReviewPage() {
 
       if (isEnabledFormControl) return
 
+      // 带修饰键的组合（Cmd+P 等）归浏览器，不是本页快捷键。
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+
       onShortcutKey(event)
     }
 

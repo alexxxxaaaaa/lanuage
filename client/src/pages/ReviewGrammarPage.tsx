@@ -106,6 +106,8 @@ export function ReviewGrammarPage() {
       ) {
         return
       }
+      // Cmd+Space 是 Spotlight／输入法切换，不能被翻卡吞掉。
+      if (e.metaKey || e.ctrlKey || e.altKey) return
       if (e.key === ' ') {
         e.preventDefault()
         if (current) setIsFlipped((prev) => !prev)

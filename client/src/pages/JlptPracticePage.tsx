@@ -3,7 +3,7 @@ import { Button, ButtonGroup, Card, Chip, ProgressCircle, Spinner, toast } from 
 import { confirm } from '../components/ui/dialog'
 import { buildAiQuestionText, copyText } from './jlpt/copyForAi'
 import { Link, useSearchParams } from 'react-router'
-import { ChevronLeft, ChevronRight, Copy, Eye, EyeOff, FileText, Star } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Copy, Eye, EyeOff, FileText, RotateCcw, Star } from 'lucide-react'
 import {
   clearQbankAttempts,
   getQbankQuestions,
@@ -324,6 +324,8 @@ export function JlptPracticePage() {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target
       if (target instanceof HTMLElement && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return
+      // Cmd/Ctrl/Alt + 数字是浏览器的切标签快捷键，别当成选项键吞掉。
+      if (e.metaKey || e.ctrlKey || e.altKey) return
       if (e.key === 'ArrowRight') setIndex((i) => Math.min(i + 1, items.length - 1))
       else if (e.key === 'ArrowLeft') setIndex((i) => Math.max(i - 1, 0))
       // 即時応答只有 3 个选项，别让「4」发出一个必然被拒的请求
@@ -631,7 +633,8 @@ export function JlptPracticePage() {
                           >
                             {question.status === 'correct' ? '✓ 答对了' : '✗ 答错了'}
                           </Chip>
-                          <Button size="sm" variant="ghost" onPress={retry}>
+                          <Button size="sm" variant="outline" onPress={retry}>
+                            <RotateCcw aria-hidden />
                             再做一次
                           </Button>
                         </div>
