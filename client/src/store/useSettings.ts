@@ -32,12 +32,14 @@ export const DEFAULT_SETTINGS: UserSettings = {
   theme: '',
   uiLanguage: 'zh',
   examMode: 'strict',
+  examSectionOrder: 'written',
   localDictEnabled: true,
 }
 
 const THEMES: readonly ThemeChoice[] = ['', 'light', 'dark']
 const UI_LANGUAGES: readonly UserSettings['uiLanguage'][] = ['zh', 'en', 'jp']
 const EXAM_MODES: readonly UserSettings['examMode'][] = ['strict', 'self']
+const EXAM_SECTION_ORDERS: readonly UserSettings['examSectionOrder'][] = ['written', 'listening']
 
 function pick<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
   return allowed.includes(value as T) ? (value as T) : fallback
@@ -49,6 +51,11 @@ function normalize(raw: Partial<Record<keyof UserSettings, unknown>>): UserSetti
     theme: pick(raw.theme, THEMES, DEFAULT_SETTINGS.theme),
     uiLanguage: pick(raw.uiLanguage, UI_LANGUAGES, DEFAULT_SETTINGS.uiLanguage),
     examMode: pick(raw.examMode, EXAM_MODES, DEFAULT_SETTINGS.examMode),
+    examSectionOrder: pick(
+      raw.examSectionOrder,
+      EXAM_SECTION_ORDERS,
+      DEFAULT_SETTINGS.examSectionOrder,
+    ),
     localDictEnabled:
       typeof raw.localDictEnabled === 'boolean'
         ? raw.localDictEnabled

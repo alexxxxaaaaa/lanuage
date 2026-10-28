@@ -40,6 +40,7 @@ export function ExamPaperList() {
   }
   const navigate = useNavigate()
   const mode = useSettings((s) => s.settings.examMode)
+  const sectionOrder = useSettings((s) => s.settings.examSectionOrder)
   const [papers, setPapers] = useState<ExamPaper[] | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -66,7 +67,7 @@ export function ExamPaperList() {
     const key = `${paper.year}-${paper.month}`
     setBusy(key)
     try {
-      await startExam(paper.year, paper.month, mode)
+      await startExam(paper.year, paper.month, mode, sectionOrder)
       navigate(examHref(paper))
     } catch (e) {
       toast.danger(getErrorMessage(e, t('jlpt.startFailed')))
@@ -108,6 +109,9 @@ export function ExamPaperList() {
         {t('jlpt.examModeCurrent')}{' '}
         <b className="text-foreground">{t(`jlpt.examMode.${mode}`)}</b>
         {t('jlpt.examModeSuffix')}
+        {' · '}
+        {t('jlpt.examSectionOrderCurrent')}{' '}
+        <b className="text-foreground">{t(`jlpt.examSectionOrder.${sectionOrder}`)}</b>
         {' · '}
         <Link className="text-accent underline-offset-2 hover:underline" to="/settings">
           {t('jlpt.goSettings')}

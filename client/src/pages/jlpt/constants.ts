@@ -201,6 +201,12 @@ export const EXAM_MODES = [
   },
 ] as const
 
+/** 顺序选项。label / desc 走 i18n，这里只定枚举和它们的键。 */
+export const EXAM_SECTION_ORDERS = [
+  { value: 'written', label: '官方顺序' },
+  { value: 'listening', label: '先听力' },
+] as const
+
 export function examModeLabel(mode: string): string {
   return EXAM_MODES.find((m) => m.value === mode)?.label ?? mode
 }

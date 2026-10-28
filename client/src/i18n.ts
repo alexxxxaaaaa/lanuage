@@ -73,6 +73,8 @@ export const messages: Record<UiLanguage, DictNode> = {
       localDictOff: '已关闭',
       examMode: '模拟考试模式',
       examModeDesc: '决定 JLPT 模拟考试的严格程度，只在开考那一刻生效，改设置不影响进行中的考试。',
+      examSectionOrder: '模拟考试顺序',
+      examSectionOrderDesc: '决定先考哪一块，同样只在开考那一刻生效。',
     },
     auth: {
       title: '登录',
@@ -666,6 +668,12 @@ export const messages: Record<UiLanguage, DictNode> = {
         self: '超时和录音播完都不强制交卷，听力可以拖动进度条，自己掌握节奏。',
       },
       examModeSuffix: '模式',
+      examSectionOrderCurrent: '顺序',
+      examSectionOrder: { written: '官方顺序', listening: '先听力' },
+      examSectionOrderDesc: {
+        written: '笔试（110 分）考完交卷，再进听力 —— 和真实考场一样。',
+        listening: '先把听力一口气听完，再做笔试。笔试的 110 分钟从听力交卷那一刻才开始算。',
+      },
       descSeparator: '：',
       phase: { written: '笔试中', listening: '听力中', done: '已完成' },
       papersLabel: '模拟考试卷次',
@@ -753,6 +761,8 @@ export const messages: Record<UiLanguage, DictNode> = {
       localDictOff: 'Off',
       examMode: 'Mock exam mode',
       examModeDesc: 'How strict the JLPT mock exam is. Read when an exam starts — changing it never affects an exam in progress.',
+      examSectionOrder: 'Mock exam order',
+      examSectionOrderDesc: 'Which section you sit first. Also read only when an exam starts.',
     },
     auth: {
       title: 'Sign in',
@@ -1350,6 +1360,12 @@ export const messages: Record<UiLanguage, DictNode> = {
         self: 'Neither the timer nor the end of the audio forces a submit, and you can scrub the listening track — you set the pace.',
       },
       examModeSuffix: '',
+      examSectionOrderCurrent: 'Order',
+      examSectionOrder: { written: 'Official order', listening: 'Listening first' },
+      examSectionOrderDesc: {
+        written: 'Sit the written sections (110 min), submit, then listening — same as the real exam.',
+        listening: 'Sit listening straight through first, then the written sections. The 110-minute written clock only starts once listening is submitted.',
+      },
       descSeparator: ' — ',
       phase: { written: 'Written', listening: 'Listening', done: 'Finished' },
       papersLabel: 'Mock exam papers',
@@ -1438,6 +1454,8 @@ export const messages: Record<UiLanguage, DictNode> = {
       examMode: '模擬試験モード',
       examModeDesc:
         'JLPT 模擬試験の厳しさを決めます。試験開始時にだけ読まれ、進行中の試験には影響しません。',
+      examSectionOrder: '模擬試験の順番',
+      examSectionOrderDesc: 'どちらを先に受けるか。こちらも試験開始時にだけ読まれます。',
     },
     auth: {
       title: 'ログイン',
@@ -2035,6 +2053,12 @@ export const messages: Record<UiLanguage, DictNode> = {
         self: '時間切れや音声終了でも提出を強制せず、聴解のシークも可能。自分のペースで進められます。',
       },
       examModeSuffix: 'モード',
+      examSectionOrderCurrent: '順番',
+      examSectionOrder: { written: '本番どおり', listening: '聴解から' },
+      examSectionOrderDesc: {
+        written: '筆記（110分）を提出してから聴解へ —— 本番と同じ順番です。',
+        listening: '先に聴解を通しで受け、そのあと筆記。筆記の110分は聴解の提出時から数え始めます。',
+      },
       descSeparator: '：',
       phase: { written: '筆記中', listening: '聴解中', done: '完了' },
       papersLabel: '模擬試験の回次',

@@ -41,6 +41,9 @@ import {
  *   listening 听力，整段录音连着播
  *   done      成绩 + 全卷解析
  *
+ * 前两块谁先谁后看 state.sectionOrder（开考时定格）。先听力时笔试的钟从听力
+ * 交卷那一刻起算，这个起点由服务端算好放在 writtenStartedAt 里。
+ *
  * 严格模式下倒计时归零、录音播完都会立刻自动交卷；自我评估模式两者都只提示，
  * 由用户自己按交卷。答案每次改动都会自动存回服务端，交卷后服务端拒绝再改。
  *
@@ -180,8 +183,17 @@ export function JlptExamPage() {
           await saveExamAnswers(year, month, answersRef.current)
           savedRef.current = serialized
         }
-        applyState(await submitExamPhase(year, month, target))
-        toast.success(target === 'written' ? '笔试已交卷，进入听力' : '已交卷，来看看成绩')
+        // 下一步是什么，以服务端返回的新阶段为准 —— 先考哪一块是开考时定格的，
+        // 前端不必自己再推一遍。
+        const next = await submitExamPhase(year, month, target)
+        applyState(next)
+        toast.success(
+          next.phase === 'done'
+            ? '已交卷，来看看成绩'
+            : next.phase === 'listening'
+              ? '笔试已交卷，进入听力'
+              : '听力已交卷。笔试的表还没起，按「继续答题」再开始',
+        )
       } catch (e) {
         toast.danger(getErrorMessage(e, '交卷失败'))
       } finally {
@@ -269,6 +281,8 @@ function ExamHeader({
           {subtitle}
           {extra ? ` · ${extra}` : ''} · {t(`jlpt.examMode.${state.mode}`)}
           {t('jlpt.examModeSuffix')}
+          {/* 先听力是非默认顺序，标出来才知道这场的钟是怎么算的。 */}
+          {state.sectionOrder === 'listening' ? ` · ${t('jlpt.examSectionOrder.listening')}` : ''}
         </p>
       </div>
       <Link className="button button--outline button--sm shrink-0" to="/jlpt">
@@ -300,9 +314,12 @@ function WrittenPhase({
   // 刷新页面、过几天再打开，算出来都是同一个数。
   const pausedAt = state.pausedAt ? new Date(state.pausedAt).getTime() : null
   const isPaused = pausedAt !== null
-  const elapsed = (pausedAt ?? now) - new Date(state.startedAt).getTime() - state.pausedMs
+  const elapsed = (pausedAt ?? now) - new Date(state.writtenStartedAt).getTime() - state.pausedMs
   const remaining = state.writtenMinutes * 60_000 - elapsed
   const isOvertime = remaining <= 0
+  // 先听力时，笔试是从暂停态起步的（服务端在听力交卷那一刻就按下了暂停），
+  // 表一秒没走过。这种「还没开始」和中途暂停该说不一样的话。
+  const isFresh = isPaused && elapsed <= 0
 
   useEffect(() => {
     // 暂停时钟不走，这一秒一次的重渲染就没必要了。
@@ -320,13 +337,17 @@ function WrittenPhase({
     void onSubmit('written')
   }, [state.mode, isPaused, isOvertime, onSubmit])
 
+  // 先听力的话，笔试就是最后一块，交完直接出分。
+  const isLastSection = state.sectionOrder === 'listening'
+  const submitLabel = isLastSection ? '交卷看成绩' : '交卷并开始听力'
+
   const handleSubmit = async () => {
     const unanswered = state.questions.length - Object.keys(answers).length
     const ok = await confirm({
-      title: '交卷并开始听力？',
+      title: isLastSection ? '交卷？' : '交卷并开始听力？',
       content:
         (unanswered > 0 ? `还有 ${unanswered} 题没作答。` : '') +
-        '交卷后笔试部分不能再修改，接着进入听力。',
+        (isLastSection ? '交卷后即出成绩，答案不能再改。' : '交卷后笔试部分不能再修改，接着进入听力。'),
       okText: '交卷',
       cancelText: '继续答题',
       status: unanswered > 0 ? 'warning' : 'accent',
@@ -346,12 +367,16 @@ function WrittenPhase({
             这个钟也就没有意义了。 */}
         {isPaused ? (
           <Card className="min-w-0 items-center gap-3 py-16 text-center">
-            <p className="m-0 text-[15px] font-semibold text-foreground">计时已暂停</p>
+            <p className="m-0 text-[15px] font-semibold text-foreground">
+              {isFresh ? '笔试还没开始' : '计时已暂停'}
+            </p>
             <p className="muted m-0 max-w-[32ch] text-[13px]">
-              题目先收起来了。离开多久都不算在考试时间里，回来按「继续答题」接着走。
+              {isFresh
+                ? '听力已经交了。准备好了再按下面的按钮，110 分钟从那一刻才开始算。'
+                : '题目先收起来了。离开多久都不算在考试时间里，回来按「继续答题」接着走。'}
             </p>
             <Button isPending={isPausing} onPress={() => void onPause(false)}>
-              继续答题
+              {isFresh ? '开始笔试' : '继续答题'}
             </Button>
           </Card>
         ) : (
@@ -369,7 +394,7 @@ function WrittenPhase({
           questions={state.questions}
           action={
             <Button isPending={isSubmitting} onPress={() => void handleSubmit()}>
-              交卷并开始听力
+              {submitLabel}
             </Button>
           }
         >
@@ -392,10 +417,12 @@ function WrittenPhase({
             variant={isPaused ? 'primary' : 'outline'}
             onPress={() => void onPause(!isPaused)}
           >
-            {isPaused ? '继续答题' : '暂停计时'}
+            {isPaused ? (isFresh ? '开始笔试' : '继续答题') : '暂停计时'}
           </Button>
           {isPaused ? (
-            <p className="muted m-0 text-center text-xs">已暂停，钟停在这里</p>
+            <p className="muted m-0 text-center text-xs">
+              {isFresh ? '表还没起' : '已暂停，钟停在这里'}
+            </p>
           ) : isOvertime ? (
             <p className="m-0 text-center text-xs text-danger">已超时（自我评估模式不强制交卷）</p>
           ) : null}
@@ -447,6 +474,10 @@ function ListeningPhase({
   }, [])
 
   // 只在播放器的事件处理里被调用，不进任何副作用的依赖，可以随渲染变。
+  // 先听力的话，听力交完后面还有笔试。
+  const isLastSection = state.sectionOrder === 'written'
+  const submitLabel = isLastSection ? '交卷看成绩' : '交卷并开始笔试'
+
   const handleFinished = useCallback(() => {
     if (state.mode !== 'strict') {
       toast.warning('录音已播完，做完题就可以交卷')
@@ -461,9 +492,12 @@ function ListeningPhase({
   const handleSubmit = async () => {
     const unanswered = state.questions.length - Object.keys(answers).length
     const ok = await confirm({
-      title: '交卷？',
+      title: isLastSection ? '交卷？' : '交卷并开始笔试？',
       content:
-        (unanswered > 0 ? `还有 ${unanswered} 题没作答。` : '') + '交卷后即出成绩，答案不能再改。',
+        (unanswered > 0 ? `还有 ${unanswered} 题没作答。` : '') +
+        (isLastSection
+          ? '交卷后即出成绩，答案不能再改。'
+          : '交卷后听力部分不能再修改，接着进入笔试，110 分钟从那时开始算。'),
       okText: '交卷',
       cancelText: '再想想',
       status: unanswered > 0 ? 'warning' : 'accent',
@@ -511,7 +545,7 @@ function ListeningPhase({
           questions={state.questions}
           action={
             <Button isPending={isSubmitting} onPress={() => void handleSubmit()}>
-              交卷看成绩
+              {submitLabel}
             </Button>
           }
         />
@@ -555,12 +589,13 @@ function ResultPhase({ state, answers }: { state: ExamState; answers: Record<str
 
       {state.score ? (
         <ExamScoreCard
-          finishedAt={state.finishedAt}
           isCollecting={isCollecting}
+          listeningStartedAt={state.listeningStartedAt}
+          listeningSubmittedAt={state.listeningSubmittedAt}
           pausedMs={state.pausedMs}
           score={state.score}
-          startedAt={state.startedAt}
           wrongCount={collected ? 0 : wrong.filter((q) => answers[q.id] !== undefined).length}
+          writtenStartedAt={state.writtenStartedAt}
           writtenSubmittedAt={state.writtenSubmittedAt}
           onCollectWrong={() => void collect()}
         />

@@ -2,10 +2,10 @@ import { Link } from 'react-router'
 import { Card, Switch } from '@heroui/react'
 import { Moon, Sun } from 'lucide-react'
 
-import type { ExamMode } from '../api/qbankExam'
+import type { ExamMode, ExamSectionOrder } from '../api/qbankExam'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { useI18n, type UiLanguage } from '../i18n'
-import { EXAM_MODES } from './jlpt/constants'
+import { EXAM_MODES, EXAM_SECTION_ORDERS } from './jlpt/constants'
 import { useTheme, type Theme } from '../providers/themeContext'
 import { useSettings } from '../store/useSettings'
 
@@ -14,7 +14,7 @@ const LOCALES: readonly UiLanguage[] = ['zh', 'en', 'jp']
 export function SettingsPage() {
   const { language, setLanguage, t } = useI18n()
   const { theme, setTheme } = useTheme()
-  const { examMode, localDictEnabled } = useSettings((state) => state.settings)
+  const { examMode, examSectionOrder, localDictEnabled } = useSettings((state) => state.settings)
   const update = useSettings((state) => state.update)
 
   return (
@@ -115,6 +115,38 @@ export function SettingsPage() {
                 <b>{t(`jlpt.examMode.${m.value}`)}</b>
                 {t('jlpt.descSeparator')}
                 {t(`jlpt.examModeDesc.${m.value}`)}
+              </li>
+            ))}
+          </ul>
+        </Card.Content>
+      </Card>
+
+      <Card>
+        <Card.Header>
+          <Card.Title>{t('settings.examSectionOrder')}</Card.Title>
+          <Card.Description>{t('settings.examSectionOrderDesc')}</Card.Description>
+        </Card.Header>
+        <Card.Content className="gap-3">
+          <SegmentedControl<ExamSectionOrder>
+            aria-label={t('settings.examSectionOrder')}
+            value={examSectionOrder}
+            onChange={(order) => update({ examSectionOrder: order })}
+            options={EXAM_SECTION_ORDERS.map((o) => ({
+              value: o.value,
+              label: t(`jlpt.examSectionOrder.${o.value}`),
+            }))}
+          />
+          <ul className="m-0 grid list-none gap-1.5 p-0">
+            {EXAM_SECTION_ORDERS.map((o) => (
+              <li
+                className={`text-[13px]/[1.6] ${
+                  o.value === examSectionOrder ? 'text-foreground' : 'text-muted'
+                }`}
+                key={o.value}
+              >
+                <b>{t(`jlpt.examSectionOrder.${o.value}`)}</b>
+                {t('jlpt.descSeparator')}
+                {t(`jlpt.examSectionOrderDesc.${o.value}`)}
               </li>
             ))}
           </ul>

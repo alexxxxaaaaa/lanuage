@@ -16,11 +16,13 @@ import {
  * 与「精练」共用 QbankQuestion / QbankPassage，但用户数据完全分开
  * （QbankExamAttempt 一张表），所以考试不会冲掉平时的答题卡和错题本。
  *
- * 两个阶段串行推进，靠 QbankExamAttempt 上的两个时间戳判定：
- *   written（文字・語彙 + 文法 + 読解，110 分计时）
- *     ↓ writtenSubmittedAt —— 交卷即锁定，此后笔试答案不可改
- *   listening（聴解，听完整段录音）
- *     ↓ finishedAt —— 定格成绩，全卷进入可查看解析的状态
+ * 两块串行推进，先考哪一块由开考时定格的 sectionOrder 决定：
+ *   written（文字・語彙 + 文法 + 読解，110 分计时） ↓ writtenSubmittedAt
+ *   listening（聴解，听完整段录音）                 ↓ listeningSubmittedAt
+ * 先考的那块交卷即锁定、轮到另一块；后考的那块交卷时一并写 finishedAt 定格成绩。
+ *
+ * 先听力时，笔试的 110 分钟从听力交卷那一刻才起算 —— 不然听力那 55 分钟
+ * 会白白吃掉笔试的时间。
  *
  * 未交卷的阶段，出参里**不带** answer / explain / stemZh / passage(听力原文)，
  * 答案根本不下发到前端；这些字段只在 phase = done 时才出现。
@@ -32,6 +34,8 @@ export const LISTENING_MINUTES = 55
 
 export type ExamMode = 'strict' | 'self'
 export type ExamPhase = 'written' | 'listening' | 'done'
+/** 先考哪一块。written = 官方顺序（笔试→听力）。 */
+export type ExamSectionOrder = 'written' | 'listening'
 
 const WRITTEN_CATEGORIES = ['vocab', 'grammar', 'reading']
 
@@ -66,6 +70,7 @@ export type ExamPaper = {
 
 export type ExamAttemptSummary = {
   mode: ExamMode
+  sectionOrder: ExamSectionOrder
   phase: ExamPhase
   startedAt: string
   writtenSubmittedAt: string | null
@@ -99,9 +104,15 @@ export type ExamState = {
   year: number
   month: number
   mode: ExamMode
+  /** 先考哪一块，开考时定格。 */
+  sectionOrder: ExamSectionOrder
   phase: ExamPhase
   startedAt: string
+  /** 笔试倒计时的起点。先听力时是听力交卷那一刻，不是开考那一刻。 */
+  writtenStartedAt: string
+  listeningStartedAt: string
   writtenSubmittedAt: string | null
+  listeningSubmittedAt: string | null
   finishedAt: string | null
   /** 非空 = 笔试正暂停着，倒计时冻在这一刻。 */
   pausedAt: string | null
@@ -119,6 +130,10 @@ export type ExamState = {
 
 export function parseExamMode(raw: unknown): ExamMode {
   return raw === 'self' ? 'self' : 'strict'
+}
+
+export function parseSectionOrder(raw: unknown): ExamSectionOrder {
+  return raw === 'listening' ? 'listening' : 'written'
 }
 
 function parseAnswers(raw: string): Record<string, number> {
@@ -152,19 +167,51 @@ function iso(value: Date | null): string | null {
 type AttemptRow = {
   id: string
   mode: string
+  sectionOrder: string
   answers: string
   score: string
   startedAt: Date
   writtenSubmittedAt: Date | null
+  listeningSubmittedAt: Date | null
   finishedAt: Date | null
   pausedAt: Date | null
   pausedMs: number
 }
 
-function phaseOf(attempt: Pick<AttemptRow, 'writtenSubmittedAt' | 'finishedAt'>): ExamPhase {
+type PhaseFields = Pick<
+  AttemptRow,
+  'sectionOrder' | 'writtenSubmittedAt' | 'listeningSubmittedAt' | 'finishedAt'
+>
+
+function phaseOf(attempt: PhaseFields): ExamPhase {
   if (attempt.finishedAt) return 'done'
-  if (attempt.writtenSubmittedAt) return 'listening'
-  return 'written'
+  // 先考的那一块交了就轮到另一块；没交就还在它上面。
+  return parseSectionOrder(attempt.sectionOrder) === 'listening'
+    ? attempt.listeningSubmittedAt
+      ? 'written'
+      : 'listening'
+    : attempt.writtenSubmittedAt
+      ? 'listening'
+      : 'written'
+}
+
+type ClockFields = Pick<
+  AttemptRow,
+  'sectionOrder' | 'startedAt' | 'writtenSubmittedAt' | 'listeningSubmittedAt'
+>
+
+/** 笔试的钟从哪一刻起算。先听力时是听力交卷那一刻，否则就是开考那一刻。 */
+function writtenStartedAt(attempt: ClockFields): Date {
+  const order = parseSectionOrder(attempt.sectionOrder)
+  if (order === 'listening' && attempt.listeningSubmittedAt) return attempt.listeningSubmittedAt
+  return attempt.startedAt
+}
+
+/** 听力那一段是从哪一刻开始的。成绩单的「听力用时」要用。 */
+function listeningStartedAt(attempt: ClockFields): Date {
+  const order = parseSectionOrder(attempt.sectionOrder)
+  if (order === 'listening') return attempt.startedAt
+  return attempt.writtenSubmittedAt ?? attempt.startedAt
 }
 
 function isInPhase(category: string, phase: ExamPhase): boolean {
@@ -256,6 +303,7 @@ export async function listExamPapers(userId: string, level: string): Promise<Exa
     if (!paper) continue
     paper.attempt = {
       mode: parseExamMode(attempt.mode),
+      sectionOrder: parseSectionOrder(attempt.sectionOrder),
       phase: phaseOf(attempt),
       startedAt: new Date(attempt.startedAt).toISOString(),
       writtenSubmittedAt: iso(attempt.writtenSubmittedAt),
@@ -278,6 +326,7 @@ export async function startExam(
   year: number,
   month: number,
   mode: ExamMode,
+  sectionOrder: ExamSectionOrder,
 ): Promise<void> {
   await loadPaperIndex(level, year, month)
   const existing = await prisma.qbankExamAttempt.findUnique({
@@ -285,7 +334,9 @@ export async function startExam(
     select: { id: true },
   })
   if (existing) throw new AppError('这套卷子已经开考了，先重置才能重来', 409)
-  await prisma.qbankExamAttempt.create({ data: { userId, level, year, month, mode } })
+  await prisma.qbankExamAttempt.create({
+    data: { userId, level, year, month, mode, sectionOrder },
+  })
 }
 
 export async function resetExam(
@@ -377,9 +428,13 @@ export async function getExamState(
     year,
     month,
     mode: parseExamMode(attempt.mode),
+    sectionOrder: parseSectionOrder(attempt.sectionOrder),
     phase,
     startedAt: new Date(attempt.startedAt).toISOString(),
+    writtenStartedAt: writtenStartedAt(attempt).toISOString(),
+    listeningStartedAt: listeningStartedAt(attempt).toISOString(),
     writtenSubmittedAt: iso(attempt.writtenSubmittedAt),
+    listeningSubmittedAt: iso(attempt.listeningSubmittedAt),
     finishedAt: iso(attempt.finishedAt),
     pausedAt: iso(attempt.pausedAt),
     pausedMs: attempt.pausedMs,
@@ -485,24 +540,28 @@ export async function submitExamPhase(
         pausedMs: attempt.pausedMs + (now.getTime() - new Date(attempt.pausedAt).getTime()),
       }
     : {}
+  const stamp = phase === 'written' ? { writtenSubmittedAt: now } : { listeningSubmittedAt: now }
 
-  // 笔试交卷后还有听力要考；除非这套卷子压根没有听力题，那就直接出分。
-  if (phase === 'written' && index.some((q) => q.category === 'listening')) {
+  // 交的是先考的那一块、而且另一块确实有题，才接着考；否则这一下就是全卷交卷。
+  const isFirst = phase === parseSectionOrder(attempt.sectionOrder)
+  const hasOther = index.some((q) =>
+    phase === 'written' ? q.category === 'listening' : q.category !== 'listening',
+  )
+  if (isFirst && hasOther) {
+    // 先听力时，接下来的笔试直接从暂停态起步：听完到坐下做题中间可能隔很久，
+    // 这段不该算进 110 分钟。用户按「继续答题」才真正起表。
+    const startWrittenPaused = phase === 'listening' ? { pausedAt: now } : {}
     await prisma.qbankExamAttempt.update({
       where: { id: attempt.id },
-      data: { writtenSubmittedAt: now, ...settlePause },
+      data: { ...stamp, ...settlePause, ...startWrittenPaused },
     })
-    return { phase: 'listening', score: null }
+    return { phase: phase === 'written' ? 'listening' : 'written', score: null }
   }
 
   const score = grade(index, parseAnswers(attempt.answers))
   await prisma.qbankExamAttempt.update({
     where: { id: attempt.id },
-    data: {
-      ...(phase === 'written' ? { writtenSubmittedAt: now, ...settlePause } : {}),
-      finishedAt: now,
-      score: JSON.stringify(score),
-    },
+    data: { ...stamp, ...settlePause, finishedAt: now, score: JSON.stringify(score) },
   })
   return { phase: 'done', score }
 }

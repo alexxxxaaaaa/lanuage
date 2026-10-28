@@ -10,6 +10,8 @@ export type UserSettings = {
   theme: '' | 'light' | 'dark'
   uiLanguage: 'zh' | 'en' | 'jp'
   examMode: 'strict' | 'self'
+  /** 模拟考先考哪一块：'written' = 官方顺序，'listening' = 先听力。 */
+  examSectionOrder: 'written' | 'listening'
   localDictEnabled: boolean
 }
 
@@ -18,12 +20,14 @@ export const DEFAULT_SETTINGS: UserSettings = {
   theme: '',
   uiLanguage: 'zh',
   examMode: 'strict',
+  examSectionOrder: 'written',
   localDictEnabled: true,
 }
 
 const THEMES = ['', 'light', 'dark'] as const
 const UI_LANGUAGES = ['zh', 'en', 'jp'] as const
 const EXAM_MODES = ['strict', 'self'] as const
+const EXAM_SECTION_ORDERS = ['written', 'listening'] as const
 
 function pickEnum<T extends string>(value: unknown, allowed: readonly T[], field: string): T {
   if (typeof value !== 'string' || !allowed.includes(value as T)) {
@@ -36,6 +40,7 @@ function toSettings(row: {
   theme: string
   uiLanguage: string
   examMode: string
+  examSectionOrder: string
   localDictEnabled: boolean
 }): UserSettings {
   return {
@@ -50,6 +55,9 @@ function toSettings(row: {
     examMode: EXAM_MODES.includes(row.examMode as never)
       ? (row.examMode as UserSettings['examMode'])
       : DEFAULT_SETTINGS.examMode,
+    examSectionOrder: EXAM_SECTION_ORDERS.includes(row.examSectionOrder as never)
+      ? (row.examSectionOrder as UserSettings['examSectionOrder'])
+      : DEFAULT_SETTINGS.examSectionOrder,
     localDictEnabled: row.localDictEnabled,
   }
 }
@@ -71,6 +79,9 @@ export async function updateSettings(userId: string, input: Record<string, unkno
   }
   if (input.examMode !== undefined) {
     data.examMode = pickEnum(input.examMode, EXAM_MODES, 'examMode')
+  }
+  if (input.examSectionOrder !== undefined) {
+    data.examSectionOrder = pickEnum(input.examSectionOrder, EXAM_SECTION_ORDERS, 'examSectionOrder')
   }
   if (input.localDictEnabled !== undefined) {
     if (typeof input.localDictEnabled !== 'boolean') {

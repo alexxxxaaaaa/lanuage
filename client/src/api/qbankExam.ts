@@ -11,6 +11,8 @@ import type { QbankAiExplain } from './qbank'
 
 export type ExamMode = 'strict' | 'self'
 export type ExamPhase = 'written' | 'listening' | 'done'
+/** 先考哪一块。written = 官方顺序（笔试→听力）。 */
+export type ExamSectionOrder = 'written' | 'listening'
 
 export type ExamScore = {
   correct: number
@@ -28,6 +30,7 @@ export type ExamPaper = {
   listeningTotal: number
   attempt: {
     mode: ExamMode
+    sectionOrder: ExamSectionOrder
     phase: ExamPhase
     startedAt: string
     writtenSubmittedAt: string | null
@@ -64,9 +67,15 @@ export type ExamState = {
   year: number
   month: number
   mode: ExamMode
+  /** 先考哪一块，开考时定格。 */
+  sectionOrder: ExamSectionOrder
   phase: ExamPhase
   startedAt: string
+  /** 笔试倒计时的起点。先听力时是听力交卷那一刻，不是开考那一刻。 */
+  writtenStartedAt: string
+  listeningStartedAt: string
   writtenSubmittedAt: string | null
+  listeningSubmittedAt: string | null
   finishedAt: string | null
   /** 非空 = 笔试正暂停着，倒计时冻在这一刻。 */
   pausedAt: string | null
@@ -89,8 +98,13 @@ export async function getExamPapers() {
   return r.data.papers
 }
 
-export async function startExam(year: number, month: number, mode: ExamMode) {
-  const r = await apiClient.post<ExamState>(paperUrl(year, month), { mode })
+export async function startExam(
+  year: number,
+  month: number,
+  mode: ExamMode,
+  sectionOrder: ExamSectionOrder,
+) {
+  const r = await apiClient.post<ExamState>(paperUrl(year, month), { mode, sectionOrder })
   return r.data
 }
 

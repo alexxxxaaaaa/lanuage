@@ -15,6 +15,7 @@ import {
   getExamState,
   listExamPapers,
   parseExamMode,
+  parseSectionOrder,
   resetExam,
   saveExamAnswers,
   setExamPaused,
@@ -105,8 +106,17 @@ function paperOf(c: Context<AppEnv>) {
 
 qbankRouter.post('/exams/:year/:month', async (c) => {
   const { level, year, month } = paperOf(c)
-  const body = await c.req.json<{ mode?: string }>().catch(() => ({}) as { mode?: string })
-  await startExam(getUserId(c), level, year, month, parseExamMode(body.mode))
+  const body = await c.req
+    .json<{ mode?: string; sectionOrder?: string }>()
+    .catch(() => ({}) as { mode?: string; sectionOrder?: string })
+  await startExam(
+    getUserId(c),
+    level,
+    year,
+    month,
+    parseExamMode(body.mode),
+    parseSectionOrder(body.sectionOrder),
+  )
   return c.json(await getExamState(getUserId(c), level, year, month))
 })
 

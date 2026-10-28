@@ -58,6 +58,8 @@ model UserSettings {
   uiLanguage       String  @default("zh")
   /// JLPT 模拟考试的严格程度：'strict' | 'self'
   examMode         String  @default("strict")
+  /// 模拟考先考哪一块：'written' = 官方顺序（笔试→听力），'listening' = 先听力。
+  examSectionOrder String  @default("written")
   /// 查词页是否显示本地 Wiktextract 词库的来源分块（关掉只剩 AI 释义 + 我的单词库）。
   localDictEnabled Boolean @default(true)
 }
@@ -422,13 +424,18 @@ model QbankExamAttempt {
   month              Int
   // strict | self。开考时定格，中途改设置不影响进行中的这场。
   mode               String    @default("strict")
+  // 先考哪一块：written = 官方顺序，listening = 先听力。同样开考时定格 ——
+  // 阶段推进、笔试起算时刻都看它，中途变了会把进行中的这场算糊。
+  sectionOrder       String    @default("written")
   // JSON: { [questionId]: 1-based 选项 }
   answers            String    @default("{}")
   // JSON: 交卷时定格的成绩（ExamScore），列表页直接读，不必重算整卷。
   score              String    @default("")
-  // 三个时刻决定阶段：finishedAt → 已完成，writtenSubmittedAt → 听力中，都空 → 笔试中。
+  // 阶段由时刻决定：finishedAt → 已完成；否则看 sectionOrder 指的那一块交了没，
+  // 交了就轮到另一块。笔试的钟从「先听力时的 listeningSubmittedAt / 否则 startedAt」起算。
   startedAt          DateTime  @default(now())
   writtenSubmittedAt DateTime?
+  listeningSubmittedAt DateTime?
   finishedAt         DateTime?
   // 笔试倒计时的暂停。pausedAt 非空 = 此刻正暂停着，pausedMs 是此前累计暂停的毫秒。
   // 剩余时间 = 限时 - ((pausedAt ?? 现在) - startedAt - pausedMs)，所以暂停期间

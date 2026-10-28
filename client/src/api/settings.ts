@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { ExamMode } from './qbankExam'
+import type { ExamMode, ExamSectionOrder } from './qbankExam'
 import type { UiLanguage } from '../i18n'
 
 /** 空串 = 跟随系统，由 ThemeProvider 解析成 light / dark。 */
@@ -10,6 +10,8 @@ export type UserSettings = {
   theme: ThemeChoice
   uiLanguage: UiLanguage
   examMode: ExamMode
+  /** 模拟考先考哪一块。 */
+  examSectionOrder: ExamSectionOrder
   localDictEnabled: boolean
 }
 

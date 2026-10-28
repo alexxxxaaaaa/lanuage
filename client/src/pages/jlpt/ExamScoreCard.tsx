@@ -10,9 +10,11 @@ import { EXAM_SECTIONS, formatClock } from './constants'
 
 type Props = {
   score: ExamScore
-  startedAt: string
+  /** 两段各自的起止点。先听力时笔试是从听力交卷那一刻起算的，不能再拿 startedAt 减。 */
+  writtenStartedAt: string
   writtenSubmittedAt: string | null
-  finishedAt: string | null
+  listeningStartedAt: string
+  listeningSubmittedAt: string | null
   /** 笔试期间累计暂停的毫秒，不算进用时。 */
   pausedMs: number
   wrongCount: number
@@ -27,9 +29,10 @@ function spent(from: string | null, to: string | null, minusMs = 0): string {
 
 export function ExamScoreCard({
   score,
-  startedAt,
+  writtenStartedAt,
   writtenSubmittedAt,
-  finishedAt,
+  listeningStartedAt,
+  listeningSubmittedAt,
   pausedMs,
   wrongCount,
   isCollecting,
@@ -91,10 +94,10 @@ export function ExamScoreCard({
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs tabular-nums text-muted">
           <span>
-            笔试用时 {spent(startedAt, writtenSubmittedAt, pausedMs)}
+            笔试用时 {spent(writtenStartedAt, writtenSubmittedAt, pausedMs)}
             {pausedMs > 0 ? `（已扣除暂停 ${formatClock(pausedMs)}）` : ''}
           </span>
-          <span>听力用时 {spent(writtenSubmittedAt, finishedAt)}</span>
+          <span>听力用时 {spent(listeningStartedAt, listeningSubmittedAt)}</span>
           <span>合格线：总分 100 且每分区 19（官方换算表不公开，得点为估算值）</span>
         </div>
 
