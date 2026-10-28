@@ -32,6 +32,7 @@ export type ExamPaper = {
     startedAt: string
     writtenSubmittedAt: string | null
     finishedAt: string | null
+    isPaused: boolean
     answered: number
     score: ExamScore | null
   } | null
@@ -67,6 +68,10 @@ export type ExamState = {
   startedAt: string
   writtenSubmittedAt: string | null
   finishedAt: string | null
+  /** 非空 = 笔试正暂停着，倒计时冻在这一刻。 */
+  pausedAt: string | null
+  /** 此前累计暂停的毫秒，算剩余时间时从已用时里扣掉。 */
+  pausedMs: number
   /** 笔试限时（分钟），官方 110 分。 */
   writtenMinutes: number
   /** 听力官方时长（分钟），仅作展示——实际由录音长度决定。 */
@@ -106,6 +111,12 @@ export async function saveExamAnswers(
   answers: Record<string, number>,
 ) {
   const r = await apiClient.patch<{ answered: number }>(paperUrl(year, month), { answers })
+  return r.data
+}
+
+/** 暂停 / 继续笔试倒计时。只有笔试阶段能调。 */
+export async function setExamPaused(year: number, month: number, paused: boolean) {
+  const r = await apiClient.post<ExamState>(`${paperUrl(year, month)}/pause`, { paused })
   return r.data
 }
 

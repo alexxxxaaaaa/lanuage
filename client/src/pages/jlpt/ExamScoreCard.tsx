@@ -13,14 +13,16 @@ type Props = {
   startedAt: string
   writtenSubmittedAt: string | null
   finishedAt: string | null
+  /** 笔试期间累计暂停的毫秒，不算进用时。 */
+  pausedMs: number
   wrongCount: number
   isCollecting: boolean
   onCollectWrong: () => void
 }
 
-function spent(from: string | null, to: string | null): string {
+function spent(from: string | null, to: string | null, minusMs = 0): string {
   if (!from || !to) return '—'
-  return formatClock(new Date(to).getTime() - new Date(from).getTime())
+  return formatClock(Math.max(0, new Date(to).getTime() - new Date(from).getTime() - minusMs))
 }
 
 export function ExamScoreCard({
@@ -28,6 +30,7 @@ export function ExamScoreCard({
   startedAt,
   writtenSubmittedAt,
   finishedAt,
+  pausedMs,
   wrongCount,
   isCollecting,
   onCollectWrong,
@@ -87,7 +90,10 @@ export function ExamScoreCard({
         </div>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs tabular-nums text-muted">
-          <span>笔试用时 {spent(startedAt, writtenSubmittedAt)}</span>
+          <span>
+            笔试用时 {spent(startedAt, writtenSubmittedAt, pausedMs)}
+            {pausedMs > 0 ? `（已扣除暂停 ${formatClock(pausedMs)}）` : ''}
+          </span>
           <span>听力用时 {spent(writtenSubmittedAt, finishedAt)}</span>
           <span>合格线：总分 100 且每分区 19（官方换算表不公开，得点为估算值）</span>
         </div>

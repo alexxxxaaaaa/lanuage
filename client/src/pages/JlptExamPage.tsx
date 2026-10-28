@@ -6,6 +6,7 @@ import {
   collectExamWrongQuestions,
   getExamState,
   saveExamAnswers,
+  setExamPaused,
   submitExamPhase,
   type ExamPassage,
   type ExamQuestion,
@@ -42,6 +43,9 @@ import {
  *
  * 严格模式下倒计时归零、录音播完都会立刻自动交卷；自我评估模式两者都只提示，
  * 由用户自己按交卷。答案每次改动都会自动存回服务端，交卷后服务端拒绝再改。
+ *
+ * 笔试的钟可以暂停（110 分钟未必能一口气拿出来）。暂停状态存在服务端，所以
+ * 关页面、换设备都停得住；暂停期间题目整个收起来，不然等于白送时间。
  */
 
 // 作答改动后多久落库。太短会把整卷 JSON 打成连发请求，太长则关页面容易丢。
@@ -145,6 +149,27 @@ export function JlptExamPage() {
     setAnswers((prev) => ({ ...prev, [questionId]: selected }))
   }, [])
 
+  const [isPausing, setIsPausing] = useState(false)
+  const pause = useCallback(
+    async (paused: boolean) => {
+      setIsPausing(true)
+      try {
+        // 暂停前先把手上的改动落库：接下来可能直接关页面，debounce 等不到。
+        const serialized = JSON.stringify(answersRef.current)
+        if (paused && serialized !== savedRef.current) {
+          await saveExamAnswers(year, month, answersRef.current)
+          savedRef.current = serialized
+        }
+        applyState(await setExamPaused(year, month, paused))
+      } catch (e) {
+        toast.danger(getErrorMessage(e, paused ? '暂停失败' : '继续失败'))
+      } finally {
+        setIsPausing(false)
+      }
+    },
+    [year, month, applyState],
+  )
+
   const submit = useCallback(
     async (target: 'written' | 'listening') => {
       setIsSubmitting(true)
@@ -193,7 +218,8 @@ export function JlptExamPage() {
   }
 
   const shared = { state, answers, isSubmitting, onPick: pick, onSubmit: submit }
-  if (state.phase === 'written') return <WrittenPhase {...shared} />
+  if (state.phase === 'written')
+    return <WrittenPhase {...shared} isPausing={isPausing} onPause={pause} />
   if (state.phase === 'listening') return <ListeningPhase {...shared} isPageActive={isActive} />
   return <ResultPhase state={state} answers={answers} />
 }
@@ -256,28 +282,43 @@ const LAYOUT = 'grid grid-cols-[minmax(0,1fr)_260px] items-start gap-5 max-[900p
 
 // ===== 笔试 =====
 
-function WrittenPhase({ state, answers, isSubmitting, onPick, onSubmit }: PhaseProps) {
+function WrittenPhase({
+  state,
+  answers,
+  isSubmitting,
+  isPausing,
+  onPick,
+  onPause,
+  onSubmit,
+}: PhaseProps & { isPausing: boolean; onPause: (paused: boolean) => Promise<void> }) {
   const numbers = useQuestionNumbers(state.questions)
   const passages = usePassageMap(state.passages)
   const [now, setNow] = useState(() => Date.now())
   const autoSubmittedRef = useRef(false)
 
-  const deadline = new Date(state.startedAt).getTime() + state.writtenMinutes * 60_000
-  const remaining = deadline - now
+  // 剩余时间全部由服务端的时间戳算：暂停时「现在」取 pausedAt，时钟就定在那一刻，
+  // 刷新页面、过几天再打开，算出来都是同一个数。
+  const pausedAt = state.pausedAt ? new Date(state.pausedAt).getTime() : null
+  const isPaused = pausedAt !== null
+  const elapsed = (pausedAt ?? now) - new Date(state.startedAt).getTime() - state.pausedMs
+  const remaining = state.writtenMinutes * 60_000 - elapsed
   const isOvertime = remaining <= 0
 
   useEffect(() => {
+    // 暂停时钟不走，这一秒一次的重渲染就没必要了。
+    if (isPaused) return
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(timer)
-  }, [])
+  }, [isPaused])
 
-  // 严格模式：时间一到直接交卷，不问。
+  // 严格模式：时间一到直接交卷，不问。暂停中不触发 —— 哪怕暂停前就已经超时了，
+  // 也等按「继续」再说，否则一打开页面就被交卷。
   useEffect(() => {
-    if (state.mode !== 'strict' || !isOvertime || autoSubmittedRef.current) return
+    if (state.mode !== 'strict' || isPaused || !isOvertime || autoSubmittedRef.current) return
     autoSubmittedRef.current = true
     toast.warning('时间到，已自动交卷')
     void onSubmit('written')
-  }, [state.mode, isOvertime, onSubmit])
+  }, [state.mode, isPaused, isOvertime, onSubmit])
 
   const handleSubmit = async () => {
     const unanswered = state.questions.length - Object.keys(answers).length
@@ -301,13 +342,27 @@ function WrittenPhase({ state, answers, isSubmitting, onPick, onSubmit }: PhaseP
         extra={`共 ${state.questions.length} 题 · 限时 ${state.writtenMinutes} 分`}
       />
       <div className={LAYOUT}>
-        <ExamQuestionList
-          answers={answers}
-          numbers={numbers}
-          passages={passages}
-          questions={state.questions}
-          onPick={onPick}
-        />
+        {/* 暂停时整块题目收起来。留在屏幕上的话，「暂停」就成了不限时读题，
+            这个钟也就没有意义了。 */}
+        {isPaused ? (
+          <Card className="min-w-0 items-center gap-3 py-16 text-center">
+            <p className="m-0 text-[15px] font-semibold text-foreground">计时已暂停</p>
+            <p className="muted m-0 max-w-[32ch] text-[13px]">
+              题目先收起来了。离开多久都不算在考试时间里，回来按「继续答题」接着走。
+            </p>
+            <Button isPending={isPausing} onPress={() => void onPause(false)}>
+              继续答题
+            </Button>
+          </Card>
+        ) : (
+          <ExamQuestionList
+            answers={answers}
+            numbers={numbers}
+            passages={passages}
+            questions={state.questions}
+            onPick={onPick}
+          />
+        )}
         <ExamAnswerSheet
           answers={answers}
           numbers={numbers}
@@ -320,16 +375,28 @@ function WrittenPhase({ state, answers, isSubmitting, onPick, onSubmit }: PhaseP
         >
           <div
             className={`rounded-[10px] py-2 text-center font-mono text-[26px] font-semibold tabular-nums ${
-              isOvertime
-                ? 'bg-danger/12 text-danger'
-                : remaining < 10 * 60_000
-                  ? 'bg-warning/12 text-warning-soft-foreground'
-                  : 'bg-accent/10 text-accent'
+              isPaused
+                ? 'bg-foreground/8 text-muted'
+                : isOvertime
+                  ? 'bg-danger/12 text-danger'
+                  : remaining < 10 * 60_000
+                    ? 'bg-warning/12 text-warning-soft-foreground'
+                    : 'bg-accent/10 text-accent'
             }`}
           >
             {isOvertime ? `+${formatClock(remaining)}` : formatClock(remaining)}
           </div>
-          {isOvertime ? (
+          <Button
+            isPending={isPausing}
+            size="sm"
+            variant={isPaused ? 'primary' : 'outline'}
+            onPress={() => void onPause(!isPaused)}
+          >
+            {isPaused ? '继续答题' : '暂停计时'}
+          </Button>
+          {isPaused ? (
+            <p className="muted m-0 text-center text-xs">已暂停，钟停在这里</p>
+          ) : isOvertime ? (
             <p className="m-0 text-center text-xs text-danger">已超时（自我评估模式不强制交卷）</p>
           ) : null}
         </ExamAnswerSheet>
@@ -490,6 +557,7 @@ function ResultPhase({ state, answers }: { state: ExamState; answers: Record<str
         <ExamScoreCard
           finishedAt={state.finishedAt}
           isCollecting={isCollecting}
+          pausedMs={state.pausedMs}
           score={state.score}
           startedAt={state.startedAt}
           wrongCount={collected ? 0 : wrong.filter((q) => answers[q.id] !== undefined).length}

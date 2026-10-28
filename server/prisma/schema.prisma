@@ -430,6 +430,11 @@ model QbankExamAttempt {
   startedAt          DateTime  @default(now())
   writtenSubmittedAt DateTime?
   finishedAt         DateTime?
+  // 笔试倒计时的暂停。pausedAt 非空 = 此刻正暂停着，pausedMs 是此前累计暂停的毫秒。
+  // 剩余时间 = 限时 - ((pausedAt ?? 现在) - startedAt - pausedMs)，所以暂停期间
+  // 时钟原地不动；关掉页面也照样停着，下次打开接着走。
+  pausedAt           DateTime?
+  pausedMs           Int       @default(0)
 
   @@unique([userId, level, year, month])
 }

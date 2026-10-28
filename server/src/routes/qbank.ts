@@ -17,6 +17,7 @@ import {
   parseExamMode,
   resetExam,
   saveExamAnswers,
+  setExamPaused,
   startExam,
   submitExamPhase,
 } from '../services/qbankExamService'
@@ -125,6 +126,15 @@ qbankRouter.patch('/exams/:year/:month', async (c) => {
   const { level, year, month } = paperOf(c)
   const body = await c.req.json<{ answers?: Record<string, unknown> }>()
   return c.json(await saveExamAnswers(getUserId(c), level, year, month, body.answers ?? {}))
+})
+
+/** 暂停 / 继续笔试倒计时。 */
+qbankRouter.post('/exams/:year/:month/pause', async (c) => {
+  const { level, year, month } = paperOf(c)
+  const body = await c.req.json<{ paused?: unknown }>()
+  if (typeof body.paused !== 'boolean') throw new AppError('paused 必须是布尔值', 400)
+  await setExamPaused(getUserId(c), level, year, month, body.paused)
+  return c.json(await getExamState(getUserId(c), level, year, month))
 })
 
 qbankRouter.post('/exams/:year/:month/submit', async (c) => {

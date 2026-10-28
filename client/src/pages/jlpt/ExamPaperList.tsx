@@ -146,7 +146,11 @@ export function ExamPaperList() {
                     <Table.Cell>
                       {attempt ? (
                         <>
-                          <div className={CELL_MAIN}>{phaseText[attempt.phase]}</div>
+                          <div className={CELL_MAIN}>
+                            {phaseText[attempt.phase]}
+                            {/* 暂停着的那场在列表上就标出来，不然要点进去才知道钟停着。 */}
+                            {attempt.isPaused ? <span className="text-muted"> · 已暂停</span> : null}
+                          </div>
                           {attempt.score ? (
                             // 着色只落在得分那个数上：满分是常量，染了也没多告诉一句。
                             <div className={CELL_SUB}>

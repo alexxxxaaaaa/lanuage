@@ -70,6 +70,7 @@ export type ExamAttemptSummary = {
   startedAt: string
   writtenSubmittedAt: string | null
   finishedAt: string | null
+  isPaused: boolean
   answered: number
   score: ExamScore | null
 }
@@ -102,6 +103,10 @@ export type ExamState = {
   startedAt: string
   writtenSubmittedAt: string | null
   finishedAt: string | null
+  /** 非空 = 笔试正暂停着，倒计时冻在这一刻。 */
+  pausedAt: string | null
+  /** 此前累计暂停的毫秒，算剩余时间时要从已用时里扣掉。 */
+  pausedMs: number
   writtenMinutes: number
   listeningMinutes: number
   answers: Record<string, number>
@@ -152,6 +157,8 @@ type AttemptRow = {
   startedAt: Date
   writtenSubmittedAt: Date | null
   finishedAt: Date | null
+  pausedAt: Date | null
+  pausedMs: number
 }
 
 function phaseOf(attempt: Pick<AttemptRow, 'writtenSubmittedAt' | 'finishedAt'>): ExamPhase {
@@ -253,6 +260,7 @@ export async function listExamPapers(userId: string, level: string): Promise<Exa
       startedAt: new Date(attempt.startedAt).toISOString(),
       writtenSubmittedAt: iso(attempt.writtenSubmittedAt),
       finishedAt: iso(attempt.finishedAt),
+      isPaused: attempt.pausedAt !== null,
       answered: Object.keys(parseAnswers(attempt.answers)).length,
       score: parseScore(attempt.score),
     }
@@ -373,6 +381,8 @@ export async function getExamState(
     startedAt: new Date(attempt.startedAt).toISOString(),
     writtenSubmittedAt: iso(attempt.writtenSubmittedAt),
     finishedAt: iso(attempt.finishedAt),
+    pausedAt: iso(attempt.pausedAt),
+    pausedMs: attempt.pausedMs,
     writtenMinutes: WRITTEN_MINUTES,
     listeningMinutes: LISTENING_MINUTES,
     // 未交卷时只回当前阶段的作答，上一阶段的答案不再下发。
@@ -419,6 +429,36 @@ export async function saveExamAnswers(
   return { answered: Object.keys(next).length }
 }
 
+/**
+ * 暂停 / 继续笔试倒计时。
+ *
+ * 只有笔试有钟，听力是录音推着走的，所以别的阶段一律拒绝。
+ * 暂停时把时刻记在 pausedAt；继续时把这段时长并进 pausedMs 再清空 pausedAt ——
+ * 时间全部由服务端的时间戳算出来，刷新、换设备、关几天再回来都是一样的结果。
+ */
+export async function setExamPaused(
+  userId: string,
+  level: string,
+  year: number,
+  month: number,
+  paused: boolean,
+): Promise<void> {
+  const attempt = await requireAttempt(userId, level, year, month)
+  if (phaseOf(attempt) !== 'written') throw new AppError('只有笔试阶段能暂停计时', 409)
+  // 重复点同一个状态（多开一个标签页之类）当成功处理，不报错。
+  if (paused === (attempt.pausedAt !== null)) return
+
+  await prisma.qbankExamAttempt.update({
+    where: { id: attempt.id },
+    data: paused
+      ? { pausedAt: new Date() }
+      : {
+          pausedAt: null,
+          pausedMs: attempt.pausedMs + (Date.now() - new Date(attempt.pausedAt!).getTime()),
+        },
+  })
+}
+
 export async function submitExamPhase(
   userId: string,
   level: string,
@@ -438,11 +478,19 @@ export async function submitExamPhase(
   const index = await loadPaperIndex(level, year, month)
   const now = new Date()
 
+  // 暂停着就交卷：先把这一段结进 pausedMs，不然「笔试用时」会把发呆的时间算上。
+  const settlePause = attempt.pausedAt
+    ? {
+        pausedAt: null,
+        pausedMs: attempt.pausedMs + (now.getTime() - new Date(attempt.pausedAt).getTime()),
+      }
+    : {}
+
   // 笔试交卷后还有听力要考；除非这套卷子压根没有听力题，那就直接出分。
   if (phase === 'written' && index.some((q) => q.category === 'listening')) {
     await prisma.qbankExamAttempt.update({
       where: { id: attempt.id },
-      data: { writtenSubmittedAt: now },
+      data: { writtenSubmittedAt: now, ...settlePause },
     })
     return { phase: 'listening', score: null }
   }
@@ -451,7 +499,7 @@ export async function submitExamPhase(
   await prisma.qbankExamAttempt.update({
     where: { id: attempt.id },
     data: {
-      ...(phase === 'written' ? { writtenSubmittedAt: now } : {}),
+      ...(phase === 'written' ? { writtenSubmittedAt: now, ...settlePause } : {}),
       finishedAt: now,
       score: JSON.stringify(score),
     },
